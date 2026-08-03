@@ -76,7 +76,8 @@ class ProjectRepository:
             ProjectEventModel.project_id == project_id,
             ProjectEventModel.event_id == event_id,
         )
-        return await self.session.scalar(statement)
+        sequence = await self.session.scalar(statement)
+        return int(sequence) if sequence is not None else None
 
     async def next_event_sequence(self, project_id: str) -> int:
         statement = select(func.coalesce(func.max(ProjectEventModel.sequence_number), 0)).where(
