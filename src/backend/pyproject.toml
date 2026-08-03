@@ -7,8 +7,12 @@ name = "agentinsight-eufy-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+  "aiosqlite>=0.20,<1",
+  "alembic>=1.14,<2",
   "fastapi>=0.115,<1",
   "pydantic-settings>=2.6,<3",
+  "sqlalchemy[asyncio]>=2.0.36,<3",
+  "sse-starlette>=2.2,<3",
   "uvicorn[standard]>=0.32,<1",
 ]
 
