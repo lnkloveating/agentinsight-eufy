@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -85,3 +87,13 @@ class AgentRun(BaseModel):
     completed_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None
+
+
+class ProjectEvent(BaseModel):
+    event_id: str
+    event_type: str
+    project_id: str
+    sequence_number: int = Field(ge=1)
+    timestamp: datetime
+    data: dict[str, Any]
+    trace_id: str

@@ -1,8 +1,10 @@
+from collections.abc import AsyncIterator
 from typing import NoReturn
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status
+from sse_starlette.sse import EventSourceResponse
 
-from app.api.dependencies import ProjectServiceDependency
+from app.api.dependencies import EventServiceDependency, ProjectServiceDependency
 from app.schemas.project import AgentRun, DecisionCreate, Project, ProjectCreate
 
 router = APIRouter()
@@ -57,10 +59,40 @@ async def list_agent_runs(
     return await service.list_agent_runs(project_id)
 
 
-@router.get("/{project_id}/events", response_model=None)
-async def stream_project_events(project_id: str) -> None:
-    del project_id
-    not_implemented()
+@router.get(
+    "/{project_id}/events",
+    response_model=None,
+    summary="订阅项目实时事件",
+    description="先回放未消费的数据库事件，再持续推送新事件，并支持 Last-Event-ID 续传。",
+)
+async def stream_project_events(
+    project_id: str,
+    service: EventServiceDependency,
+    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+) -> EventSourceResponse:
+    await service.ensure_project_exists(project_id)
+    after_sequence = await service.resolve_after_sequence(project_id, last_event_id)
+    event_stream = service.stream(project_id, after_sequence)
+
+    async def generate_events() -> AsyncIterator[dict[str, str]]:
+        async for event in event_stream:
+            if event is None:
+                yield {"comment": "heartbeat"}
+                continue
+            yield {
+                "id": event.event_id,
+                "event": event.event_type,
+                "data": event.model_dump_json(),
+            }
+
+    return EventSourceResponse(
+        generate_events(),
+        ping=None,
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post(

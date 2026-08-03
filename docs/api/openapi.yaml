@@ -451,17 +451,19 @@ components:
           additionalProperties: true
     ProjectEvent:
       type: object
-      required: [event_id, event_type, project_id, timestamp, data]
+      required: [event_id, event_type, project_id, sequence_number, timestamp, data, trace_id]
       properties:
         event_id: { type: string }
         event_type:
           type: string
-          enum: [project_status_changed, agent_status_changed, evidence_added, decision_required, report_ready, error]
+          enum: [project_created, project_status_changed, agent_status_changed, evidence_added, decision_required, report_ready, error]
         project_id: { type: string }
+        sequence_number: { type: integer, minimum: 1 }
         timestamp: { type: string, format: date-time }
         data:
           type: object
           additionalProperties: true
+        trace_id: { type: string }
     Error:
       type: object
       required: [code, message, trace_id]

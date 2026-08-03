@@ -6,7 +6,10 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.events import EventService, ProjectEventBroker
 from app.application.projects import ProjectService
+from app.core.config import Settings
+from app.infrastructure.database import Database
 from app.infrastructure.database.repositories import ProjectRepository
 
 
@@ -20,7 +23,17 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 def get_project_service(request: Request, session: SessionDependency) -> ProjectService:
     trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
-    return ProjectService(ProjectRepository(session), trace_id)
+    return ProjectService(ProjectRepository(session), trace_id, request.app.state.event_broker)
 
 
 ProjectServiceDependency = Annotated[ProjectService, Depends(get_project_service)]
+
+
+def get_event_service(request: Request) -> EventService:
+    database: Database = request.app.state.database
+    broker: ProjectEventBroker = request.app.state.event_broker
+    settings: Settings = request.app.state.settings
+    return EventService(database, broker, settings.sse_heartbeat_seconds)
+
+
+EventServiceDependency = Annotated[EventService, Depends(get_event_service)]

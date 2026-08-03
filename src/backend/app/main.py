@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
+from app.application.events import ProjectEventBroker
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
@@ -21,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         database = Database(resolved_settings.database_url)
         application.state.database = database
+        application.state.event_broker = ProjectEventBroker()
         if resolved_settings.auto_create_schema:
             await database.create_schema()
         try:

@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.application.events.broker import ProjectEventBroker
 from app.core.errors import AppError
 from app.infrastructure.database.models import (
     AgentRunModel,
@@ -27,9 +28,15 @@ from app.schemas.project import (
 class ProjectService:
     """处理不依赖 LLM 的确定性项目生命周期规则。"""
 
-    def __init__(self, repository: ProjectRepository, trace_id: str) -> None:
+    def __init__(
+        self,
+        repository: ProjectRepository,
+        trace_id: str,
+        event_broker: ProjectEventBroker,
+    ) -> None:
         self.repository = repository
         self.trace_id = trace_id
+        self.event_broker = event_broker
 
     async def create_project(self, payload: ProjectCreate) -> Project:
         project_id = f"proj_{uuid4().hex[:16]}"
@@ -87,6 +94,7 @@ class ProjectService:
             await self.repository.rollback()
             raise
 
+        await self.event_broker.notify(project_id)
         return self._to_project(project_model)
 
     async def list_projects(self) -> list[Project]:
@@ -175,6 +183,7 @@ class ProjectService:
             await self.repository.rollback()
             raise
 
+        await self.event_broker.notify(project_id)
         return self._to_project(project)
 
     async def _activate_manager_if_needed(

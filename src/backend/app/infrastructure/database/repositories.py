@@ -52,6 +52,32 @@ class ProjectRepository:
         self.session.add(event)
         await self.session.flush()
 
+    async def list_events(
+        self,
+        project_id: str,
+        *,
+        after_sequence: int = 0,
+        limit: int = 100,
+    ) -> list[ProjectEventModel]:
+        statement: Select[tuple[ProjectEventModel]] = (
+            select(ProjectEventModel)
+            .where(
+                ProjectEventModel.project_id == project_id,
+                ProjectEventModel.sequence_number > after_sequence,
+            )
+            .order_by(ProjectEventModel.sequence_number.asc())
+            .limit(limit)
+        )
+        result = await self.session.scalars(statement)
+        return list(result)
+
+    async def get_event_sequence(self, project_id: str, event_id: str) -> int | None:
+        statement = select(ProjectEventModel.sequence_number).where(
+            ProjectEventModel.project_id == project_id,
+            ProjectEventModel.event_id == event_id,
+        )
+        return await self.session.scalar(statement)
+
     async def next_event_sequence(self, project_id: str) -> int:
         statement = select(func.coalesce(func.max(ProjectEventModel.sequence_number), 0)).where(
             ProjectEventModel.project_id == project_id
