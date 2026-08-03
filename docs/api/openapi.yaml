@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: AgentInsight eufy API
-  version: 0.1.0
-  description: API-first contract for the AI-native product-definition MVP.
+  title: AgentInsight × eufy API
+  version: 0.2.0
+  description: AI 原生产品定义工作台的中文 API 契约。
 servers:
   - url: http://localhost:8000/api/v1
 tags:
@@ -15,6 +15,7 @@ paths:
   /health:
     get:
       tags: [System]
+      summary: 检查服务健康状态
       operationId: getHealth
       responses:
         "200":
@@ -24,8 +25,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/Health"
   /projects:
+    get:
+      tags: [Projects]
+      summary: 查询研究项目列表
+      operationId: listProjects
+      responses:
+        "200":
+          description: 按更新时间倒序返回项目。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
     post:
       tags: [Projects]
+      summary: 创建研究项目
       operationId: createProject
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -47,6 +64,7 @@ paths:
   /projects/{project_id}:
     get:
       tags: [Projects]
+      summary: 查询单个研究项目
       operationId: getProject
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -59,9 +77,28 @@ paths:
                 $ref: "#/components/schemas/Project"
         default:
           $ref: "#/components/responses/Error"
+  /projects/{project_id}/agents:
+    get:
+      tags: [Projects]
+      summary: 查询项目中的 Agent 运行状态
+      operationId: listAgentRuns
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Agent 运行记录。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentRun"
+        default:
+          $ref: "#/components/responses/Error"
   /projects/{project_id}/events:
     get:
       tags: [Projects]
+      summary: 订阅项目实时事件
       operationId: streamProjectEvents
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -271,6 +308,23 @@ components:
             - type: "null"
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    AgentRun:
+      type: object
+      required: [agent_run_id, project_id, agent_type, agent_name, status, progress]
+      properties:
+        agent_run_id: { type: string }
+        project_id: { type: string }
+        agent_type: { type: string }
+        agent_name: { type: string }
+        status:
+          type: string
+          enum: [queued, running, waiting, completed, failed, cancelled]
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        message: { type: string }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+        error_code: { type: [string, "null"] }
+        error_message: { type: [string, "null"] }
     PendingDecision:
       type: object
       required: [decision_id, gate, allowed_actions]
