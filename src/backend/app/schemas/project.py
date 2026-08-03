@@ -17,11 +17,28 @@ class ProjectStatus(StrEnum):
     TERMINATED = "terminated"
 
 
+class AgentRunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    WAITING = "waiting"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class DecisionAction(StrEnum):
+    APPROVE = "approve"
+    REVISE = "revise"
+    RESEARCH_MORE = "research_more"
+    REJECT = "reject"
+    TERMINATE = "terminate"
+
+
 class ResearchBrief(BaseModel):
-    question: str
-    category: str
-    target_user: str
-    region: str
+    question: str = Field(min_length=5, max_length=1000)
+    category: str = Field(min_length=1, max_length=120)
+    target_user: str = Field(min_length=1, max_length=240)
+    region: str = Field(min_length=1, max_length=120)
     scenarios: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
     focus_dimensions: list[str] = Field(default_factory=list)
@@ -34,7 +51,7 @@ class ProjectCreate(BaseModel):
 class PendingDecision(BaseModel):
     decision_id: str
     gate: str
-    allowed_actions: list[str]
+    allowed_actions: list[DecisionAction]
 
 
 class Project(BaseModel):
@@ -50,7 +67,21 @@ class Project(BaseModel):
 
 class DecisionCreate(BaseModel):
     decision_id: str
-    action: str
-    reason: str
-    actor: str
+    action: DecisionAction
+    reason: str = Field(min_length=1, max_length=2000)
+    actor: str = Field(min_length=1, max_length=120)
     selected_concept_ids: list[str] = Field(default_factory=list)
+
+
+class AgentRun(BaseModel):
+    agent_run_id: str
+    project_id: str
+    agent_type: str
+    agent_name: str
+    status: AgentRunStatus
+    progress: int = Field(ge=0, le=100)
+    message: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error_code: str | None = None
+    error_message: str | None = None

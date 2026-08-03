@@ -169,6 +169,7 @@ paths:
   /projects/{project_id}/decisions:
     post:
       tags: [Projects]
+      summary: 提交人工审批决定
       operationId: submitDecision
       parameters:
         - $ref: "#/components/parameters/ProjectId"
