@@ -1,0 +1,419 @@
+openapi: 3.1.0
+info:
+  title: AgentInsight eufy API
+  version: 0.1.0
+  description: API-first contract for the AI-native product-definition MVP.
+servers:
+  - url: http://localhost:8000/api/v1
+tags:
+  - name: System
+  - name: Projects
+  - name: Evidence
+  - name: Concepts
+  - name: Reports
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /projects:
+    post:
+      tags: [Projects]
+      operationId: createProject
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectCreate"
+      responses:
+        "201":
+          description: Project created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}:
+    get:
+      tags: [Projects]
+      operationId: getProject
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/events:
+    get:
+      tags: [Projects]
+      operationId: streamProjectEvents
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Server-sent event stream. Each data field is a ProjectEvent JSON object.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/evidence:
+    get:
+      tags: [Evidence]
+      operationId: listEvidence
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Evidence records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidencePage"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/claims:
+    get:
+      tags: [Evidence]
+      operationId: listClaims
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Claims and their evidence relationships.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Claim"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/concepts:
+    get:
+      tags: [Concepts]
+      operationId: listConcepts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Candidate concepts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Concept"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/decisions:
+    post:
+      tags: [Projects]
+      operationId: submitDecision
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionCreate"
+      responses:
+        "202":
+          description: Decision accepted and workflow resume requested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/report:
+    get:
+      tags: [Reports]
+      operationId: getReport
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Final proposal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        default:
+          $ref: "#/components/responses/Error"
+  /projects/{project_id}/metrics:
+    get:
+      tags: [Reports]
+      operationId: getMetrics
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Runtime and method-comparison metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Metrics"
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  parameters:
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          const: ok
+        version:
+          type: string
+    ProjectStatus:
+      type: string
+      enum:
+        - draft
+        - awaiting_brief_approval
+        - researching
+        - awaiting_concept_approval
+        - supplementing_research
+        - generating_report
+        - awaiting_final_approval
+        - completed
+        - failed
+        - terminated
+    ResearchBrief:
+      type: object
+      required: [question, category, target_user, region, scenarios, constraints]
+      properties:
+        question: { type: string }
+        category: { type: string }
+        target_user: { type: string }
+        region: { type: string }
+        scenarios:
+          type: array
+          items: { type: string }
+        constraints:
+          type: array
+          items: { type: string }
+        focus_dimensions:
+          type: array
+          items: { type: string }
+    ProjectCreate:
+      type: object
+      required: [brief]
+      properties:
+        brief:
+          $ref: "#/components/schemas/ResearchBrief"
+    Project:
+      type: object
+      required: [project_id, status, brief, created_at, updated_at]
+      properties:
+        project_id: { type: string }
+        status:
+          $ref: "#/components/schemas/ProjectStatus"
+        current_stage: { type: string }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        brief:
+          $ref: "#/components/schemas/ResearchBrief"
+        pending_decision:
+          anyOf:
+            - $ref: "#/components/schemas/PendingDecision"
+            - type: "null"
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PendingDecision:
+      type: object
+      required: [decision_id, gate, allowed_actions]
+      properties:
+        decision_id: { type: string }
+        gate:
+          type: string
+          enum: [brief, concept, final]
+        allowed_actions:
+          type: array
+          items:
+            type: string
+            enum: [approve, revise, research_more, reject, terminate]
+    Evidence:
+      type: object
+      required: [evidence_id, source_url, source_type, captured_at, status, content_hash, confidence]
+      properties:
+        evidence_id: { type: string }
+        source_url: { type: string, format: uri }
+        source_type: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        product: { type: string }
+        region: { type: string }
+        captured_at: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [discovered, captured, parsed, validated, failed, excluded]
+        content_hash: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        failure_reason: { type: [string, "null"] }
+    EvidencePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        next_cursor: { type: [string, "null"] }
+        total: { type: integer, minimum: 0 }
+    Claim:
+      type: object
+      required: [claim_id, statement, evidence_ids, status]
+      properties:
+        claim_id: { type: string }
+        statement: { type: string }
+        evidence_ids:
+          type: array
+          items: { type: string }
+        contradicting_evidence_ids:
+          type: array
+          items: { type: string }
+        status:
+          type: string
+          enum: [proposed, supported, disputed, rejected, unknown]
+    Concept:
+      type: object
+      required: [concept_id, name, target_user, value_proposition, supporting_evidence_ids, status]
+      properties:
+        concept_id: { type: string }
+        name: { type: string }
+        target_user: { type: string }
+        value_proposition: { type: string }
+        supporting_evidence_ids:
+          type: array
+          items: { type: string }
+        risks:
+          type: array
+          items: { type: string }
+        red_team_findings:
+          type: array
+          items: { type: string }
+        scores:
+          type: object
+          additionalProperties: { type: number }
+        status:
+          type: string
+          enum: [candidate, needs_revision, promoted, rejected]
+    DecisionCreate:
+      type: object
+      required: [decision_id, action, reason, actor]
+      properties:
+        decision_id: { type: string }
+        action:
+          type: string
+          enum: [approve, revise, research_more, reject, terminate]
+        reason: { type: string }
+        actor: { type: string }
+        selected_concept_ids:
+          type: array
+          items: { type: string }
+    Report:
+      type: object
+      required: [report_id, project_id, version, sections, cited_evidence_ids]
+      properties:
+        report_id: { type: string }
+        project_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        recommendation:
+          type: string
+          enum: [proceed, research_more, do_not_proceed]
+        sections:
+          type: object
+          additionalProperties: true
+        cited_evidence_ids:
+          type: array
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        generated_at: { type: string, format: date-time }
+    Metrics:
+      type: object
+      properties:
+        elapsed_seconds: { type: number, minimum: 0 }
+        valid_evidence_count: { type: integer, minimum: 0 }
+        citation_coverage: { type: number, minimum: 0, maximum: 1 }
+        source_diversity: { type: integer, minimum: 0 }
+        estimated_cost: { type: number, minimum: 0 }
+        comparison:
+          type: object
+          additionalProperties: true
+    ProjectEvent:
+      type: object
+      required: [event_id, event_type, project_id, timestamp, data]
+      properties:
+        event_id: { type: string }
+        event_type:
+          type: string
+          enum: [project_status_changed, agent_status_changed, evidence_added, decision_required, report_ready, error]
+        project_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        data:
+          type: object
+          additionalProperties: true
+    Error:
+      type: object
+      required: [code, message, trace_id]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+        trace_id: { type: string }

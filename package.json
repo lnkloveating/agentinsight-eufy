@@ -1,0 +1,17 @@
+{
+  "name": "agentinsight-eufy",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "src/frontend"
+  ],
+  "scripts": {
+    "frontend:dev": "npm --workspace src/frontend run dev",
+    "frontend:build": "npm --workspace src/frontend run build",
+    "frontend:lint": "npm --workspace src/frontend run lint",
+    "frontend:typecheck": "npm --workspace src/frontend run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
