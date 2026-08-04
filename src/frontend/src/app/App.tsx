@@ -1,9 +1,28 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+
+import { ProjectMetricsPage } from '../pages/ProjectMetricsPage';
+import { ProjectReportPage } from '../pages/ProjectReportPage';
+import { ProjectsPage } from '../pages/ProjectsPage';
+import { ProjectWorkbenchPage } from '../pages/ProjectWorkbenchPage';
+import { AppShellLayout } from '../widgets/app-shell/AppShellLayout';
+
+const queryClient = new QueryClient();
+
 export function App() {
   return (
-    <main className="app-shell">
-      <p className="eyebrow">工程骨架已就绪</p>
-      <h1>AgentInsight × eufy</h1>
-      <p>前端功能尚未实现。请依据 OpenAPI 契约开发五个核心体验。</p>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate replace to="/projects" />} />
+          <Route element={<AppShellLayout />}>
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId" element={<ProjectWorkbenchPage />} />
+            <Route path="/projects/:projectId/report" element={<ProjectReportPage />} />
+            <Route path="/projects/:projectId/metrics" element={<ProjectMetricsPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
