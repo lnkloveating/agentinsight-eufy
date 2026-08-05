@@ -59,7 +59,7 @@ flowchart LR
 2. Failed collection attempts are stored as observable data.
 3. Brief, concept promotion and final definition are human decision gates.
 4. Agents exchange structured schemas rather than unconstrained transcripts.
-5. Public contracts are versioned under `/api/v1`.
+5. The implemented scaffold remains under `/api/v1`; breaking event-understanding changes are defined under `/api/v2` and must not be advertised before implementation and contract tests are complete.
 6. Feishu mirrors collaboration state but never replaces backend persistence or workflow checkpoints.
 7. An Innovation requires Event, State, at least two Context signals, Inference, Risk or Value, and Action.
 8. A high-severity red-team finding must cause research, revision or rejection before promotion.
