@@ -1,16 +1,20 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.2.0
-  description: AI 原生产品定义工作台的中文 API 契约。
+  version: 0.3.0
+  description: |
+    AIPDF 事件理解产品研究工作台的 v2 目标契约。
+    v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
 servers:
-  - url: http://localhost:8000/api/v1
+  - url: http://localhost:8000/api/v2
 tags:
   - name: System
   - name: Projects
   - name: Evidence
-  - name: Concepts
+  - name: Innovations
+  - name: Demo
   - name: Reports
+  - name: Feishu
 paths:
   /health:
     get:
@@ -24,20 +28,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+
   /projects:
     get:
       tags: [Projects]
       summary: 查询研究项目列表
       operationId: listProjects
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
-          description: 按更新时间倒序返回项目。
+          description: 按最近更新时间倒序返回项目。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Project"
+                $ref: "#/components/schemas/ProjectPage"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -54,13 +59,14 @@ paths:
               $ref: "#/components/schemas/ProjectCreate"
       responses:
         "201":
-          description: Project created.
+          description: 已创建项目并进入 Brief 人工确认门。
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}:
     get:
       tags: [Projects]
@@ -70,23 +76,24 @@ paths:
         - $ref: "#/components/parameters/ProjectId"
       responses:
         "200":
-          description: Project state.
+          description: 当前项目状态。
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents:
     get:
       tags: [Projects]
-      summary: 查询项目中的 Agent 运行状态
+      summary: 查询 Agent 运行状态
       operationId: listAgentRuns
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
         "200":
-          description: Agent 运行记录。
+          description: 六类 Agent 及其子任务运行记录。
           content:
             application/json:
               schema:
@@ -95,6 +102,7 @@ paths:
                   $ref: "#/components/schemas/AgentRun"
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}/events:
     get:
       tags: [Projects]
@@ -109,20 +117,32 @@ paths:
             type: string
       responses:
         "200":
-          description: Server-sent event stream. Each data field is a ProjectEvent JSON object.
+          description: 每条 SSE data 为一个 ProjectEvent JSON 对象；事件类型放在对象字段中，SSE 使用默认 message 事件。
           content:
             text/event-stream:
               schema:
                 type: string
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}/evidence:
     get:
       tags: [Evidence]
+      summary: 查询项目证据
       operationId: listEvidence
       parameters:
         - $ref: "#/components/parameters/ProjectId"
         - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/EvidenceStatus"
+        - name: source_type
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: Evidence records.
@@ -132,9 +152,11 @@ paths:
                 $ref: "#/components/schemas/EvidencePage"
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}/claims:
     get:
       tags: [Evidence]
+      summary: 查询 Claim 与证据关系
       operationId: listClaims
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -149,27 +171,30 @@ paths:
                   $ref: "#/components/schemas/Claim"
         default:
           $ref: "#/components/responses/Error"
-  /projects/{project_id}/concepts:
+
+  /projects/{project_id}/innovations:
     get:
-      tags: [Concepts]
-      operationId: listConcepts
+      tags: [Innovations]
+      summary: 查询候选事件理解场景
+      operationId: listInnovations
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
         "200":
-          description: Candidate concepts.
+          description: 至少三个候选及评分、红队结论和晋级状态。
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Concept"
+                  $ref: "#/components/schemas/Innovation"
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}/decisions:
     post:
       tags: [Projects]
-      summary: 提交人工审批决定
+      summary: 提交人工阶段决定
       operationId: submitDecision
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -182,44 +207,183 @@ paths:
               $ref: "#/components/schemas/DecisionCreate"
       responses:
         "202":
-          description: Decision accepted and workflow resume requested.
+          description: 已记录决定并请求从对应 Checkpoint 恢复。
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
         default:
           $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/demo-result:
+    get:
+      tags: [Demo]
+      summary: 查询晋级场景 Demo 结果
+      operationId: getDemoResult
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Demo 输入、风险判断、行动建议、指标和限制。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoResult"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/report:
     get:
       tags: [Reports]
+      summary: 查询最终研究提案
       operationId: getReport
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
         "200":
-          description: Final proposal.
+          description: 建议立项、补充验证或不建议立项的版本化报告。
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Report"
         default:
           $ref: "#/components/responses/Error"
+
   /projects/{project_id}/metrics:
     get:
       tags: [Reports]
+      summary: 查询运行与方法对照指标
       operationId: getMetrics
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
         "200":
-          description: Runtime and method-comparison metrics.
+          description: Runtime, evidence, quality and comparison metrics.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Metrics"
         default:
           $ref: "#/components/responses/Error"
+
+  /integrations/feishu/researches:
+    post:
+      tags: [Feishu]
+      summary: Aily 创建研究项目
+      description: Aily create_research API Skill。必须快速返回，实际研究异步运行。
+      operationId: feishuCreateResearch
+      security:
+        - FeishuSkillBearer: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeishuResearchCreate"
+      responses:
+        "201":
+          description: 已创建项目。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeishuResearchCreated"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /integrations/feishu/researches/{project_id}/status:
+    get:
+      tags: [Feishu]
+      summary: Aily 查询研究状态
+      operationId: feishuGetResearchStatus
+      security:
+        - FeishuSkillBearer: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 项目阶段、Agent 状态、证据覆盖和待决定事项。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeishuResearchStatus"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /integrations/feishu/researches/{project_id}/findings:
+    get:
+      tags: [Feishu]
+      summary: Aily 查询已通过门禁的研究结论
+      operationId: feishuGetResearchFindings
+      security:
+        - FeishuSkillBearer: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 候选场景、关键 Findings、Unknowns 与 Web 地址。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeishuResearchFindings"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /integrations/feishu/researches/{project_id}/decisions:
+    post:
+      tags: [Feishu]
+      summary: Aily 或飞书卡片提交人工决定
+      operationId: feishuSubmitDecision
+      security:
+        - FeishuSkillBearer: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeishuDecisionCreate"
+      responses:
+        "202":
+          description: 已记录决定并请求恢复工作流。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeishuResearchStatus"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /integrations/feishu/researches/{project_id}/report:
+    get:
+      tags: [Feishu]
+      summary: Aily 查询最终报告摘要
+      operationId: feishuGetFinalReport
+      security:
+        - FeishuSkillBearer: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 最终建议、报告摘要、Web 地址和飞书文档地址。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeishuReportSummary"
+        default:
+          $ref: "#/components/responses/Error"
+
 components:
+  securitySchemes:
+    FeishuSkillBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-service-token
+
   parameters:
     ProjectId:
       name: project_id
@@ -227,6 +391,7 @@ components:
       required: true
       schema:
         type: string
+        pattern: "^proj_[A-Za-z0-9_-]+$"
     Cursor:
       name: cursor
       in: query
@@ -236,9 +401,12 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      required: false
+      required: true
       schema:
         type: string
+        minLength: 8
+        maxLength: 128
+
   responses:
     Error:
       description: Error response.
@@ -246,9 +414,11 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+
   schemas:
     Health:
       type: object
+      additionalProperties: false
       required: [status, version]
       properties:
         status:
@@ -256,45 +426,119 @@ components:
           const: ok
         version:
           type: string
+
     ProjectStatus:
       type: string
       enum:
         - draft
         - awaiting_brief_approval
-        - researching
-        - awaiting_concept_approval
+        - opportunity_research
+        - scenario_comparison
         - supplementing_research
-        - generating_report
+        - awaiting_scenario_approval
+        - demo_running
         - awaiting_final_approval
         - completed
+        - rejected
         - failed
         - terminated
+
+    DecisionAction:
+      type: string
+      enum: [approve, revise, research_more, reject, terminate]
+
+    DecisionGate:
+      type: string
+      enum: [brief, scenario, final]
+
+    AgentRunStatus:
+      type: string
+      enum: [pending, running, completed, partial, failed, blocked, needs_revision, cancelled]
+
+    InnovationStatus:
+      type: string
+      enum: [draft, evidence_pending, tech_review, business_review, red_team_review, needs_revision, recommended, rejected]
+
+    EvidenceStatus:
+      type: string
+      enum: [verified, partially_verified, unverified, outdated, mock, invalid]
+
+    ClaimStatus:
+      type: string
+      enum: [proposed, supported, disputed, missing_evidence, rejected, unknown]
+
+    Recommendation:
+      type: string
+      enum: [recommend, investigate, do_not_recommend]
+
+    ResearchConstraints:
+      type: object
+      additionalProperties: false
+      required: [must_be_event_understanding, must_have_evidence, minimum_candidates, max_innovations]
+      properties:
+        must_be_event_understanding: { type: boolean, const: true }
+        must_have_evidence: { type: boolean, const: true }
+        minimum_candidates: { type: integer, minimum: 3, default: 3 }
+        max_innovations: { type: integer, minimum: 3, maximum: 10, default: 5 }
+        max_research_iterations: { type: integer, minimum: 0, maximum: 5, default: 2 }
+        max_red_team_revisions: { type: integer, minimum: 0, maximum: 3, default: 1 }
+
     ResearchBrief:
       type: object
-      required: [question, category, target_user, region, scenarios, constraints]
+      additionalProperties: false
+      required:
+        - question
+        - markets
+        - categories
+        - target_user_segments
+        - brands
+        - data_sources
+        - time_range
+        - constraints
       properties:
-        question: { type: string }
-        category: { type: string }
-        target_user: { type: string }
-        region: { type: string }
-        scenarios:
+        question:
+          type: string
+          minLength: 5
+          maxLength: 1000
+        markets:
           type: array
+          minItems: 1
           items: { type: string }
-        constraints:
+        categories:
           type: array
+          minItems: 1
           items: { type: string }
+        target_user_segments:
+          type: array
+          minItems: 1
+          items: { type: string }
+        brands:
+          type: array
+          minItems: 1
+          items: { type: string }
+        data_sources:
+          type: array
+          minItems: 1
+          items: { type: string }
+        time_range: { type: string }
         focus_dimensions:
           type: array
           items: { type: string }
+        constraints:
+          $ref: "#/components/schemas/ResearchConstraints"
+
     ProjectCreate:
       type: object
+      additionalProperties: false
       required: [brief]
       properties:
         brief:
           $ref: "#/components/schemas/ResearchBrief"
+
     Project:
       type: object
-      required: [project_id, status, brief, created_at, updated_at]
+      additionalProperties: false
+      required: [project_id, status, current_stage, progress, brief, selected_innovation_ids, created_at, updated_at]
       properties:
         project_id: { type: string }
         status:
@@ -303,63 +547,114 @@ components:
         progress: { type: integer, minimum: 0, maximum: 100 }
         brief:
           $ref: "#/components/schemas/ResearchBrief"
+        selected_innovation_ids:
+          type: array
+          items: { type: string }
         pending_decision:
-          anyOf:
+          oneOf:
             - $ref: "#/components/schemas/PendingDecision"
             - type: "null"
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+
+    ProjectPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+        next_cursor: { type: [string, "null"] }
+        total: { type: integer, minimum: 0 }
+
     AgentRun:
       type: object
-      required: [agent_run_id, project_id, agent_type, agent_name, status, progress]
+      additionalProperties: false
+      required: [agent_run_id, project_id, agent_type, agent_name, status, progress, quality_score, message]
       properties:
         agent_run_id: { type: string }
         project_id: { type: string }
-        agent_type: { type: string }
+        task_id: { type: [string, "null"] }
+        agent_type:
+          type: string
+          enum: [research_manager, user_research, competitor_research, product_technical, business, red_team]
         agent_name: { type: string }
         status:
-          type: string
-          enum: [queued, running, waiting, completed, failed, cancelled]
+          $ref: "#/components/schemas/AgentRunStatus"
         progress: { type: integer, minimum: 0, maximum: 100 }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
         message: { type: string }
+        evidence_ids:
+          type: array
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
         started_at: { type: [string, "null"], format: date-time }
         completed_at: { type: [string, "null"], format: date-time }
         error_code: { type: [string, "null"] }
         error_message: { type: [string, "null"] }
+
     PendingDecision:
       type: object
-      required: [decision_id, gate, allowed_actions]
+      additionalProperties: false
+      required: [decision_id, gate, allowed_actions, checkpoint_id, requested_at]
       properties:
         decision_id: { type: string }
         gate:
-          type: string
-          enum: [brief, concept, final]
+          $ref: "#/components/schemas/DecisionGate"
         allowed_actions:
           type: array
+          minItems: 1
           items:
-            type: string
-            enum: [approve, revise, research_more, reject, terminate]
+            $ref: "#/components/schemas/DecisionAction"
+        checkpoint_id: { type: string }
+        requested_at: { type: string, format: date-time }
+
     Evidence:
       type: object
-      required: [evidence_id, source_url, source_type, captured_at, status, content_hash, confidence]
+      additionalProperties: false
+      required:
+        - evidence_id
+        - source_url
+        - source_domain
+        - source_type
+        - title
+        - original_excerpt
+        - claim_type
+        - collected_at
+        - status
+        - content_hash
+        - confidence
       properties:
         evidence_id: { type: string }
         source_url: { type: string, format: uri }
+        source_domain: { type: string }
         source_type: { type: string }
         title: { type: string }
-        excerpt: { type: string }
-        product: { type: string }
-        region: { type: string }
-        captured_at: { type: string, format: date-time }
-        status:
+        original_excerpt: { type: string }
+        claim_type:
           type: string
-          enum: [discovered, captured, parsed, validated, failed, excluded]
+          enum: [fact, user_opinion, vendor_claim, agent_inference]
+        product: { type: [string, "null"] }
+        region: { type: [string, "null"] }
+        user_segment: { type: [string, "null"] }
+        published_at: { type: [string, "null"], format: date-time }
+        collected_at: { type: string, format: date-time }
+        status:
+          $ref: "#/components/schemas/EvidenceStatus"
         content_hash: { type: string }
         confidence: { type: number, minimum: 0, maximum: 1 }
-        failure_reason: { type: [string, "null"] }
+        authority_score: { type: number, minimum: 0, maximum: 1 }
+        recency_score: { type: number, minimum: 0, maximum: 1 }
+        diversity_score: { type: number, minimum: 0, maximum: 1 }
+
     EvidencePage:
       type: object
-      required: [items]
+      additionalProperties: false
+      required: [items, next_cursor, total]
       properties:
         items:
           type: array
@@ -367,67 +662,284 @@ components:
             $ref: "#/components/schemas/Evidence"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
     Claim:
       type: object
-      required: [claim_id, statement, evidence_ids, status]
+      additionalProperties: false
+      required: [claim_id, statement, claim_type, evidence_ids, contradicting_evidence_ids, status]
       properties:
         claim_id: { type: string }
         statement: { type: string }
+        claim_type:
+          type: string
+          enum: [fact, user_opinion, vendor_claim, inference, hypothesis]
         evidence_ids:
           type: array
           items: { type: string }
         contradicting_evidence_ids:
           type: array
           items: { type: string }
+        scope:
+          type: object
+          additionalProperties: true
         status:
-          type: string
-          enum: [proposed, supported, disputed, rejected, unknown]
-    Concept:
+          $ref: "#/components/schemas/ClaimStatus"
+
+    ContextSignal:
       type: object
-      required: [concept_id, name, target_user, value_proposition, supporting_evidence_ids, status]
+      additionalProperties: false
+      required: [type, source, availability, authorization, freshness, latency_ms, confidence, fallback]
       properties:
-        concept_id: { type: string }
-        name: { type: string }
-        target_user: { type: string }
-        value_proposition: { type: string }
-        supporting_evidence_ids:
+        type: { type: string }
+        source: { type: string }
+        availability:
+          type: string
+          enum: [available, partial, simulated, unavailable, unverified]
+        authorization: { type: string }
+        freshness: { type: string }
+        latency_ms: { type: integer, minimum: 0 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        fallback: { type: string }
+
+    EventUnderstanding:
+      type: object
+      additionalProperties: false
+      required: [base_event, event_state, context_signals, inference, risk_or_value, recommended_action]
+      properties:
+        base_event:
+          type: object
+          required: [type, source]
+          properties:
+            type: { type: string }
+            source: { type: string }
+          additionalProperties: false
+        event_state:
+          type: object
+          required: [type, source]
+          properties:
+            type: { type: string }
+            source: { type: string }
+          additionalProperties: false
+        context_signals:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/ContextSignal"
+        inference: { type: string }
+        risk_or_value: { type: string }
+        recommended_action: { type: string }
+
+    ScoreComponent:
+      type: object
+      additionalProperties: false
+      required: [score, weight, rationale, evidence_ids]
+      properties:
+        score: { type: number, minimum: 0, maximum: 100 }
+        weight: { type: number, exclusiveMinimum: 0, maximum: 1 }
+        rationale: { type: string }
+        evidence_ids:
           type: array
           items: { type: string }
-        risks:
+
+    RedTeamReview:
+      type: object
+      additionalProperties: false
+      required: [severity, required_actions, score_adjustments, decision]
+      properties:
+        severity:
+          type: string
+          enum: [low, medium, high]
+        critical_assumptions:
           type: array
           items: { type: string }
-        red_team_findings:
+        evidence_issues:
           type: array
           items: { type: string }
-        scores:
+        event_understanding_challenges:
+          type: array
+          items: { type: string }
+        competitor_challenges:
+          type: array
+          items: { type: string }
+        technical_risks:
+          type: array
+          items: { type: string }
+        business_risks:
+          type: array
+          items: { type: string }
+        privacy_and_safety_risks:
+          type: array
+          items: { type: string }
+        required_actions:
+          type: array
+          items: { type: string }
+        score_adjustments:
           type: object
           additionalProperties: { type: number }
-        status:
+        decision:
           type: string
-          enum: [candidate, needs_revision, promoted, rejected]
+          enum: [pass, revise, research_more, reject]
+
+    Innovation:
+      type: object
+      additionalProperties: false
+      required:
+        - innovation_id
+        - name
+        - status
+        - target_user
+        - problem
+        - event_understanding
+        - competitor_gap_ids
+        - evidence_ids
+        - score_breakdown
+        - final_score
+      properties:
+        innovation_id: { type: string }
+        name: { type: string }
+        status:
+          $ref: "#/components/schemas/InnovationStatus"
+        target_user:
+          type: object
+          required: [persona_ids, description]
+          properties:
+            persona_ids:
+              type: array
+              items: { type: string }
+            description: { type: string }
+          additionalProperties: false
+        problem:
+          type: object
+          required: [pain_ids, description]
+          properties:
+            pain_ids:
+              type: array
+              items: { type: string }
+            description: { type: string }
+          additionalProperties: false
+        event_understanding:
+          $ref: "#/components/schemas/EventUnderstanding"
+        competitor_gap_ids:
+          type: array
+          items: { type: string }
+        technical_assessment:
+          type: object
+          additionalProperties: true
+        business_assessment:
+          type: object
+          additionalProperties: true
+        red_team_review:
+          oneOf:
+            - $ref: "#/components/schemas/RedTeamReview"
+            - type: "null"
+        evidence_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        score_breakdown:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ScoreComponent"
+        final_score: { type: number, minimum: 0, maximum: 100 }
+
     DecisionCreate:
       type: object
-      required: [decision_id, action, reason, actor]
+      additionalProperties: false
+      required: [decision_id, action, reason, actor, selected_innovation_ids]
       properties:
         decision_id: { type: string }
         action:
+          $ref: "#/components/schemas/DecisionAction"
+        reason:
           type: string
-          enum: [approve, revise, research_more, reject, terminate]
-        reason: { type: string }
-        actor: { type: string }
-        selected_concept_ids:
+          minLength: 1
+          maxLength: 2000
+        actor:
+          type: object
+          additionalProperties: false
+          required: [type, actor_id, display_name]
+          properties:
+            type:
+              type: string
+              enum: [web_user, feishu_user, operator]
+            actor_id: { type: string }
+            display_name: { type: string }
+        selected_innovation_ids:
           type: array
           items: { type: string }
+
+    DemoInput:
+      type: object
+      additionalProperties: false
+      required: [signal_type, value, source, observed_at, confidence, is_simulated]
+      properties:
+        signal_type: { type: string }
+        value: {}
+        source: { type: string }
+        observed_at: { type: string, format: date-time }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        is_simulated: { type: boolean }
+
+    DemoResult:
+      type: object
+      additionalProperties: false
+      required:
+        - demo_result_id
+        - project_id
+        - innovation_id
+        - status
+        - inputs
+        - inference
+        - risk_level
+        - recommended_action
+        - metrics
+        - limitations
+        - evidence_ids
+        - started_at
+        - completed_at
+      properties:
+        demo_result_id: { type: string }
+        project_id: { type: string }
+        innovation_id: { type: string }
+        status:
+          type: string
+          enum: [succeeded, partial, failed, inconclusive]
+        inputs:
+          type: array
+          minItems: 3
+          items:
+            $ref: "#/components/schemas/DemoInput"
+        inference: { type: string }
+        risk_level:
+          type: string
+          enum: [none, low, medium, high, uncertain]
+        recommended_action: { type: string }
+        metrics:
+          type: object
+          additionalProperties: { type: number }
+        limitations:
+          type: array
+          items: { type: string }
+        evidence_ids:
+          type: array
+          items: { type: string }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+
     Report:
       type: object
-      required: [report_id, project_id, version, sections, cited_evidence_ids]
+      additionalProperties: false
+      required: [report_id, project_id, version, recommendation, sections, cited_evidence_ids, unknowns, generated_at]
       properties:
         report_id: { type: string }
         project_id: { type: string }
         version: { type: integer, minimum: 1 }
         recommendation:
-          type: string
-          enum: [proceed, research_more, do_not_proceed]
+          $ref: "#/components/schemas/Recommendation"
+        selected_innovation_ids:
+          type: array
+          items: { type: string }
+        demo_result_id: { type: [string, "null"] }
         sections:
           type: object
           additionalProperties: true
@@ -437,26 +949,53 @@ components:
         unknowns:
           type: array
           items: { type: string }
+        rejected_innovations:
+          type: array
+          items:
+            type: object
+            required: [innovation_id, reason]
+            properties:
+              innovation_id: { type: string }
+              reason: { type: string }
         generated_at: { type: string, format: date-time }
+
     Metrics:
       type: object
+      additionalProperties: false
+      required: [elapsed_seconds, valid_evidence_count, citation_coverage, source_diversity, estimated_cost]
       properties:
         elapsed_seconds: { type: number, minimum: 0 }
         valid_evidence_count: { type: integer, minimum: 0 }
         citation_coverage: { type: number, minimum: 0, maximum: 1 }
         source_diversity: { type: integer, minimum: 0 }
+        failed_source_count: { type: integer, minimum: 0 }
         estimated_cost: { type: number, minimum: 0 }
         comparison:
           type: object
           additionalProperties: true
+
     ProjectEvent:
       type: object
+      additionalProperties: false
       required: [event_id, event_type, project_id, sequence_number, timestamp, data, trace_id]
       properties:
         event_id: { type: string }
         event_type:
           type: string
-          enum: [project_created, project_status_changed, agent_status_changed, evidence_added, decision_required, report_ready, error]
+          enum:
+            - project_created
+            - project_status_changed
+            - agent_status_changed
+            - evidence_added
+            - evidence_collection_failed
+            - innovation_scored
+            - red_team_reviewed
+            - decision_required
+            - decision_recorded
+            - demo_started
+            - demo_completed
+            - report_ready
+            - error
         project_id: { type: string }
         sequence_number: { type: integer, minimum: 1 }
         timestamp: { type: string, format: date-time }
@@ -464,8 +1003,112 @@ components:
           type: object
           additionalProperties: true
         trace_id: { type: string }
+
+    FeishuContext:
+      type: object
+      additionalProperties: false
+      required: [tenant_key, open_id, chat_id]
+      properties:
+        tenant_key: { type: string }
+        open_id: { type: string }
+        chat_id: { type: string }
+        message_id: { type: [string, "null"] }
+
+    FeishuResearchCreate:
+      type: object
+      additionalProperties: false
+      required: [brief, feishu_context]
+      properties:
+        brief:
+          $ref: "#/components/schemas/ResearchBrief"
+        feishu_context:
+          $ref: "#/components/schemas/FeishuContext"
+
+    FeishuResearchCreated:
+      type: object
+      additionalProperties: false
+      required: [project_id, status, message, web_url]
+      properties:
+        project_id: { type: string }
+        status:
+          $ref: "#/components/schemas/ProjectStatus"
+        message: { type: string }
+        web_url: { type: string, format: uri }
+
+    EvidenceCoverage:
+      type: object
+      additionalProperties: false
+      required: [valid_count, failed_source_count, citation_coverage, independent_domains]
+      properties:
+        valid_count: { type: integer, minimum: 0 }
+        failed_source_count: { type: integer, minimum: 0 }
+        citation_coverage: { type: number, minimum: 0, maximum: 1 }
+        independent_domains: { type: integer, minimum: 0 }
+
+    FeishuResearchStatus:
+      type: object
+      additionalProperties: false
+      required: [project, agent_runs, evidence_coverage, web_url]
+      properties:
+        project:
+          $ref: "#/components/schemas/Project"
+        agent_runs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentRun"
+        evidence_coverage:
+          $ref: "#/components/schemas/EvidenceCoverage"
+        web_url: { type: string, format: uri }
+
+    FeishuResearchFindings:
+      type: object
+      additionalProperties: false
+      required: [project_id, key_findings, innovations, unknowns, web_url]
+      properties:
+        project_id: { type: string }
+        key_findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Claim"
+        innovations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Innovation"
+        unknowns:
+          type: array
+          items: { type: string }
+        web_url: { type: string, format: uri }
+
+    FeishuDecisionCreate:
+      type: object
+      additionalProperties: false
+      required: [decision_id, action, reason, selected_innovation_ids, feishu_context]
+      properties:
+        decision_id: { type: string }
+        action:
+          $ref: "#/components/schemas/DecisionAction"
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        selected_innovation_ids:
+          type: array
+          items: { type: string }
+        feishu_context:
+          $ref: "#/components/schemas/FeishuContext"
+
+    FeishuReportSummary:
+      type: object
+      additionalProperties: false
+      required: [project_id, recommendation, summary, web_url]
+      properties:
+        project_id: { type: string }
+        recommendation:
+          $ref: "#/components/schemas/Recommendation"
+        summary: { type: string }
+        web_url: { type: string, format: uri }
+        feishu_document_url: { type: [string, "null"], format: uri }
+
     Error:
       type: object
+      additionalProperties: false
       required: [code, message, trace_id]
       properties:
         code: { type: string }
