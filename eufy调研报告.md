@@ -14,7 +14,7 @@
 
 > eufy 在北美家庭安防市场还有什么值得做的新产品？
 
-飞书 Aily 首先帮助用户明确品类、目标用户、地区、价格和约束，再调用自研 Agent 后端。调研总管 Agent 将任务拆解给用户研究、竞品、产品技术、商业和红队专家；所有专家共享同一套证据库，每条结论都必须关联原始来源、时间、适用范围和可信度。Deep Research 页面实时展示研究计划、数据覆盖、证据冲突、候选概念及淘汰原因，最终生成一份可追溯的产品提案，并通过飞书文档和审批完成团队协作与决策留痕。
+飞书 Aily 首先帮助用户明确品类、目标用户、地区、价格和约束，再调用自研 Agent 后端。调研总管 Agent 将任务拆解给用户研究、竞品、产品技术、商业和红队专家；所有专家共享同一套证据库，每条结论都必须关联原始来源、时间、适用范围和可信度。Deep Research 页面实时展示研究计划、数据覆盖、证据冲突、候选场景及淘汰原因，最终生成一份可追溯的产品提案，并通过飞书文档和审批完成团队协作与决策留痕。
 
 本项目同时完成安克命题要求的两项交付：
 
@@ -192,7 +192,7 @@ flowchart TB
     RED -->|"通过"| CONCEPTGATE["HITL 2<br/>候选场景晋级"]
     CONCEPTGATE --> DEMO["晋级场景 Demo"]
     DEMO --> FINALIZE["Demo 结果与提案草案"]
-    FINALIZE --> FINALGATE["HITL 3<br/>最终产品定义审批"]
+    FINALIZE --> FINALGATE["HITL 3<br/>最终建议审批"]
     FINALGATE --> REPORT["产品提案<br/>飞书文档 + Web 报告"]
 
     INSIGHT["AgentInsight<br/>Trace、评测、成本、延迟"] -.-> MANAGER
@@ -482,7 +482,7 @@ Human in the Loop 不是最终报告上的一次确认，而是 LangGraph 状态
 6. **缺失显式化**：`blocked`、`partial`、`paywalled` 等状态进入覆盖率，抓不到不能被解释成不存在；
 7. **确定性检查**：程序检查 JSON Schema、引用是否存在、数字和日期是否一致、产品型号是否混淆、是否重复引用同一来源；
 8. **最终引用检查**：报告中的关键事实句必须能映射到 Claim 和 EvidenceCard，映射失败则退回；
-9. **人工阶段门**：范围、概念晋级和最终产品定义必须经过飞书审批。
+9. **人工阶段门**：Brief、候选场景晋级和最终建议必须经过飞书审批。
 
 外部网页属于不可信输入，还需要防止 Prompt Injection：
 
@@ -830,18 +830,18 @@ AgentInsight 用于记录两组实验的版本、Trace、模型、Prompt、数�
 ### 11.1 端到端工作流
 
 1. 产品经理在飞书 Aily 输入研究问题；
-2. Aily 追问并生成结构化 Brief；
-3. 用户确认后，Aily 调用 Agent 后端；
-4. Deep Research 页面展示计划、Agent 状态和数据覆盖；
-5. 调研总管通过 A2A 调用竞品主管，竞品主管再通过 A2A 并行情报专家；专家提交 EvidenceRequest，由 Evidence Collector 通过 MCP 获取资料；
-6. 用户研究、产品技术和商业工作流读取同一 Evidence Lake，生成三个候选概念；
-7. 红队指出重复产品、证据不足和不可行点；
-8. 飞书发起概念晋级审批；
-9. 系统根据审批结果补研或生成最终提案；
-10. 飞书文档沉淀正式产品提案；
-11. 页面展示 AI 组与传统组的对照结果。
+2. Aily 追问市场、用户、品类、品牌、时间、数据来源和 Innovation 约束，生成结构化 Brief；
+3. 用户在飞书确认后，Aily 调用 Agent 后端创建项目；
+4. 调研总管规划行业机会研究，Deep Research 页面展示计划、Agent 状态和数据覆盖；
+5. 用户研究与竞品研究并行执行，所有外部资料通过 Evidence Collector 进入共享 Evidence Lake；
+6. 产品技术 Agent 基于用户事件链和竞品缺口生成至少三个候选事件理解场景；
+7. 商业 Agent 完成有依据的评分，红队指出伪事件理解、重复产品、证据不足和不可行点并真实影响结果；
+8. 飞书展示候选比较并发起场景晋级审批；
+9. 用户批准 Package Risk Intelligence 或其他合格候选进入可运行 Demo，也可以补研、修改、淘汰或全部不立项；
+10. 后端保存 Demo 输入、推理、风险、行动、指标、限制与失败降级，飞书发起最终建议审批；
+11. 系统生成建议立项、补充验证或不建议立项结论，飞书文档沉淀正式提案，页面展示 AI 组与传统组的对照结果。
 
-MVP 只需完成五个核心页面：新建任务、调研现场、证据中心、概念竞技场、最终提案与方法对比。
+MVP 只需完成五个核心页面：新建任务、调研现场、证据中心、候选场景竞技场、最终提案与方法对比。
 
 ### 11.2 Definition of Done
 
@@ -851,15 +851,19 @@ MVP 只需完成五个核心页面：新建任务、调研现场、证据中心�
 |---|---|
 | 飞书 Aily | 能将模糊需求整理为结构化 Brief，并调用后端创建项目 |
 | LangGraph 主图 | 能运行完整 StateGraph，支持条件分支、循环上限、Checkpoint 和失败恢复 |
-| Human in the Loop | Brief、候选概念和最终产品定义三个节点能够暂停，并根据飞书决定恢复 |
+| Human in the Loop | Brief、候选场景和最终建议三个节点能够暂停，并根据飞书决定从 Checkpoint 恢复 |
 | Evidence Collector | 能接收 EvidenceRequest，执行缓存查重、来源规划、预算控制并返回 EvidenceResult |
 | 竞品 A2A | 竞品主管能通过 Agent Card 调用三个情报专家，并收集结构化 Artifact |
 | MCP 工具层 | 能完成来源发现、异步爬取、任务状态查询和证据查询 |
 | Evidence Lake | 能保存来源、原文、抓取时间、状态、内容 Hash 和 Evidence ID |
 | Claim Gate | 没有有效 Evidence ID 的事实性 Claim 无法进入最终提案 |
-| Deep Research 页面 | 能展示任务阶段、Agent 状态、数据覆盖、证据卡片、候选概念和审批状态 |
-| AgentInsight | 能关联 Project、A2A Task、Agent Run、MCP Tool Call、Crawl Job、Evidence 和 Claim |
-| 最终提案 | 关键事实可回溯，未知问题、失败来源、候选概念淘汰原因和人工决定完整保留 |
+| Agent 职责 | 六类 Agent 具备独立 Schema、依赖、质量标准和失败条件，用户与竞品研究并行，红队能强制返工或淘汰 |
+| Event Understanding Gate | 候选必须包含 Event、State、至少两个 Context、Inference、Risk/Value 和 Action |
+| 候选比较 | 至少比较三个有证据的候选；证据不足时显示缺口，不使用 Mock 补足数量 |
+| Package Demo | 晋级后融合包裹状态、家庭状态和外部风险信号，输出可复现判断并在上下文缺失时降级 |
+| Deep Research 页面 | 能展示任务阶段、Agent 状态、数据覆盖、证据卡片、候选场景、Demo 结果和审批状态 |
+| AgentInsight | 能关联 Project、A2A Task、Agent Run、MCP Tool Call、Collection Job、Evidence、Claim、Innovation、Decision、Demo Result 和 Feishu Delivery |
+| 最终提案 | 能输出建议立项、补充验证或不建议立项；关键事实、未知问题、失败来源、候选淘汰和人工决定完整可追溯 |
 
 验收以完整链路可运行和结果可追溯为准，不以 Agent 数量、网页数量或生成文本长度作为完成标准。
 
