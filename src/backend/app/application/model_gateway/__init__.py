@@ -24,6 +24,10 @@ from app.application.model_gateway.prompts import (
     RenderedPrompt,
 )
 from app.application.model_gateway.registry import ModelProviderRegistry
+from app.application.model_gateway.selection import (
+    ModelSelectionResolutionError,
+    ProjectModelSelectionResolver,
+)
 
 __all__ = [
     "CredentialResolver",
@@ -40,11 +44,13 @@ __all__ = [
     "ModelProviderRegistry",
     "ModelRequest",
     "ModelResult",
+    "ModelSelectionResolutionError",
     "ModelUsage",
     "PromptDefinition",
     "PromptRegistry",
     "PromptRegistryError",
     "ProviderModelRequest",
     "ProviderModelResult",
+    "ProjectModelSelectionResolver",
     "RenderedPrompt",
 ]

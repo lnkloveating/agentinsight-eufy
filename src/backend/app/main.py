@@ -8,7 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.application.events import ProjectEventBroker
-from app.application.model_gateway import EnvironmentCredentialResolver, ModelCatalog
+from app.application.model_gateway import (
+    EnvironmentCredentialResolver,
+    ModelCatalog,
+    ModelGateway,
+    ModelProviderRegistry,
+    PromptRegistry,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
@@ -23,12 +29,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resolved_settings.model_catalog_json,
         default_model_id=resolved_settings.default_model_id,
     )
+    model_provider_registry = ModelProviderRegistry()
+    prompt_registry = PromptRegistry()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         database = Database(resolved_settings.database_url)
         application.state.database = database
         application.state.event_broker = ProjectEventBroker()
+        application.state.model_gateway = ModelGateway(
+            database,
+            model_catalog,
+            credential_resolver,
+            model_provider_registry,
+            max_retries=resolved_settings.model_max_retries,
+            retry_base_seconds=resolved_settings.model_retry_base_seconds,
+        )
         if resolved_settings.auto_create_schema:
             await database.create_schema()
         try:
@@ -48,6 +64,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = resolved_settings
     application.state.model_catalog = model_catalog
     application.state.model_credentials = credential_resolver
+    application.state.model_provider_registry = model_provider_registry
+    application.state.prompt_registry = prompt_registry
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
         CORSMiddleware,

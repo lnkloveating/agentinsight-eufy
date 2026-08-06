@@ -15,6 +15,7 @@ from app.application.runtime.contracts import (
     StoredArtifact,
 )
 from app.application.runtime.gateway import AgentRuntimeGateway
+from app.application.runtime.model_adapter import InternalModelAgentAdapter
 from app.application.runtime.registry import AgentRegistry
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "ArtifactAccessDeniedError",
     "ArtifactStore",
     "CancellationToken",
+    "InternalModelAgentAdapter",
     "RuntimeCancellationError",
     "RuntimeErrorCode",
     "RuntimeGatewayError",
