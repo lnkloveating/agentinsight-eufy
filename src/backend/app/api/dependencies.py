@@ -7,9 +7,11 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.events import EventService, ProjectEventBroker
+from app.application.evidence import EvidenceQueryService
 from app.application.projects import ProjectService
 from app.core.config import Settings
 from app.infrastructure.database import Database
+from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.repositories import ProjectRepository
 
 
@@ -37,3 +39,12 @@ def get_event_service(request: Request) -> EventService:
 
 
 EventServiceDependency = Annotated[EventService, Depends(get_event_service)]
+
+
+def get_evidence_query_service(session: SessionDependency) -> EvidenceQueryService:
+    return EvidenceQueryService(EvidenceRepository(session))
+
+
+EvidenceQueryServiceDependency = Annotated[
+    EvidenceQueryService, Depends(get_evidence_query_service)
+]

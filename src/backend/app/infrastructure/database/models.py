@@ -3,7 +3,17 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.base import Base
@@ -40,6 +50,15 @@ class ProjectModel(Base):
         back_populates="project", cascade="all, delete-orphan"
     )
     decisions: Mapped[list["DecisionModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    collection_jobs: Mapped[list["CollectionJobModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    evidence_records: Mapped[list["EvidenceModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    claims: Mapped[list["ClaimModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
 
@@ -113,3 +132,142 @@ class DecisionModel(Base):
     )
 
     project: Mapped[ProjectModel] = relationship(back_populates="decisions")
+
+
+class CollectionJobModel(Base):
+    """一次外部资料采集尝试，包括失败和降级结果。"""
+
+    __tablename__ = "collection_jobs"
+    __table_args__ = (
+        Index("ix_collection_jobs_project_status", "project_id", "status"),
+    )
+
+    collection_job_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="collection_jobs")
+    evidence_records: Mapped[list["EvidenceModel"]] = relationship(
+        back_populates="collection_job"
+    )
+
+
+class EvidenceModel(Base):
+    """可回溯到原始来源、可供 Claim Gate 校验的证据记录。"""
+
+    __tablename__ = "evidence"
+    __table_args__ = (
+        UniqueConstraint("project_id", "content_hash", name="uq_evidence_project_hash"),
+        Index("ix_evidence_project_status", "project_id", "status"),
+        Index("ix_evidence_project_source_type", "project_id", "source_type"),
+    )
+
+    evidence_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    collection_job_id: Mapped[str | None] = mapped_column(
+        ForeignKey("collection_jobs.collection_job_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    original_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    claim_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    product: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    user_segment: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    authority_score: Mapped[float] = mapped_column(Float, nullable=False)
+    recency_score: Mapped[float] = mapped_column(Float, nullable=False)
+    diversity_score: Mapped[float] = mapped_column(Float, nullable=False)
+
+    project: Mapped[ProjectModel] = relationship(back_populates="evidence_records")
+    collection_job: Mapped[CollectionJobModel | None] = relationship(
+        back_populates="evidence_records"
+    )
+    claim_links: Mapped[list["ClaimEvidenceLinkModel"]] = relationship(
+        back_populates="evidence", cascade="all, delete-orphan"
+    )
+
+
+class ClaimModel(Base):
+    """Agent 提出的事实、观点、推断或待验证假设。"""
+
+    __tablename__ = "claims"
+    __table_args__ = (Index("ix_claims_project_status", "project_id", "status"),)
+
+    claim_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    claim_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    scope_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="claims")
+    evidence_links: Mapped[list["ClaimEvidenceLinkModel"]] = relationship(
+        back_populates="claim", cascade="all, delete-orphan"
+    )
+
+
+class ClaimEvidenceLinkModel(Base):
+    """Claim 与 Evidence 之间的支持或反驳关系。"""
+
+    __tablename__ = "claim_evidence_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "claim_id", "evidence_id", "relationship", name="uq_claim_evidence_relationship"
+        ),
+        Index("ix_claim_evidence_project", "project_id"),
+    )
+
+    link_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False
+    )
+    claim_id: Mapped[str] = mapped_column(
+        ForeignKey("claims.claim_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    evidence_id: Mapped[str] = mapped_column(
+        ForeignKey("evidence.evidence_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    relation_type: Mapped[str] = mapped_column("relationship", String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    claim: Mapped[ClaimModel] = relationship(back_populates="evidence_links")
+    evidence: Mapped[EvidenceModel] = relationship(back_populates="claim_links")

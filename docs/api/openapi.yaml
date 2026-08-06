@@ -988,6 +988,7 @@ components:
             - agent_status_changed
             - evidence_added
             - evidence_collection_failed
+            - claim_evaluated
             - innovation_scored
             - red_team_reviewed
             - decision_required
