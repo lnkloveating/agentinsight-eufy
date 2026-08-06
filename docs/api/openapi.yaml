@@ -9,6 +9,7 @@ servers:
   - url: http://localhost:8000/api/v2
 tags:
   - name: System
+  - name: Models
   - name: Projects
   - name: Evidence
   - name: Innovations
@@ -28,6 +29,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+
+  /models:
+    get:
+      tags: [Models]
+      summary: 查询当前可供用户选择的模型
+      operationId: listModels
+      responses:
+        "200":
+          description: 只返回已启用且凭据可用的模型，不暴露 Provider 密钥或内部凭据名称。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelPage"
+        default:
+          $ref: "#/components/responses/Error"
 
   /projects:
     get:
@@ -455,6 +471,54 @@ components:
       type: string
       enum: [pending, running, completed, partial, failed, blocked, needs_revision, cancelled]
 
+    ModelCapability:
+      type: string
+      enum: [text, structured_output, vision, tools, reasoning]
+
+    ModelSummary:
+      type: object
+      additionalProperties: false
+      required: [model_id, provider, display_name, capabilities, enabled, credential_available]
+      properties:
+        model_id: { type: string, minLength: 3, maxLength: 120 }
+        provider: { type: string, minLength: 1, maxLength: 80 }
+        display_name: { type: string, minLength: 1, maxLength: 120 }
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ModelCapability"
+        enabled: { type: boolean }
+        credential_available: { type: boolean }
+        context_window: { type: [integer, "null"], minimum: 1 }
+        input_cost_microusd_per_million_tokens: { type: [integer, "null"], minimum: 0 }
+        output_cost_microusd_per_million_tokens: { type: [integer, "null"], minimum: 0 }
+
+    ModelPage:
+      type: object
+      additionalProperties: false
+      required: [items, default_model_id]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelSummary"
+        default_model_id: { type: [string, "null"] }
+
+    ModelSelection:
+      type: object
+      additionalProperties: false
+      required: [default_model_id]
+      properties:
+        default_model_id: { type: string, minLength: 3, maxLength: 120 }
+        agent_overrides:
+          type: object
+          additionalProperties:
+            type: string
+            minLength: 3
+            maxLength: 120
+          default: {}
+
     InnovationStatus:
       type: string
       enum: [draft, evidence_pending, tech_review, business_review, red_team_review, needs_revision, recommended, rejected]
@@ -534,11 +598,15 @@ components:
       properties:
         brief:
           $ref: "#/components/schemas/ResearchBrief"
+        model_selection:
+          oneOf:
+            - $ref: "#/components/schemas/ModelSelection"
+            - type: "null"
 
     Project:
       type: object
       additionalProperties: false
-      required: [project_id, status, current_stage, progress, brief, selected_innovation_ids, created_at, updated_at]
+      required: [project_id, status, current_stage, progress, brief, model_selection, selected_innovation_ids, created_at, updated_at]
       properties:
         project_id: { type: string }
         status:
@@ -547,6 +615,10 @@ components:
         progress: { type: integer, minimum: 0, maximum: 100 }
         brief:
           $ref: "#/components/schemas/ResearchBrief"
+        model_selection:
+          oneOf:
+            - $ref: "#/components/schemas/ModelSelection"
+            - type: "null"
         selected_innovation_ids:
           type: array
           items: { type: string }
@@ -596,6 +668,13 @@ components:
         completed_at: { type: [string, "null"], format: date-time }
         error_code: { type: [string, "null"] }
         error_message: { type: [string, "null"] }
+        model_id: { type: [string, "null"] }
+        model_provider: { type: [string, "null"] }
+        prompt_key: { type: [string, "null"] }
+        prompt_version: { type: [string, "null"] }
+        input_tokens: { type: integer, minimum: 0, default: 0 }
+        output_tokens: { type: integer, minimum: 0, default: 0 }
+        estimated_cost_microusd: { type: integer, minimum: 0, default: 0 }
 
     PendingDecision:
       type: object
