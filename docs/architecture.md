@@ -47,11 +47,15 @@ flowchart LR
     EvidenceGate --> Product["Product and technical"]
     Product --> Business["Business assessment"]
     Business --> RedTeam["Red team"]
-    RedTeam --> ScenarioGate["Feishu scenario gate"]
-    ScenarioGate --> Demo["Selected scenario demo"]
-    Demo --> FinalGate["Feishu final gate"]
+    RedTeam --> Synthesis["Candidate synthesis"]
+    Synthesis --> ScenarioGate["Feishu scenario gate"]
+    ScenarioGate --> Validation["Validation dispatch"]
+    Validation --> FinalSynthesis["Final synthesis"]
+    FinalSynthesis --> FinalGate["Feishu final gate"]
     FinalGate --> Proposal["Recommend, investigate, or do not recommend"]
 ```
+
+`Validation dispatch` 是候选类型无关的扩展点；当前 Foundation 只验证路由与恢复。Package Risk Intelligence 通过场景晋级后，再由独立 Demo 分支注册对应验证器。
 
 ## Non-negotiable rules
 
