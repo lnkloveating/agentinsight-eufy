@@ -21,6 +21,7 @@ def test_create_list_get_and_approve_project(client: TestClient) -> None:
     project = create_response.json()
     project_id = project["project_id"]
     assert project["status"] == "awaiting_brief_approval"
+    assert project["model_selection"] is None
     assert project["pending_decision"]["gate"] == "brief"
 
     list_response = client.get("/api/v1/projects")
@@ -41,6 +42,13 @@ def test_create_list_get_and_approve_project(client: TestClient) -> None:
     assert agents[0]["quality_score"] == 0
     assert agents[0]["evidence_ids"] == []
     assert agents[0]["unknowns"] == []
+    assert agents[0]["model_id"] is None
+    assert agents[0]["model_provider"] is None
+    assert agents[0]["prompt_key"] is None
+    assert agents[0]["prompt_version"] is None
+    assert agents[0]["input_tokens"] == 0
+    assert agents[0]["output_tokens"] == 0
+    assert agents[0]["estimated_cost_microusd"] == 0
 
     decision_response = client.post(
         f"/api/v1/projects/{project_id}/decisions",

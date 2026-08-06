@@ -28,7 +28,12 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 def get_project_service(request: Request, session: SessionDependency) -> ProjectService:
     trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
-    return ProjectService(ProjectRepository(session), trace_id, request.app.state.event_broker)
+    return ProjectService(
+        ProjectRepository(session),
+        trace_id,
+        request.app.state.event_broker,
+        cast(ModelCatalog, request.app.state.model_catalog),
+    )
 
 
 ProjectServiceDependency = Annotated[ProjectService, Depends(get_project_service)]
