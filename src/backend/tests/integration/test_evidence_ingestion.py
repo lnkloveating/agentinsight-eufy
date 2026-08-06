@@ -2,10 +2,12 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.application.events import ProjectEventBroker
 from app.application.evidence import EvidenceService
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.models import ProjectModel
+from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.evidence import EvidenceClaimType, EvidenceIngest, EvidenceStatus
 
 
@@ -47,7 +49,14 @@ async def test_ingest_deduplicates_content_inside_one_project() -> None:
         async with database.session() as session:
             session.add(_project("proj_one"))
             await session.commit()
-            service = EvidenceService(EvidenceRepository(session))
+            project_repository = ProjectRepository(session)
+            broker = ProjectEventBroker()
+            service = EvidenceService(
+                EvidenceRepository(session),
+                project_repository,
+                "trace_test",
+                broker,
+            )
 
             first = await service.ingest(
                 "proj_one",
@@ -62,6 +71,9 @@ async def test_ingest_deduplicates_content_inside_one_project() -> None:
             assert duplicate.created is False
             assert duplicate.evidence.evidence_id == first.evidence.evidence_id
             assert first.evidence.source_domain == "example.com"
+            events = await project_repository.list_events("proj_one")
+            assert [event.event_type for event in events] == ["evidence_added"]
+            assert broker.current_version("proj_one") == 1
     finally:
         await database.dispose()
 
@@ -74,7 +86,12 @@ async def test_same_content_is_isolated_between_projects() -> None:
         async with database.session() as session:
             session.add_all([_project("proj_one"), _project("proj_two")])
             await session.commit()
-            service = EvidenceService(EvidenceRepository(session))
+            service = EvidenceService(
+                EvidenceRepository(session),
+                ProjectRepository(session),
+                "trace_test",
+                ProjectEventBroker(),
+            )
 
             first = await service.ingest(
                 "proj_one", _evidence("https://example.com/report", "Same finding")

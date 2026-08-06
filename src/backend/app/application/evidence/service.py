@@ -1,21 +1,33 @@
 """证据入湖和去重用例。"""
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
+from app.application.events import ProjectEventBroker
 from app.core.errors import AppError
 from app.evidence.normalization import normalize_evidence_source
 from app.infrastructure.database.evidence_repository import EvidenceRepository
-from app.infrastructure.database.models import EvidenceModel
+from app.infrastructure.database.models import EvidenceModel, ProjectEventModel
+from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.evidence import Evidence, EvidenceIngest, EvidenceIngestResult
 
 
 class EvidenceService:
     """只执行确定性规范化、校验和持久化，不进行 LLM 推理。"""
 
-    def __init__(self, repository: EvidenceRepository) -> None:
+    def __init__(
+        self,
+        repository: EvidenceRepository,
+        project_repository: ProjectRepository,
+        trace_id: str,
+        event_broker: ProjectEventBroker,
+    ) -> None:
         self.repository = repository
+        self.project_repository = project_repository
+        self.trace_id = trace_id
+        self.event_broker = event_broker
 
     async def ingest(self, project_id: str, payload: EvidenceIngest) -> EvidenceIngestResult:
         if not await self.repository.project_exists(project_id):
@@ -60,6 +72,22 @@ class EvidenceService:
         )
         try:
             await self.repository.add_evidence(model)
+            await self.project_repository.add_event(
+                ProjectEventModel(
+                    event_id=f"evt_{uuid4().hex[:16]}",
+                    project_id=project_id,
+                    sequence_number=0,
+                    event_type="evidence_added",
+                    data_json={
+                        "evidence_id": model.evidence_id,
+                        "source_domain": model.source_domain,
+                        "source_type": model.source_type,
+                        "status": model.status,
+                    },
+                    trace_id=self.trace_id,
+                    created_at=datetime.now(UTC),
+                )
+            )
             await self.repository.commit()
         except IntegrityError:
             await self.repository.rollback()
@@ -73,6 +101,7 @@ class EvidenceService:
             await self.repository.rollback()
             raise
 
+        await self.event_broker.notify(project_id)
         return EvidenceIngestResult(evidence=self._to_evidence(model), created=True)
 
     @staticmethod

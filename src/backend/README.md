@@ -34,6 +34,8 @@ GET  /api/v1/projects
 GET  /api/v1/projects/{project_id}
 GET  /api/v1/projects/{project_id}/agents
 GET  /api/v1/projects/{project_id}/events
+GET  /api/v1/projects/{project_id}/evidence
+GET  /api/v1/projects/{project_id}/claims
 POST /api/v1/projects/{project_id}/decisions
 ```
 
@@ -41,12 +43,17 @@ SSE 会先回放数据库历史事件，再等待实时通知；客户端可以�
 
 ## v2 实现顺序
 
-1. Evidence、Collection Job 和 Claim Gate；
+1. Evidence、Collection Job 和 Claim Gate（已完成基础实现）；
 2. Innovation、评分和红队结果；
 3. 新项目状态机与 LangGraph Checkpoint；
 4. Package Risk Intelligence Demo Result；
 5. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
 6. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
+
+Evidence Foundation 的自动化验收映射：
+
+- AC-04：`test_evidence_normalization.py`、`test_evidence_ingestion.py`、`test_collection_job_failure.py` 和 `test_evidence_query_api.py`；
+- AC-05：`test_claim_gate.py` 和 `test_claim_gate_persistence.py`。
 
 ## 测试
 

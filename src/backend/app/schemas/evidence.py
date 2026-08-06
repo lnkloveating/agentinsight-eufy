@@ -14,6 +14,34 @@ class CollectionJobStatus(StrEnum):
     FAILED = "failed"
 
 
+class CollectionJob(BaseModel):
+    collection_job_id: str
+    project_id: str
+    task_id: str | None = None
+    source_url: HttpUrl | None = None
+    source_type: str
+    status: CollectionJobStatus
+    attempt_count: int = Field(ge=0)
+    result: dict[str, Any] = Field(default_factory=dict)
+    error_code: str | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class CollectionJobCreate(BaseModel):
+    task_id: str | None = None
+    source_url: HttpUrl | None = None
+    source_type: str = Field(min_length=1, max_length=80)
+
+
+class CollectionJobFailure(BaseModel):
+    attempt_count: int = Field(ge=1)
+    error_code: str = Field(min_length=1, max_length=80)
+    error_message: str = Field(min_length=1)
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
 class EvidenceStatus(StrEnum):
     VERIFIED = "verified"
     PARTIALLY_VERIFIED = "partially_verified"

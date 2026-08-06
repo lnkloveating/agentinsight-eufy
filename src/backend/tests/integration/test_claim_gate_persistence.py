@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
+from app.application.events import ProjectEventBroker
 from app.application.evidence import ClaimService
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
@@ -11,6 +12,7 @@ from app.infrastructure.database.models import (
     EvidenceModel,
     ProjectModel,
 )
+from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.evidence import ClaimCreate, ClaimStatus, ClaimType, EvidenceStatus
 
 
@@ -66,7 +68,14 @@ async def test_claim_gate_persists_only_eligible_same_project_links() -> None:
                 ]
             )
             await session.commit()
-            service = ClaimService(EvidenceRepository(session))
+            project_repository = ProjectRepository(session)
+            broker = ProjectEventBroker()
+            service = ClaimService(
+                EvidenceRepository(session),
+                project_repository,
+                "trace_test",
+                broker,
+            )
 
             result = await service.create_and_evaluate(
                 "proj_one",
@@ -88,5 +97,9 @@ async def test_claim_gate_persists_only_eligible_same_project_links() -> None:
             assert len(links) == 1
             assert links[0].evidence_id == "ev_valid"
             assert links[0].relation_type == "supports"
+            events = await project_repository.list_events("proj_one")
+            assert events[-1].event_type == "claim_evaluated"
+            assert events[-1].data_json["eligible_for_factual_use"] is True
+            assert broker.current_version("proj_one") == 1
     finally:
         await database.dispose()
