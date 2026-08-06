@@ -5,7 +5,25 @@ from app.application.model_gateway.contracts import (
     CredentialResolver,
     EnvironmentCredentialResolver,
     ModelDefinition,
+    ModelErrorCode,
+    ModelGatewayError,
+    ModelMessage,
+    ModelProvider,
+    ModelProviderError,
+    ModelRequest,
+    ModelResult,
+    ModelUsage,
+    ProviderModelRequest,
+    ProviderModelResult,
 )
+from app.application.model_gateway.gateway import ModelGateway
+from app.application.model_gateway.prompts import (
+    PromptDefinition,
+    PromptRegistry,
+    PromptRegistryError,
+    RenderedPrompt,
+)
+from app.application.model_gateway.registry import ModelProviderRegistry
 
 __all__ = [
     "CredentialResolver",
@@ -13,4 +31,20 @@ __all__ = [
     "ModelCatalog",
     "ModelCatalogError",
     "ModelDefinition",
+    "ModelErrorCode",
+    "ModelGateway",
+    "ModelGatewayError",
+    "ModelMessage",
+    "ModelProvider",
+    "ModelProviderError",
+    "ModelProviderRegistry",
+    "ModelRequest",
+    "ModelResult",
+    "ModelUsage",
+    "PromptDefinition",
+    "PromptRegistry",
+    "PromptRegistryError",
+    "ProviderModelRequest",
+    "ProviderModelResult",
+    "RenderedPrompt",
 ]

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, Protocol
 
 from pydantic import BaseModel, Field, field_validator
@@ -72,3 +74,113 @@ class EnvironmentCredentialResolver:
         value = self._environment.get(env_name)
         stripped = value.strip() if value is not None else ""
         return stripped or None
+
+
+class ModelErrorCode(StrEnum):
+    MODEL_NOT_FOUND = "model_not_found"
+    MODEL_DISABLED = "model_disabled"
+    CREDENTIAL_MISSING = "credential_missing"
+    PROVIDER_NOT_BOUND = "provider_not_bound"
+    CAPABILITY_MISSING = "capability_missing"
+    TIMEOUT = "timeout"
+    PROVIDER_FAILED = "provider_failed"
+    RATE_LIMITED = "rate_limited"
+    STRUCTURED_OUTPUT_INVALID = "structured_output_invalid"
+    CANCELLED = "cancelled"
+
+
+class ModelGatewayError(RuntimeError):
+    def __init__(
+        self,
+        code: ModelErrorCode,
+        message: str,
+        *,
+        retryable: bool,
+        model_call_id: str | None = None,
+    ) -> None:
+        self.code = code
+        self.retryable = retryable
+        self.model_call_id = model_call_id
+        super().__init__(message)
+
+
+class ModelProviderError(RuntimeError):
+    def __init__(
+        self,
+        code: ModelErrorCode,
+        message: str,
+        *,
+        retryable: bool,
+        provider_request_id: str | None = None,
+    ) -> None:
+        self.code = code
+        self.retryable = retryable
+        self.provider_request_id = provider_request_id
+        super().__init__(message)
+
+
+@dataclass(frozen=True)
+class ModelMessage:
+    role: str
+    content: str
+
+
+@dataclass(frozen=True)
+class ModelRequest:
+    project_id: str
+    agent_run_id: str
+    trace_id: str
+    model_id: str
+    prompt_key: str
+    prompt_version: str
+    messages: tuple[ModelMessage, ...]
+    response_model: type[BaseModel]
+    timeout_seconds: float = 60.0
+    max_output_tokens: int | None = None
+    provider_options: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProviderModelRequest:
+    provider_model: str
+    credential: str
+    messages: tuple[ModelMessage, ...]
+    response_schema: dict[str, Any]
+    timeout_seconds: float
+    max_output_tokens: int | None
+    options: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class ModelUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    def __post_init__(self) -> None:
+        if self.input_tokens < 0 or self.output_tokens < 0:
+            raise ValueError("token usage cannot be negative")
+
+
+@dataclass(frozen=True)
+class ProviderModelResult:
+    output: object
+    usage: ModelUsage = ModelUsage()
+    provider_request_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ModelResult:
+    output: BaseModel
+    model_id: str
+    provider: str
+    usage: ModelUsage
+    estimated_cost_microusd: int
+    model_call_id: str
+    attempt_count: int
+
+
+class ModelProvider(Protocol):
+    @property
+    def provider_id(self) -> str: ...
+
+    async def generate(self, request: ProviderModelRequest) -> ProviderModelResult: ...

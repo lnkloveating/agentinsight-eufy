@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     sse_heartbeat_seconds: float = 15.0
     model_catalog_json: str = "[]"
     default_model_id: str | None = None
+    model_max_retries: int = Field(default=2, ge=0, le=5)
+    model_retry_base_seconds: float = Field(default=0.5, ge=0, le=30)
 
 
 @lru_cache
