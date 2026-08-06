@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 class CollectionJobStatus(StrEnum):
@@ -111,3 +111,24 @@ class Claim(BaseModel):
     contradicting_evidence_ids: list[str] = Field(default_factory=list)
     scope: dict[str, Any] = Field(default_factory=dict)
     status: ClaimStatus
+
+
+class ClaimCreate(BaseModel):
+    statement: str = Field(min_length=1)
+    claim_type: ClaimType
+    evidence_ids: list[str] = Field(default_factory=list)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list)
+    scope: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def evidence_relationships_must_not_overlap(self) -> "ClaimCreate":
+        overlap = set(self.evidence_ids) & set(self.contradicting_evidence_ids)
+        if overlap:
+            raise ValueError("Evidence cannot both support and contradict the same Claim")
+        return self
+
+
+class ClaimGateResult(BaseModel):
+    claim: Claim
+    eligible_for_factual_use: bool
+    rejected_evidence_ids: dict[str, str] = Field(default_factory=dict)

@@ -5,7 +5,12 @@ from typing import cast
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.database.models import EvidenceModel, ProjectModel
+from app.infrastructure.database.models import (
+    ClaimEvidenceLinkModel,
+    ClaimModel,
+    EvidenceModel,
+    ProjectModel,
+)
 
 
 class EvidenceRepository:
@@ -29,6 +34,21 @@ class EvidenceRepository:
 
     async def add_evidence(self, evidence: EvidenceModel) -> None:
         self.session.add(evidence)
+        await self.session.flush()
+
+    async def get_evidence_by_ids(self, evidence_ids: set[str]) -> list[EvidenceModel]:
+        if not evidence_ids:
+            return []
+        statement = select(EvidenceModel).where(EvidenceModel.evidence_id.in_(evidence_ids))
+        result = await self.session.scalars(statement)
+        return list(result)
+
+    async def add_claim(self, claim: ClaimModel) -> None:
+        self.session.add(claim)
+        await self.session.flush()
+
+    async def add_claim_evidence_link(self, link: ClaimEvidenceLinkModel) -> None:
+        self.session.add(link)
         await self.session.flush()
 
     async def commit(self) -> None:
