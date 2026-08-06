@@ -139,10 +139,15 @@ class Innovation(BaseModel):
     technical_assessment: dict[str, Any] = Field(default_factory=dict)
     business_assessment: dict[str, Any] = Field(default_factory=dict)
     red_team_review: RedTeamReview | None = None
-    evidence_ids: list[str]
+    evidence_ids: list[str] = Field(min_length=1)
     score_breakdown: dict[ScoreDimension, ScoreComponent] = Field(default_factory=dict)
-    base_score: float = Field(ge=0, le=100)
     final_score: float = Field(ge=0, le=100)
+
+
+class InnovationRecord(Innovation):
+    """工作流内部可见、公开 API 不直接暴露的门禁审计字段。"""
+
+    base_score: float = Field(ge=0, le=100)
     gate_issues: list[str] = Field(default_factory=list)
 
 

@@ -20,6 +20,7 @@ from app.schemas.innovation import (
     Innovation,
     InnovationCreate,
     InnovationPortfolioGateResult,
+    InnovationRecord,
     InnovationScoreInput,
     InnovationStatus,
     RedTeamDecision,
@@ -50,7 +51,7 @@ class InnovationService:
         self.scorer = InnovationScorer()
         self.portfolio_gate = InnovationPortfolioGate()
 
-    async def create(self, project_id: str, payload: InnovationCreate) -> Innovation:
+    async def create(self, project_id: str, payload: InnovationCreate) -> InnovationRecord:
         await self._require_project(project_id)
         valid_evidence_ids, evidence_issues = await self._validate_evidence(
             project_id, payload.evidence_ids
@@ -108,7 +109,7 @@ class InnovationService:
         project_id: str,
         innovation_id: str,
         payload: InnovationScoreInput,
-    ) -> Innovation:
+    ) -> InnovationRecord:
         model = await self._require_innovation(project_id, innovation_id)
         if model.gate_issues_json:
             raise AppError(
@@ -160,7 +161,7 @@ class InnovationService:
         project_id: str,
         innovation_id: str,
         review: RedTeamReview,
-    ) -> Innovation:
+    ) -> InnovationRecord:
         model = await self._require_innovation(project_id, innovation_id)
         if model.status != InnovationStatus.RED_TEAM_REVIEW or not model.score_breakdown_json:
             raise AppError(
@@ -208,7 +209,7 @@ class InnovationService:
     async def list_innovations(self, project_id: str) -> list[Innovation]:
         await self._require_project(project_id)
         return [
-            self._to_innovation(model)
+            Innovation.model_validate(self._to_innovation(model).model_dump(mode="json"))
             for model in await self.repository.list_by_project(project_id)
         ]
 
@@ -283,8 +284,8 @@ class InnovationService:
         return model
 
     @staticmethod
-    def _to_innovation(model: InnovationModel) -> Innovation:
-        return Innovation.model_validate(
+    def _to_innovation(model: InnovationModel) -> InnovationRecord:
+        return InnovationRecord.model_validate(
             {
                 "innovation_id": model.innovation_id,
                 "name": model.name,

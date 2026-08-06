@@ -29,6 +29,13 @@ def test_innovation_query_is_empty_without_agent_output(client: TestClient) -> N
     assert response.json() == []
 
 
+def test_innovation_query_rejects_unknown_project(client: TestClient) -> None:
+    response = client.get("/api/v1/projects/proj_missing/innovations")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "PROJECT_NOT_FOUND"
+
+
 def test_innovation_query_returns_only_persisted_candidate(client: TestClient) -> None:
     project_id = client.post("/api/v1/projects", json=_project_payload()).json()["project_id"]
 
@@ -85,4 +92,7 @@ def test_innovation_query_returns_only_persisted_candidate(client: TestClient) -
     response = client.get(f"/api/v1/projects/{project_id}/innovations")
 
     assert response.status_code == 200
-    assert [item["innovation_id"] for item in response.json()] == ["inv_persisted"]
+    items = response.json()
+    assert [item["innovation_id"] for item in items] == ["inv_persisted"]
+    assert "base_score" not in items[0]
+    assert "gate_issues" not in items[0]

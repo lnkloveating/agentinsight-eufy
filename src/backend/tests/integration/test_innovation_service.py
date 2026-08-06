@@ -4,6 +4,7 @@ import pytest
 
 from app.application.events import ProjectEventBroker
 from app.application.innovations import InnovationService
+from app.core.errors import AppError
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.innovation_repository import InnovationRepository
@@ -154,6 +155,30 @@ async def test_creation_keeps_only_valid_same_project_evidence() -> None:
                 "evidence_status_not_eligible:ev_mock:mock",
                 "evidence_cross_project:ev_cross",
             ]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_creation_rejects_candidate_when_all_evidence_is_mock() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    await database.create_schema()
+    try:
+        async with database.session() as session:
+            session.add_all(
+                [
+                    _project("proj_one"),
+                    _evidence("ev_mock", "proj_one", EvidenceStatus.MOCK),
+                ]
+            )
+            await session.commit()
+            service = _service(session, ProjectEventBroker())
+
+            with pytest.raises(AppError) as exc_info:
+                await service.create("proj_one", _create_payload("ev_mock"))
+
+            assert exc_info.value.code == "INNOVATION_EVIDENCE_REQUIRED"
+            assert await InnovationRepository(session).list_by_project("proj_one") == []
     finally:
         await database.dispose()
 

@@ -78,7 +78,6 @@ def _innovation(innovation_id: str, status: InnovationStatus) -> Innovation:
         competitor_gap_ids=[],
         evidence_ids=["ev_valid"],
         score_breakdown={},
-        base_score=0,
         final_score=0,
     )
 
@@ -140,3 +139,17 @@ def test_portfolio_gate_reports_gap_without_creating_fake_candidates() -> None:
     assert result.candidate_count == 1
     assert result.ready_for_scenario_approval is False
     assert result.gaps == ["insufficient_candidates:1/3"]
+
+
+def test_portfolio_gate_requires_three_resolved_candidates_and_one_recommendation() -> None:
+    innovations = [
+        _innovation("inv_one", InnovationStatus.RECOMMENDED),
+        _innovation("inv_two", InnovationStatus.REJECTED),
+        _innovation("inv_three", InnovationStatus.REJECTED),
+    ]
+
+    result = InnovationPortfolioGate().evaluate(innovations)
+
+    assert result.candidate_count == 3
+    assert result.ready_for_scenario_approval is True
+    assert result.gaps == []
