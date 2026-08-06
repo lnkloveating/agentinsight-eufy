@@ -8,6 +8,7 @@ from app.infrastructure.database.models import (
     CollectionJobModel,
     DecisionModel,
     EvidenceModel,
+    InnovationModel,
     ProjectEventModel,
     ProjectModel,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "Database",
     "DecisionModel",
     "EvidenceModel",
+    "InnovationModel",
     "ProjectEventModel",
     "ProjectModel",
 ]
