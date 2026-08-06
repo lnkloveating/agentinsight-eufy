@@ -61,6 +61,9 @@ class ProjectModel(Base):
     claims: Mapped[list["ClaimModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    innovations: Mapped[list["InnovationModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class AgentRunModel(Base):
@@ -271,3 +274,43 @@ class ClaimEvidenceLinkModel(Base):
 
     claim: Mapped[ClaimModel] = relationship(back_populates="evidence_links")
     evidence: Mapped[EvidenceModel] = relationship(back_populates="claim_links")
+
+
+class InnovationModel(Base):
+    """一个可审计、可评分、可被红队改变结论的未来产品候选。"""
+
+    __tablename__ = "innovations"
+    __table_args__ = (Index("ix_innovations_project_status", "project_id", "status"),)
+
+    innovation_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    target_user_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    problem_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    event_understanding_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    competitor_gap_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    technical_assessment_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    business_assessment_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    red_team_review_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    score_breakdown_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    base_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    final_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    gate_issues_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="innovations")
