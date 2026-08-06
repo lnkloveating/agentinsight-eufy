@@ -276,7 +276,7 @@ workflow_finished
 
 这些页面可以使用明确标识为 `DEMO SAMPLE` 的展示数据完成布局，但不能在 UI 中把它们表示为后端真实研究结果。
 
-## 7. 本地联调
+## 6. 本地联调
 
 ### 后端
 
@@ -310,7 +310,7 @@ npm run dev --workspace src/frontend
 VITE_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
-## 8. 验证状态与下一步后端计划
+## 7. 验证状态与下一步后端计划
 
 最近一次后端完整验证：
 
@@ -335,5 +335,3 @@ Evidence Connectors
 → Feishu Integration
 → E2E Hardening
 ```
-
-其中前端最先会受到 `Evidence Connectors`、领域 Agent 和 Package Risk Demo 三个阶段的数据契约影响；新增公共接口时以后端先更新 OpenAPI 和契约测试为准。
