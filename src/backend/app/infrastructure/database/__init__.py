@@ -2,6 +2,7 @@
 
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.models import (
+    AgentArtifactModel,
     AgentRunModel,
     ClaimEvidenceLinkModel,
     ClaimModel,
@@ -15,6 +16,7 @@ from app.infrastructure.database.models import (
 from app.infrastructure.database.session import Database
 
 __all__ = [
+    "AgentArtifactModel",
     "AgentRunModel",
     "Base",
     "ClaimEvidenceLinkModel",

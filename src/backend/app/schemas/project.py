@@ -19,11 +19,15 @@ class ProjectStatus(StrEnum):
 
 
 class AgentRunStatus(StrEnum):
+    PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
     WAITING = "waiting"
     COMPLETED = "completed"
+    PARTIAL = "partial"
     FAILED = "failed"
+    BLOCKED = "blocked"
+    NEEDS_REVISION = "needs_revision"
     CANCELLED = "cancelled"
 
 
@@ -77,11 +81,15 @@ class DecisionCreate(BaseModel):
 class AgentRun(BaseModel):
     agent_run_id: str
     project_id: str
+    task_id: str | None = None
     agent_type: str
     agent_name: str
     status: AgentRunStatus
     progress: int = Field(ge=0, le=100)
+    quality_score: float = Field(default=0, ge=0, le=100)
     message: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_code: str | None = None
