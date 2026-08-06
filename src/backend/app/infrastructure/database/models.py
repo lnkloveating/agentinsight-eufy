@@ -46,6 +46,9 @@ class ProjectModel(Base):
     agent_runs: Mapped[list["AgentRunModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    artifacts: Mapped[list["AgentArtifactModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     events: Mapped[list["ProjectEventModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -78,15 +81,73 @@ class AgentRunModel(Base):
     )
     agent_type: Mapped[str] = mapped_column(String(80), nullable=False)
     agent_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    adapter_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    workspace_key: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    timeout_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    input_artifact_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    output_artifact_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    unknowns_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    cancellation_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     project: Mapped[ProjectModel] = relationship(back_populates="agent_runs")
+    artifacts: Mapped[list["AgentArtifactModel"]] = relationship(back_populates="agent_run")
+
+
+class AgentArtifactModel(Base):
+    """不可覆盖、带版本和血缘的结构化 Agent 交付物。"""
+
+    __tablename__ = "agent_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "task_id",
+            "artifact_type",
+            "version",
+            name="uq_agent_artifact_version",
+        ),
+        Index("ix_agent_artifacts_project_task", "project_id", "task_id"),
+    )
+
+    artifact_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    agent_run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.agent_run_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    artifact_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    schema_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    contradictions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    unknowns_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    quality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    errors_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    input_artifact_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="artifacts")
+    agent_run: Mapped[AgentRunModel] = relationship(back_populates="artifacts")
 
 
 class ProjectEventModel(Base):
