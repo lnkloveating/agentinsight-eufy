@@ -1,5 +1,9 @@
 # Documentation map
 
+## Current implementation status
+
+- `backend-progress-summary.md` records the backend baseline currently merged to `main`, the real `/api/v1` availability boundary, and the frontend adaptation checklist. Read it before integrating frontend pages with backend data.
+
 ## Product and research
 
 1. `research-flow.md` is the canonical bridge from industry opportunity research to candidate comparison, Feishu approval and the selected scenario Demo.
