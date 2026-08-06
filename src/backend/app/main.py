@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.application.events import ProjectEventBroker
+from app.application.model_gateway import EnvironmentCredentialResolver, ModelCatalog
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
@@ -17,6 +18,11 @@ from app.infrastructure.database import Database
 def create_app(settings: Settings | None = None) -> FastAPI:
     """创建供测试、开发和生产环境复用的 FastAPI 应用。"""
     resolved_settings = settings or get_settings()
+    credential_resolver = EnvironmentCredentialResolver()
+    model_catalog = ModelCatalog.from_json(
+        resolved_settings.model_catalog_json,
+        default_model_id=resolved_settings.default_model_id,
+    )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -40,6 +46,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = resolved_settings
+    application.state.model_catalog = model_catalog
+    application.state.model_credentials = credential_resolver
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
         CORSMiddleware,

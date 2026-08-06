@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     auto_create_schema: bool = True
     frontend_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     sse_heartbeat_seconds: float = 15.0
+    model_catalog_json: str = "[]"
+    default_model_id: str | None = None
 
 
 @lru_cache

@@ -37,7 +37,7 @@ paths:
       operationId: listModels
       responses:
         "200":
-          description: 只返回已启用且凭据可用的模型，不暴露 Provider 密钥或内部凭据名称。
+          description: 返回已启用模型及凭据可用状态，不暴露 Provider 密钥或内部凭据名称。
           content:
             application/json:
               schema:

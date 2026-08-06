@@ -1,7 +1,7 @@
 """FastAPI 依赖注入。"""
 
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import EvidenceQueryService
 from app.application.innovations import InnovationService
+from app.application.model_gateway import CredentialResolver, ModelCatalog
 from app.application.projects import ProjectService
 from app.core.config import Settings
 from app.infrastructure.database import Database
@@ -64,3 +65,19 @@ def get_innovation_service(request: Request, session: SessionDependency) -> Inno
 
 
 InnovationServiceDependency = Annotated[InnovationService, Depends(get_innovation_service)]
+
+
+def get_model_catalog(request: Request) -> ModelCatalog:
+    return cast(ModelCatalog, request.app.state.model_catalog)
+
+
+ModelCatalogDependency = Annotated[ModelCatalog, Depends(get_model_catalog)]
+
+
+def get_model_credentials(request: Request) -> CredentialResolver:
+    return cast(CredentialResolver, request.app.state.model_credentials)
+
+
+ModelCredentialDependency = Annotated[
+    CredentialResolver, Depends(get_model_credentials)
+]
