@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -72,3 +73,13 @@ def test_missing_credential_removes_default_but_keeps_model_visible() -> None:
 
     assert page.default_model_id is None
     assert page.items[0].credential_available is False
+
+
+def test_dotenv_credentials_load_locally_and_environment_wins(tmp_path: Path) -> None:
+    path = tmp_path / ".env"
+    path.write_text("PROVIDER_A_KEY=file-value\n", encoding="utf-8")
+    resolver = EnvironmentCredentialResolver.from_dotenv(
+        str(path), {"PROVIDER_A_KEY": "environment-value"}
+    )
+
+    assert resolver.resolve("PROVIDER_A_KEY") == "environment-value"

@@ -117,6 +117,7 @@ class InternalModelAgentAdapter:
             ModelErrorCode.MODEL_NOT_FOUND,
             ModelErrorCode.MODEL_DISABLED,
             ModelErrorCode.CREDENTIAL_MISSING,
+            ModelErrorCode.AUTHENTICATION_FAILED,
             ModelErrorCode.PROVIDER_NOT_BOUND,
             ModelErrorCode.CAPABILITY_MISSING,
         }:

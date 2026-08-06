@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol
 
+from dotenv import dotenv_values
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.model import ModelCapability
@@ -67,6 +68,23 @@ class EnvironmentCredentialResolver:
             environment = os.environ
         self._environment = environment
 
+    @classmethod
+    def from_dotenv(
+        cls,
+        path: str,
+        environment: Mapping[str, str] | None = None,
+    ) -> EnvironmentCredentialResolver:
+        if environment is None:
+            import os
+
+            environment = os.environ
+        file_values = {
+            key: value
+            for key, value in dotenv_values(path).items()
+            if value is not None
+        }
+        return cls({**file_values, **environment})
+
     def available(self, env_name: str) -> bool:
         return bool(self.resolve(env_name))
 
@@ -80,6 +98,7 @@ class ModelErrorCode(StrEnum):
     MODEL_NOT_FOUND = "model_not_found"
     MODEL_DISABLED = "model_disabled"
     CREDENTIAL_MISSING = "credential_missing"
+    AUTHENTICATION_FAILED = "authentication_failed"
     PROVIDER_NOT_BOUND = "provider_not_bound"
     CAPABILITY_MISSING = "capability_missing"
     TIMEOUT = "timeout"

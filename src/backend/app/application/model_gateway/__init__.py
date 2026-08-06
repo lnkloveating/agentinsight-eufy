@@ -23,6 +23,11 @@ from app.application.model_gateway.prompts import (
     PromptRegistryError,
     RenderedPrompt,
 )
+from app.application.model_gateway.providers import (
+    OpenAICompatibleProvider,
+    OpenAICompatibleProviderConfig,
+    parse_openai_compatible_provider_configs,
+)
 from app.application.model_gateway.registry import ModelProviderRegistry
 from app.application.model_gateway.selection import (
     ModelSelectionResolutionError,
@@ -46,6 +51,8 @@ __all__ = [
     "ModelResult",
     "ModelSelectionResolutionError",
     "ModelUsage",
+    "OpenAICompatibleProvider",
+    "OpenAICompatibleProviderConfig",
     "PromptDefinition",
     "PromptRegistry",
     "PromptRegistryError",
@@ -53,4 +60,5 @@ __all__ = [
     "ProviderModelResult",
     "ProjectModelSelectionResolver",
     "RenderedPrompt",
+    "parse_openai_compatible_provider_configs",
 ]

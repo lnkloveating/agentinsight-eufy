@@ -16,6 +16,17 @@ python -m app.main
 
 Swagger：`http://localhost:8000/docs`
 
+## 配置主办方模型路由
+
+主办方文档提供 `https://ai-router-cn-pub.anker-in.com/chat/completions`。当前后端按文档明确的 OpenAI 协议接入以下两个模型：
+
+- `hackathon/v_model/glm-5.2`；
+- `hackathon/v_model/deepseek-v4-pro`。
+
+在 `src/backend` 下创建本地 `.env`，复制仓库根目录 `.env.example` 的非敏感配置，并只在本地填写 `ANKER_ROUTER_API_KEY`。`.env` 已被 Git 忽略，API Key 不得写入 `.env.example`、模型目录 JSON、数据库或运行日志。
+
+带 `anthropic-` 前缀的模型由主办方定义为 Anthropic 协议；在对应 HTTP 路径和请求契约确认前不注册到当前 OpenAI-compatible Provider，避免用错误协议调用。
+
 ## 创建中文 eufy 演示项目
 
 在仓库根目录执行：
@@ -90,6 +101,7 @@ Model Gateway 的自动化验收映射：
 - AC-11：`test_model_gateway.py` 验证限流重试、超时、无效结构化输出和缺凭据失败；
 - AC-13：`test_model_gateway.py` 验证 Model Call、Provider、Prompt 版本、Token、成本和 Agent Run 关联审计；
 - Deep Research Web 模型选择接口：`test_model_catalog_api.py` 验证模型目录、项目选择和密钥不出现在 API 响应。
+- OpenAI-compatible Provider：`test_openai_compatible_provider.py` 验证 Chat Completions 请求、结构化模式、用量解析及 401、429、5xx 错误分类。
 
 `MODEL_CATALOG_JSON` 只配置模型元数据和密钥所在的环境变量名。API Key 值只从本地 `.env`、部署环境变量或 Secret Manager 读取，不进入数据库、事件、Artifact 或 API 响应。当前生产 Provider Registry 默认为空，不会用测试 Provider 或假响应兜底；绑定真实 Provider 并完成本地联网冒烟测试后才能推送该分支。
 

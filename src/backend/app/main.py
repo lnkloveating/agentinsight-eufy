@@ -13,7 +13,9 @@ from app.application.model_gateway import (
     ModelCatalog,
     ModelGateway,
     ModelProviderRegistry,
+    OpenAICompatibleProvider,
     PromptRegistry,
+    parse_openai_compatible_provider_configs,
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
@@ -24,12 +26,26 @@ from app.infrastructure.database import Database
 def create_app(settings: Settings | None = None) -> FastAPI:
     """创建供测试、开发和生产环境复用的 FastAPI 应用。"""
     resolved_settings = settings or get_settings()
-    credential_resolver = EnvironmentCredentialResolver()
+    credential_resolver = (
+        EnvironmentCredentialResolver.from_dotenv(
+            resolved_settings.model_credentials_env_file
+        )
+        if resolved_settings.model_credentials_env_file is not None
+        else EnvironmentCredentialResolver()
+    )
     model_catalog = ModelCatalog.from_json(
         resolved_settings.model_catalog_json,
         default_model_id=resolved_settings.default_model_id,
     )
     model_provider_registry = ModelProviderRegistry()
+    for provider_config in parse_openai_compatible_provider_configs(
+        resolved_settings.openai_compatible_providers_json
+    ):
+        model_provider_registry.register(
+            OpenAICompatibleProvider(
+                provider_config.provider_id, provider_config.base_url
+            )
+        )
     prompt_registry = PromptRegistry()
 
     @asynccontextmanager

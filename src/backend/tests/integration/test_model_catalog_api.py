@@ -27,11 +27,13 @@ def model_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Te
         ]
     )
     settings = Settings(
+        _env_file=None,
         app_env="test",
         database_url=f"sqlite+aiosqlite:///{tmp_path / 'models.db'}",
         auto_create_schema=True,
         model_catalog_json=catalog,
         default_model_id="test:model-a",
+        model_credentials_env_file=None,
     )
     with TestClient(create_app(settings)) as client:
         yield client
