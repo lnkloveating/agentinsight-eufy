@@ -37,6 +37,10 @@ def test_create_list_get_and_approve_project(client: TestClient) -> None:
     assert len(agents) == 1
     assert agents[0]["agent_name"] == "调研总管 Agent"
     assert agents[0]["status"] == "waiting"
+    assert agents[0]["task_id"] is None
+    assert agents[0]["quality_score"] == 0
+    assert agents[0]["evidence_ids"] == []
+    assert agents[0]["unknowns"] == []
 
     decision_response = client.post(
         f"/api/v1/projects/{project_id}/decisions",

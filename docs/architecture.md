@@ -57,6 +57,23 @@ flowchart LR
 
 `Validation dispatch` 是候选类型无关的扩展点；当前 Foundation 只验证路由与恢复。Package Risk Intelligence 通过场景晋级后，再由独立 Demo 分支注册对应验证器。
 
+## Agent Runtime Core
+
+```mermaid
+flowchart LR
+    Graph["LangGraph node"] --> Gateway["AgentRuntimeGateway"]
+    Gateway --> Registry["AgentRegistry"]
+    Registry --> Adapter["Bound Agent Adapter"]
+    Gateway --> Runs["Agent Run records"]
+    Gateway --> Artifacts["Versioned Artifact Store"]
+    Gateway --> Events["Runtime Event stream"]
+    Artifacts --> Gateway
+```
+
+工作流节点只依赖统一的 Runtime 协议，不直接依赖模型 SDK、CLI 或 A2A 客户端。Gateway 为每次调用建立独立运行记录，校验输入 Artifact 的项目归属和输出 schema，并保存不可变的版本化 Artifact、Evidence IDs、未知项和输入血缘。超时、取消、未绑定、权限、schema 与 Adapter 错误使用稳定错误码记录；失败调用不生成研究 Artifact。
+
+当前只实现 Runtime Core 和显式 Adapter 注册边界。真实模型调用、外部 Agent Runtime 与竞品 A2A 将在后续分支实现对应 Adapter；生产代码不会回退到测试 Runtime 或伪造研究结果。
+
 ## Non-negotiable rules
 
 1. Facts in the final report require valid Evidence IDs.
