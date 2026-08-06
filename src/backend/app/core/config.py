@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     auto_create_schema: bool = True
     frontend_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     sse_heartbeat_seconds: float = 15.0
+    model_catalog_json: str = "[]"
+    model_credentials_env_file: str | None = ".env"
+    openai_compatible_providers_json: str = "[]"
+    default_model_id: str | None = None
+    model_max_retries: int = Field(default=2, ge=0, le=5)
+    model_retry_base_seconds: float = Field(default=0.5, ge=0, le=30)
 
 
 @lru_cache

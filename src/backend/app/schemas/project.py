@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.model import ModelSelection
+
 
 class ProjectStatus(StrEnum):
     DRAFT = "draft"
@@ -51,6 +53,7 @@ class ResearchBrief(BaseModel):
 
 class ProjectCreate(BaseModel):
     brief: ResearchBrief
+    model_selection: ModelSelection | None = None
 
 
 class PendingDecision(BaseModel):
@@ -65,6 +68,7 @@ class Project(BaseModel):
     current_stage: str
     progress: int = Field(ge=0, le=100)
     brief: ResearchBrief
+    model_selection: ModelSelection | None = None
     pending_decision: PendingDecision | None = None
     created_at: datetime
     updated_at: datetime
@@ -94,6 +98,13 @@ class AgentRun(BaseModel):
     completed_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None
+    model_id: str | None = None
+    model_provider: str | None = None
+    prompt_key: str | None = None
+    prompt_version: str | None = None
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    estimated_cost_microusd: int = Field(default=0, ge=0)
 
 
 class ProjectEvent(BaseModel):

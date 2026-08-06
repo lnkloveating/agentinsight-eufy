@@ -74,6 +74,24 @@ flowchart LR
 
 当前只实现 Runtime Core 和显式 Adapter 注册边界。真实模型调用、外部 Agent Runtime 与竞品 A2A 将在后续分支实现对应 Adapter；生产代码不会回退到测试 Runtime 或伪造研究结果。
 
+## Model Gateway
+
+```mermaid
+flowchart LR
+    Picker["Frontend model picker"] --> Catalog["Safe Model Catalog API"]
+    Project["Project model policy"] --> Adapter["InternalModelAgentAdapter"]
+    Adapter --> Prompt["Versioned Prompt Registry"]
+    Adapter --> Gateway["ModelGateway"]
+    Catalog --> Gateway
+    Gateway --> Providers["Explicit Provider Registry"]
+    Gateway --> Calls["Model Call audit"]
+    Calls --> Runs["Agent Run token and cost totals"]
+```
+
+前端只提交稳定的 `model_id`，不会接触 API Key、Provider 内部模型名或凭据环境变量名。项目保存默认模型和可选 Agent 覆盖；已经完成的 Agent Run 保留实际模型与 Prompt 版本，后续切换只影响新运行。
+
+Model Gateway 负责结构化输出 Schema、有限重试、超时、Token 和估算成本。每个 Provider 必须显式注册，密钥按模型定义中的环境变量名在调用时解析。审计表不保存原始 Prompt、响应正文或密钥；未绑定 Provider、缺密钥、缺 Prompt 和无效 Schema 都明确失败，不产生 Artifact。
+
 ## Non-negotiable rules
 
 1. Facts in the final report require valid Evidence IDs.

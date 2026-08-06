@@ -8,6 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.application.events import ProjectEventBroker
+from app.application.model_gateway import (
+    EnvironmentCredentialResolver,
+    ModelCatalog,
+    ModelGateway,
+    ModelProviderRegistry,
+    OpenAICompatibleProvider,
+    PromptRegistry,
+    parse_openai_compatible_provider_configs,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
@@ -17,12 +26,41 @@ from app.infrastructure.database import Database
 def create_app(settings: Settings | None = None) -> FastAPI:
     """创建供测试、开发和生产环境复用的 FastAPI 应用。"""
     resolved_settings = settings or get_settings()
+    credential_resolver = (
+        EnvironmentCredentialResolver.from_dotenv(
+            resolved_settings.model_credentials_env_file
+        )
+        if resolved_settings.model_credentials_env_file is not None
+        else EnvironmentCredentialResolver()
+    )
+    model_catalog = ModelCatalog.from_json(
+        resolved_settings.model_catalog_json,
+        default_model_id=resolved_settings.default_model_id,
+    )
+    model_provider_registry = ModelProviderRegistry()
+    for provider_config in parse_openai_compatible_provider_configs(
+        resolved_settings.openai_compatible_providers_json
+    ):
+        model_provider_registry.register(
+            OpenAICompatibleProvider(
+                provider_config.provider_id, provider_config.base_url
+            )
+        )
+    prompt_registry = PromptRegistry()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         database = Database(resolved_settings.database_url)
         application.state.database = database
         application.state.event_broker = ProjectEventBroker()
+        application.state.model_gateway = ModelGateway(
+            database,
+            model_catalog,
+            credential_resolver,
+            model_provider_registry,
+            max_retries=resolved_settings.model_max_retries,
+            retry_base_seconds=resolved_settings.model_retry_base_seconds,
+        )
         if resolved_settings.auto_create_schema:
             await database.create_schema()
         try:
@@ -40,6 +78,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = resolved_settings
+    application.state.model_catalog = model_catalog
+    application.state.model_credentials = credential_resolver
+    application.state.model_provider_registry = model_provider_registry
+    application.state.prompt_registry = prompt_registry
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
         CORSMiddleware,

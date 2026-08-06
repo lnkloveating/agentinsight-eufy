@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.application.events.broker import ProjectEventBroker
+from app.application.model_gateway import ModelCatalog, ModelCatalogError
 from app.core.errors import AppError
 from app.infrastructure.database.models import (
     AgentRunModel,
@@ -12,6 +13,7 @@ from app.infrastructure.database.models import (
     ProjectModel,
 )
 from app.infrastructure.database.repositories import ProjectRepository
+from app.schemas.model import ModelSelection
 from app.schemas.project import (
     AgentRun,
     AgentRunStatus,
@@ -23,6 +25,7 @@ from app.schemas.project import (
     ProjectStatus,
     ResearchBrief,
 )
+from app.workflows.contracts import ResearchAgentType
 
 
 class ProjectService:
@@ -33,15 +36,26 @@ class ProjectService:
         repository: ProjectRepository,
         trace_id: str,
         event_broker: ProjectEventBroker,
+        model_catalog: ModelCatalog,
     ) -> None:
         self.repository = repository
         self.trace_id = trace_id
         self.event_broker = event_broker
+        self.model_catalog = model_catalog
 
     async def create_project(self, payload: ProjectCreate) -> Project:
         project_id = f"proj_{uuid4().hex[:16]}"
         decision_id = f"decision_{uuid4().hex[:16]}"
         now = datetime.now(UTC)
+        model_selection = self._resolve_model_selection(payload.model_selection)
+        manager_model_id: str | None = None
+        manager_provider: str | None = None
+        if model_selection is not None:
+            manager_model_id = model_selection.agent_overrides.get(
+                ResearchAgentType.RESEARCH_MANAGER.value,
+                model_selection.default_model_id,
+            )
+            manager_provider = self.model_catalog.require_enabled(manager_model_id).provider
         pending_decision = PendingDecision(
             decision_id=decision_id,
             gate="brief",
@@ -58,6 +72,11 @@ class ProjectService:
             progress=5,
             brief_json=payload.brief.model_dump(mode="json"),
             pending_decision_json=pending_decision.model_dump(mode="json"),
+            model_selection_json=(
+                model_selection.model_dump(mode="json")
+                if model_selection is not None
+                else None
+            ),
             created_at=now,
             updated_at=now,
         )
@@ -69,6 +88,8 @@ class ProjectService:
             status=AgentRunStatus.WAITING,
             progress=0,
             message="等待研究 Brief 审批。",
+            model_id=manager_model_id,
+            model_provider=manager_provider,
         )
         created_event = ProjectEventModel(
             event_id=f"evt_{uuid4().hex[:16]}",
@@ -80,6 +101,11 @@ class ProjectService:
                 "current_stage": "brief_confirmation",
                 "progress": 5,
                 "message": "研究项目已创建，等待确认 Brief。",
+                "model_selection": (
+                    model_selection.model_dump(mode="json")
+                    if model_selection is not None
+                    else None
+                ),
             },
             trace_id=self.trace_id,
             created_at=now,
@@ -224,6 +250,37 @@ class ProjectService:
             )
         return project
 
+    def _resolve_model_selection(
+        self, selection: ModelSelection | None
+    ) -> ModelSelection | None:
+        if selection is None and self.model_catalog.default_model_id is not None:
+            selection = ModelSelection(
+                default_model_id=self.model_catalog.default_model_id
+            )
+        if selection is None:
+            return None
+
+        allowed_agent_types = {item.value for item in ResearchAgentType}
+        invalid_agents = sorted(set(selection.agent_overrides) - allowed_agent_types)
+        if invalid_agents:
+            raise AppError(
+                code="MODEL_AGENT_OVERRIDE_INVALID",
+                message="模型覆盖包含未知的 Agent 类型。",
+                status_code=422,
+                details={"agent_types": invalid_agents},
+            )
+        try:
+            self.model_catalog.require_enabled(selection.default_model_id)
+            for model_id in selection.agent_overrides.values():
+                self.model_catalog.require_enabled(model_id)
+        except ModelCatalogError as exc:
+            raise AppError(
+                code=exc.code,
+                message="项目选择的模型不可用。",
+                status_code=422,
+            ) from exc
+        return selection
+
     @staticmethod
     def _transition(
         status: ProjectStatus,
@@ -294,6 +351,11 @@ class ProjectService:
             current_stage=model.current_stage,
             progress=model.progress,
             brief=ResearchBrief.model_validate(model.brief_json),
+            model_selection=(
+                ModelSelection.model_validate(model.model_selection_json)
+                if model.model_selection_json is not None
+                else None
+            ),
             pending_decision=(
                 PendingDecision.model_validate(model.pending_decision_json)
                 if model.pending_decision_json is not None
@@ -321,4 +383,11 @@ class ProjectService:
             completed_at=model.completed_at,
             error_code=model.error_code,
             error_message=model.error_message,
+            model_id=model.model_id,
+            model_provider=model.model_provider,
+            prompt_key=model.prompt_key,
+            prompt_version=model.prompt_version,
+            input_tokens=model.input_tokens,
+            output_tokens=model.output_tokens,
+            estimated_cost_microusd=model.estimated_cost_microusd,
         )

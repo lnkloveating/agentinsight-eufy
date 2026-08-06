@@ -10,6 +10,7 @@ from app.infrastructure.database.models import (
     DecisionModel,
     EvidenceModel,
     InnovationModel,
+    ModelCallModel,
     ProjectEventModel,
     ProjectModel,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "DecisionModel",
     "EvidenceModel",
     "InnovationModel",
+    "ModelCallModel",
     "ProjectEventModel",
     "ProjectModel",
 ]

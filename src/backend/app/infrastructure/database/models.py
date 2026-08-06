@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -35,6 +36,7 @@ class ProjectModel(Base):
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     brief_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     pending_decision_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    model_selection_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     checkpoint_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
@@ -65,6 +67,9 @@ class ProjectModel(Base):
         back_populates="project", cascade="all, delete-orphan"
     )
     innovations: Mapped[list["InnovationModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    model_calls: Mapped[list["ModelCallModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
 
@@ -102,9 +107,64 @@ class AgentRunModel(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    model_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    prompt_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_microusd: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
 
     project: Mapped[ProjectModel] = relationship(back_populates="agent_runs")
     artifacts: Mapped[list["AgentArtifactModel"]] = relationship(back_populates="agent_run")
+    model_calls: Mapped[list["ModelCallModel"]] = relationship(back_populates="agent_run")
+
+
+class ModelCallModel(Base):
+    """一次可审计的模型调用尝试，不保存原始 Prompt 或响应正文。"""
+
+    __tablename__ = "model_calls"
+    __table_args__ = (
+        Index("ix_model_calls_project_created", "project_id", "created_at"),
+        Index("ix_model_calls_run_attempt", "agent_run_id", "attempt_number"),
+    )
+
+    model_call_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    agent_run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.agent_run_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    trace_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    provider_model: Mapped[str] = mapped_column(String(160), nullable=False)
+    prompt_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_microusd: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_request_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    project: Mapped[ProjectModel] = relationship(back_populates="model_calls")
+    agent_run: Mapped[AgentRunModel] = relationship(back_populates="model_calls")
 
 
 class AgentArtifactModel(Base):
