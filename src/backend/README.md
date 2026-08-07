@@ -1,6 +1,6 @@
 # 后端开发说明
 
-后端 `/api/v1` 已经实现项目生命周期、Agent 运行记录、人工决定、持久化事件、SSE 断线续传，以及 Evidence、Claim、Innovation、LangGraph 编排底座、Agent Runtime Core 和多模型 Model Gateway 框架。真实模型 Provider、外部 A2A Runtime、数据连接器、Demo 和飞书集成将在后续增量中接入同一数据与事件体系。
+后端 `/api/v1` 已经实现项目生命周期、Agent 运行记录、人工决定、持久化事件、SSE 断线续传，以及 SourceAsset、Evidence、Claim、Innovation、LangGraph 编排底座、Agent Runtime Core 和多模型 Model Gateway 框架。外部资料解析 Runtime、领域 Agent、Demo 和飞书集成将在后续增量中接入同一数据与事件体系。
 
 `docs/api/openapi.yaml` 当前描述 `/api/v2` 目标契约，不代表 v2 路由已经实现。开发顺序以 `docs/research-flow.md`、`docs/agent-contracts.md`、`docs/state-machine.md` 和 `docs/acceptance-criteria.md` 为准。
 
@@ -45,6 +45,11 @@ GET  /api/v1/projects
 GET  /api/v1/projects/{project_id}
 GET  /api/v1/projects/{project_id}/agents
 GET  /api/v1/projects/{project_id}/events
+POST /api/v1/projects/{project_id}/sources/files
+POST /api/v1/projects/{project_id}/sources/links
+GET  /api/v1/projects/{project_id}/sources
+GET  /api/v1/projects/{project_id}/sources/{source_asset_id}
+DELETE /api/v1/projects/{project_id}/sources/{source_asset_id}
 GET  /api/v1/projects/{project_id}/evidence
 GET  /api/v1/projects/{project_id}/claims
 GET  /api/v1/projects/{project_id}/innovations
@@ -61,13 +66,16 @@ SSE 会先回放数据库历史事件，再等待实时通知；客户端可以�
 3. LangGraph 主图、Checkpoint 与三个 Human Gate（已完成 Foundation）；
 4. Agent Runtime Core、运行记录、版本化 Artifact、超时与取消（已完成；等待真实 Adapter 和 API 生命周期接线）；
 5. Model Gateway、多模型选择、Prompt 版本、Token/成本和 Provider 边界（框架已完成；等待真实 Provider 凭据验证）；
-6. Package Risk Intelligence Demo Result；
-7. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
-8. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
+6. Source Ingestion、项目隔离存储、授权审计和待解析 Collection Job（已完成）；
+7. 外部 Runtime Adapter 与 Evidence Processing Pipeline；
+8. Package Risk Intelligence Demo Result；
+9. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
+10. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
 
 Evidence Foundation 的自动化验收映射：
 
 - AC-04：`test_evidence_normalization.py`、`test_evidence_ingestion.py`、`test_collection_job_failure.py` 和 `test_evidence_query_api.py`；
+- AC-04 原始资料入口：`test_source_validation.py` 和 `test_source_ingestion_api.py` 验证授权、类型/大小限制、私网 URL、哈希去重、项目隔离、文件删除、任务阻断和恢复；
 - AC-05：`test_claim_gate.py` 和 `test_claim_gate_persistence.py`。
 
 Innovation Foundation 的自动化验收映射：
