@@ -78,6 +78,7 @@ class ExternalCliProcessRunner:
         process_environment.update(environment)
         started = time.monotonic()
         if os.name == "nt":
+            windows_subprocess: Any = subprocess
             process = await asyncio.create_subprocess_exec(
                 command,
                 *command_arguments,
@@ -86,7 +87,7 @@ class ExternalCliProcessRunner:
                 stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=windows_subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
             process = await asyncio.create_subprocess_exec(
