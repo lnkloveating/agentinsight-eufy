@@ -1,10 +1,20 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import concepts, evidence, health, models, projects, reports, sources
+from app.api.v1.routes import (
+    concepts,
+    evidence,
+    health,
+    models,
+    projects,
+    reports,
+    runtimes,
+    sources,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(models.router, prefix="/models", tags=["Models"])
+api_router.include_router(runtimes.router, prefix="/runtimes", tags=["Runtimes"])
 api_router.include_router(projects.router, prefix="/projects", tags=["Projects"])
 api_router.include_router(evidence.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(sources.router, prefix="/projects", tags=["Evidence"])

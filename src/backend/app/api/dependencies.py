@@ -12,6 +12,7 @@ from app.application.evidence import EvidenceQueryService
 from app.application.innovations import InnovationService
 from app.application.model_gateway import CredentialResolver, ModelCatalog
 from app.application.projects import ProjectService
+from app.application.runtime import ExternalRuntimeCatalog
 from app.application.sources import SourceAssetService
 from app.core.config import Settings
 from app.infrastructure.database import Database
@@ -111,4 +112,13 @@ def get_model_credentials(request: Request) -> CredentialResolver:
 
 ModelCredentialDependency = Annotated[
     CredentialResolver, Depends(get_model_credentials)
+]
+
+
+def get_external_runtime_catalog(request: Request) -> ExternalRuntimeCatalog:
+    return cast(ExternalRuntimeCatalog, request.app.state.external_runtime_catalog)
+
+
+ExternalRuntimeCatalogDependency = Annotated[
+    ExternalRuntimeCatalog, Depends(get_external_runtime_catalog)
 ]

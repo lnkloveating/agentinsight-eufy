@@ -35,6 +35,20 @@ class Settings(BaseSettings):
         ge=1,
         le=2_147_483_648,
     )
+    external_runtime_workspace_root: str = "./data/runtime"
+    external_cli_max_output_bytes: int = Field(
+        default=4_194_304,
+        ge=1_024,
+        le=67_108_864,
+    )
+    external_cli_probe_timeout_seconds: float = Field(default=5.0, ge=0.1, le=30)
+    opencode_runtime_enabled: bool = True
+    opencode_executable: str = "opencode"
+    opencode_provider_id: str = "anker-router"
+    opencode_provider_name: str = "Anker Router"
+    opencode_provider_base_url: str = "https://ai-router-cn-pub.anker-in.com"
+    opencode_provider_model: str = "hackathon/v_model/glm-5.2"
+    opencode_credential_env: str = "ANKER_ROUTER_API_KEY"
 
 
 @lru_cache

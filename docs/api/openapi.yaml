@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -10,6 +10,7 @@ servers:
 tags:
   - name: System
   - name: Models
+  - name: Runtimes
   - name: Projects
   - name: Evidence
   - name: Innovations
@@ -42,6 +43,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModelPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /runtimes:
+    get:
+      tags: [Runtimes]
+      summary: List selectable external Agent runtimes
+      operationId: listExternalRuntimes
+      responses:
+        "200":
+          description: Returns safe runtime capability and availability metadata without credentials or local paths.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRuntimePage"
         default:
           $ref: "#/components/responses/Error"
 
@@ -620,6 +636,54 @@ components:
           items:
             $ref: "#/components/schemas/ModelSummary"
         default_model_id: { type: [string, "null"] }
+
+    RuntimeCapability:
+      type: string
+      enum: [text, structured_output, local_files, webpage, image, audio, video]
+
+    ExternalRuntimeSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - runtime_id
+        - display_name
+        - adapter_type
+        - capabilities
+        - enabled
+        - executable_available
+        - credential_available
+        - available
+        - version
+        - unavailable_reason
+        - model_id
+      properties:
+        runtime_id: { type: string, minLength: 1, maxLength: 80 }
+        display_name: { type: string, minLength: 1, maxLength: 120 }
+        adapter_type: { type: string, const: external_cli }
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/RuntimeCapability"
+        enabled: { type: boolean }
+        executable_available: { type: boolean }
+        credential_available: { type: boolean }
+        available: { type: boolean }
+        version: { type: [string, "null"], maxLength: 200 }
+        unavailable_reason:
+          type: [string, "null"]
+          enum: [disabled, executable_missing, credential_missing, probe_failed, null]
+        model_id: { type: [string, "null"], maxLength: 200 }
+
+    ExternalRuntimePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalRuntimeSummary"
 
     ModelSelection:
       type: object
