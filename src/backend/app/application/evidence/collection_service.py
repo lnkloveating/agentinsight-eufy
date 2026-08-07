@@ -12,8 +12,8 @@ from app.schemas.evidence import (
     CollectionJob,
     CollectionJobCreate,
     CollectionJobFailure,
-    CollectionJobStatus,
 )
+from app.schemas.source_processing import CollectionJobStatus
 
 
 class CollectionJobService:

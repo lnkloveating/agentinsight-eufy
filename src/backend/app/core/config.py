@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     model_max_retries: int = Field(default=2, ge=0, le=5)
     model_retry_base_seconds: float = Field(default=0.5, ge=0, le=30)
     source_storage_root: str = "./data/sources"
+    source_processing_workspace_root: str = "./data/source-processing"
+    source_processing_max_input_bytes: int = Field(
+        default=52_428_800, ge=1, le=536_870_912
+    )
+    source_processing_max_fragments: int = Field(default=5_000, ge=1, le=50_000)
+    source_processing_max_excerpt_chars: int = Field(default=4_000, ge=200, le=20_000)
     source_max_upload_bytes: int = Field(
         default=262_144_000,
         ge=1,

@@ -28,6 +28,10 @@ Aily 必须实际完成意图澄清和技能调用，不能只发送静态链接
 
 外部 CLI Runtime 必须通过固定驱动注册，不能接受用户提交的任意可执行命令。每次运行使用项目和 Agent Run 双重隔离的工作目录；密钥只能通过受控环境变量注入，不得写入 Prompt、命令参数、日志、Artifact 或公开 Runtime 目录。CLI 缺失、凭据缺失、探测失败、超时、取消、非零退出、输出过大和结构化输出无效必须明确分类，失败时不得生成研究 Artifact。Runtime 目录只公开经过探测的能力，未验证的网站、图片、音频和视频能力不得宣称可用。
 
+### Source Processing 自动化验收
+
+TXT、Markdown、CSV、JSON 与可提取文本的 PDF 必须生成持久化 `ParsedArtifact` 和带原文定位的 `SourceFragment`；后端必须重新读取隔离工作区中的原始内容并验证每个 excerpt。网页链接、DOCX、图片、音频和视频在没有已注册连接器时必须进入 `blocked`，不得生成片段。失败、重试、排队取消和删除后禁止处理均需保留 Collection Job 状态；外部 Agent 输出不能直接绕过片段验证写入 Evidence。
+
 ## AC-05 Claim Gate
 
 事实性 Claim 没有至少一个同项目、非 Mock、非 Invalid 且可回溯的 Evidence ID 时，不能晋级或进入最终报告。竞品“未验证”不能被改写为“没有”。冲突、未知项和被排除 Claim 保持可见。

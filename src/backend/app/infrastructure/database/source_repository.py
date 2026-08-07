@@ -2,13 +2,16 @@
 
 from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.models import (
     CollectionJobModel,
+    EvidenceModel,
+    ParsedArtifactModel,
     ProjectModel,
     SourceAssetModel,
+    SourceFragmentModel,
 )
 
 
@@ -31,6 +34,100 @@ class SourceAssetRepository:
         self, collection_job_id: str
     ) -> CollectionJobModel | None:
         return await self.session.get(CollectionJobModel, collection_job_id)
+
+    async def add_parsed_artifact(self, artifact: ParsedArtifactModel) -> None:
+        self.session.add(artifact)
+        await self.session.flush()
+
+    async def add_source_fragments(
+        self, fragments: list[SourceFragmentModel]
+    ) -> None:
+        self.session.add_all(fragments)
+        await self.session.flush()
+
+    async def get_parsed_artifact(
+        self, project_id: str, source_asset_id: str, collection_job_id: str
+    ) -> ParsedArtifactModel | None:
+        statement = select(ParsedArtifactModel).where(
+            ParsedArtifactModel.project_id == project_id,
+            ParsedArtifactModel.source_asset_id == source_asset_id,
+            ParsedArtifactModel.collection_job_id == collection_job_id,
+        )
+        return cast(ParsedArtifactModel | None, await self.session.scalar(statement))
+
+    async def get_parsed_artifact_by_id(
+        self, project_id: str, parsed_artifact_id: str
+    ) -> ParsedArtifactModel | None:
+        statement = select(ParsedArtifactModel).where(
+            ParsedArtifactModel.project_id == project_id,
+            ParsedArtifactModel.parsed_artifact_id == parsed_artifact_id,
+        )
+        return cast(ParsedArtifactModel | None, await self.session.scalar(statement))
+
+    async def get_fragment(
+        self, project_id: str, source_fragment_id: str
+    ) -> SourceFragmentModel | None:
+        statement = select(SourceFragmentModel).where(
+            SourceFragmentModel.project_id == project_id,
+            SourceFragmentModel.source_fragment_id == source_fragment_id,
+        )
+        return cast(SourceFragmentModel | None, await self.session.scalar(statement))
+
+    async def list_fragments(
+        self,
+        project_id: str,
+        source_asset_id: str,
+        *,
+        after_ordinal: int | None = None,
+        limit: int = 100,
+    ) -> tuple[list[SourceFragmentModel], str | None, int]:
+        filters = [
+            SourceFragmentModel.project_id == project_id,
+            SourceFragmentModel.source_asset_id == source_asset_id,
+        ]
+        total = int(
+            await self.session.scalar(
+                select(func.count(SourceFragmentModel.source_fragment_id)).where(*filters)
+            )
+            or 0
+        )
+        page_filters = list(filters)
+        if after_ordinal is not None:
+            page_filters.append(SourceFragmentModel.ordinal > after_ordinal)
+        models = list(
+            await self.session.scalars(
+                select(SourceFragmentModel)
+                .where(*page_filters)
+                .order_by(SourceFragmentModel.ordinal.asc())
+                .limit(limit + 1)
+            )
+        )
+        has_more = len(models) > limit
+        items = models[:limit]
+        next_cursor = str(items[-1].ordinal) if has_more and items else None
+        return items, next_cursor, total
+
+    async def delete_processing_for_source(
+        self, project_id: str, source_asset_id: str
+    ) -> None:
+        await self.session.execute(
+            delete(EvidenceModel).where(
+                EvidenceModel.project_id == project_id,
+                EvidenceModel.source_asset_id == source_asset_id,
+            )
+        )
+        await self.session.execute(
+            delete(SourceFragmentModel).where(
+                SourceFragmentModel.project_id == project_id,
+                SourceFragmentModel.source_asset_id == source_asset_id,
+            )
+        )
+        await self.session.execute(
+            delete(ParsedArtifactModel).where(
+                ParsedArtifactModel.project_id == project_id,
+                ParsedArtifactModel.source_asset_id == source_asset_id,
+            )
+        )
 
     async def get_by_project(
         self, project_id: str, source_asset_id: str

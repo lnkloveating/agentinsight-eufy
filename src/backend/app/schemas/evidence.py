@@ -4,14 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
-
-class CollectionJobStatus(StrEnum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    PARTIAL = "partial"
-    BLOCKED = "blocked"
-    FAILED = "failed"
+from app.schemas.source_processing import CollectionJobStatus, SourceLocator
 
 
 class CollectionJob(BaseModel):
@@ -82,8 +75,11 @@ class EvidenceRelationship(StrEnum):
 
 class Evidence(BaseModel):
     evidence_id: str
-    source_url: HttpUrl
-    source_domain: str
+    source_url: HttpUrl | None = None
+    source_domain: str | None = None
+    source_asset_id: str | None = None
+    source_fragment_id: str | None = None
+    source_locator: SourceLocator | None = None
     source_type: str
     title: str
     original_excerpt: str
@@ -114,6 +110,19 @@ class EvidenceIngest(BaseModel):
     published_at: datetime | None = None
     collected_at: datetime
     status: EvidenceStatus = EvidenceStatus.UNVERIFIED
+    confidence: float = Field(ge=0, le=1)
+    authority_score: float = Field(ge=0, le=1)
+    recency_score: float = Field(ge=0, le=1)
+    diversity_score: float = Field(ge=0, le=1)
+
+
+class EvidenceFromSourceFragmentIngest(BaseModel):
+    source_fragment_id: str = Field(min_length=1, max_length=40)
+    claim_type: EvidenceClaimType
+    product: str | None = Field(default=None, max_length=160)
+    region: str | None = Field(default=None, max_length=120)
+    user_segment: str | None = Field(default=None, max_length=160)
+    published_at: datetime | None = None
     confidence: float = Field(ge=0, le=1)
     authority_score: float = Field(ge=0, le=1)
     recency_score: float = Field(ge=0, le=1)

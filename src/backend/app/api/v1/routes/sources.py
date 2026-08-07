@@ -2,7 +2,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Query, UploadFile, status
 
-from app.api.dependencies import SourceAssetServiceDependency
+from app.api.dependencies import (
+    SourceAssetServiceDependency,
+    SourceProcessingServiceDependency,
+)
 from app.schemas.source import (
     SourceAsset,
     SourceAssetIngestResult,
@@ -13,6 +16,7 @@ from app.schemas.source import (
     SourceFileMetadata,
     SourceLinkCreate,
 )
+from app.schemas.source_processing import SourceFragmentPage, SourceProcessingStatus
 
 router = APIRouter()
 
@@ -93,3 +97,66 @@ async def delete_source_asset(
     service: SourceAssetServiceDependency,
 ) -> SourceAsset:
     return await service.delete(project_id, source_asset_id)
+
+
+@router.get(
+    "/{project_id}/sources/{source_asset_id}/processing",
+    response_model=SourceProcessingStatus,
+)
+async def get_source_processing_status(
+    project_id: str,
+    source_asset_id: str,
+    service: SourceProcessingServiceDependency,
+) -> SourceProcessingStatus:
+    return await service.get_status(project_id, source_asset_id)
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/processing",
+    response_model=SourceProcessingStatus,
+)
+async def process_source_asset(
+    project_id: str,
+    source_asset_id: str,
+    service: SourceProcessingServiceDependency,
+) -> SourceProcessingStatus:
+    return await service.process(project_id, source_asset_id)
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/processing/retry",
+    response_model=SourceProcessingStatus,
+)
+async def retry_source_processing(
+    project_id: str,
+    source_asset_id: str,
+    service: SourceProcessingServiceDependency,
+) -> SourceProcessingStatus:
+    return await service.retry(project_id, source_asset_id)
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/processing/cancel",
+    response_model=SourceProcessingStatus,
+)
+async def cancel_source_processing(
+    project_id: str,
+    source_asset_id: str,
+    service: SourceProcessingServiceDependency,
+) -> SourceProcessingStatus:
+    return await service.cancel(project_id, source_asset_id)
+
+
+@router.get(
+    "/{project_id}/sources/{source_asset_id}/fragments",
+    response_model=SourceFragmentPage,
+)
+async def list_source_fragments(
+    project_id: str,
+    source_asset_id: str,
+    service: SourceProcessingServiceDependency,
+    cursor: str | None = None,
+) -> SourceFragmentPage:
+    return await service.list_fragments(
+        project_id, source_asset_id, cursor=cursor
+    )

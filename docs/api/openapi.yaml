@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.5.0
+  version: 0.6.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -263,6 +263,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SourceAsset"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/processing:
+    get:
+      tags: [Evidence]
+      summary: Get deterministic source-processing status
+      operationId: getSourceProcessingStatus
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: Current Collection Job and optional parsed artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceProcessingStatus"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Evidence]
+      summary: Process an authorized source with a registered deterministic parser
+      description: |
+        The request runs the bounded parser synchronously in v1 while persisting every
+        Collection Job transition. Unsupported media and links are blocked explicitly;
+        they are never reported as parsed.
+      operationId: processSourceAsset
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: Existing successful result or the newly completed result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceProcessingStatus"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/processing/retry:
+    post:
+      tags: [Evidence]
+      summary: Retry a failed or blocked source-processing job
+      operationId: retrySourceProcessing
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: Result after the bounded retry attempt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceProcessingStatus"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/processing/cancel:
+    post:
+      tags: [Evidence]
+      summary: Cancel a queued source-processing job
+      operationId: cancelSourceProcessing
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: Cancelled job state. Completed jobs remain unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceProcessingStatus"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/fragments:
+    get:
+      tags: [Evidence]
+      summary: List deterministically verified source fragments
+      operationId: listSourceFragments
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Verified excerpts with page, row, JSON or text locators.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceFragmentPage"
         default:
           $ref: "#/components/responses/Error"
 
@@ -723,6 +816,18 @@ components:
       type: string
       enum: [user_owned, enterprise_authorized, publicly_available]
 
+    SourceProcessingJobStatus:
+      type: string
+      enum: [queued, running, succeeded, partial, blocked, failed, cancelled]
+
+    SourceFragmentVerificationStatus:
+      type: string
+      enum: [verified, invalid]
+
+    SourceLocatorKind:
+      type: string
+      enum: [text, page, row, json]
+
     ClaimStatus:
       type: string
       enum: [proposed, supported, disputed, missing_evidence, rejected, unknown]
@@ -895,6 +1000,9 @@ components:
         - evidence_id
         - source_url
         - source_domain
+        - source_asset_id
+        - source_fragment_id
+        - source_locator
         - source_type
         - title
         - original_excerpt
@@ -905,8 +1013,14 @@ components:
         - confidence
       properties:
         evidence_id: { type: string }
-        source_url: { type: string, format: uri }
-        source_domain: { type: string }
+        source_url: { type: [string, "null"], format: uri }
+        source_domain: { type: [string, "null"] }
+        source_asset_id: { type: [string, "null"] }
+        source_fragment_id: { type: [string, "null"] }
+        source_locator:
+          oneOf:
+            - $ref: "#/components/schemas/SourceLocator"
+            - type: "null"
         source_type: { type: string }
         title: { type: string }
         original_excerpt: { type: string }
@@ -1022,6 +1136,126 @@ components:
             $ref: "#/components/schemas/SourceAsset"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
+    SourceProcessingJob:
+      type: object
+      additionalProperties: false
+      required:
+        - collection_job_id
+        - project_id
+        - source_asset_id
+        - source_type
+        - status
+        - attempt_count
+        - progress
+        - result
+      properties:
+        collection_job_id: { type: string }
+        project_id: { type: string }
+        source_asset_id: { type: string }
+        source_type: { type: string }
+        status:
+          $ref: "#/components/schemas/SourceProcessingJobStatus"
+        attempt_count: { type: integer, minimum: 0 }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        result:
+          type: object
+          additionalProperties: true
+        error_code: { type: [string, "null"] }
+        error_message: { type: [string, "null"] }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+
+    ParsedArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - parsed_artifact_id
+        - project_id
+        - source_asset_id
+        - collection_job_id
+        - parser_id
+        - parser_version
+        - source_content_hash
+        - fragment_count
+        - created_at
+      properties:
+        parsed_artifact_id: { type: string }
+        project_id: { type: string }
+        source_asset_id: { type: string }
+        collection_job_id: { type: string }
+        parser_id: { type: string }
+        parser_version: { type: string }
+        source_content_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        fragment_count: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+
+    SourceLocator:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          $ref: "#/components/schemas/SourceLocatorKind"
+        page_number: { type: [integer, "null"], minimum: 1 }
+        line_start: { type: [integer, "null"], minimum: 1 }
+        line_end: { type: [integer, "null"], minimum: 1 }
+        row_number: { type: [integer, "null"], minimum: 1 }
+        char_start: { type: [integer, "null"], minimum: 0 }
+        char_end: { type: [integer, "null"], minimum: 1 }
+        json_pointer: { type: [string, "null"] }
+
+    SourceFragment:
+      type: object
+      additionalProperties: false
+      required:
+        - source_fragment_id
+        - parsed_artifact_id
+        - project_id
+        - source_asset_id
+        - ordinal
+        - locator
+        - original_excerpt
+        - excerpt_hash
+        - verification_status
+        - created_at
+      properties:
+        source_fragment_id: { type: string }
+        parsed_artifact_id: { type: string }
+        project_id: { type: string }
+        source_asset_id: { type: string }
+        ordinal: { type: integer, minimum: 0 }
+        locator:
+          $ref: "#/components/schemas/SourceLocator"
+        original_excerpt: { type: string, minLength: 1 }
+        excerpt_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        verification_status:
+          $ref: "#/components/schemas/SourceFragmentVerificationStatus"
+        created_at: { type: string, format: date-time }
+
+    SourceFragmentPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceFragment"
+        next_cursor: { type: [string, "null"] }
+        total: { type: integer, minimum: 0 }
+
+    SourceProcessingStatus:
+      type: object
+      additionalProperties: false
+      required: [job, parsed_artifact]
+      properties:
+        job:
+          $ref: "#/components/schemas/SourceProcessingJob"
+        parsed_artifact:
+          oneOf:
+            - $ref: "#/components/schemas/ParsedArtifact"
+            - type: "null"
 
     EvidencePage:
       type: object

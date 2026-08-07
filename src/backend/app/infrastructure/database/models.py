@@ -63,6 +63,12 @@ class ProjectModel(Base):
     source_assets: Mapped[list["SourceAssetModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    source_fragments: Mapped[list["SourceFragmentModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     evidence_records: Mapped[list["EvidenceModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -297,6 +303,9 @@ class CollectionJobModel(Base):
     source_asset: Mapped["SourceAssetModel | None"] = relationship(
         back_populates="collection_job", uselist=False
     )
+    parsed_artifact: Mapped["ParsedArtifactModel | None"] = relationship(
+        back_populates="collection_job", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class SourceAssetModel(Base):
@@ -348,6 +357,86 @@ class SourceAssetModel(Base):
 
     project: Mapped[ProjectModel] = relationship(back_populates="source_assets")
     collection_job: Mapped[CollectionJobModel] = relationship(back_populates="source_asset")
+    parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
+        back_populates="source_asset", cascade="all, delete-orphan"
+    )
+
+
+class ParsedArtifactModel(Base):
+    """A deterministic parser result whose fragments have passed source verification."""
+
+    __tablename__ = "parsed_artifacts"
+    __table_args__ = (
+        UniqueConstraint("collection_job_id", name="uq_parsed_artifact_collection_job"),
+        Index("ix_parsed_artifacts_project_source", "project_id", "source_asset_id"),
+    )
+
+    parsed_artifact_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    collection_job_id: Mapped[str] = mapped_column(
+        ForeignKey("collection_jobs.collection_job_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    parser_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    fragment_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="parsed_artifacts")
+    source_asset: Mapped[SourceAssetModel] = relationship(back_populates="parsed_artifacts")
+    collection_job: Mapped[CollectionJobModel] = relationship(back_populates="parsed_artifact")
+    fragments: Mapped[list["SourceFragmentModel"]] = relationship(
+        back_populates="parsed_artifact", cascade="all, delete-orphan"
+    )
+
+
+class SourceFragmentModel(Base):
+    """An exact excerpt and deterministic locator into one parsed source snapshot."""
+
+    __tablename__ = "source_fragments"
+    __table_args__ = (
+        UniqueConstraint(
+            "parsed_artifact_id", "ordinal", name="uq_source_fragment_artifact_ordinal"
+        ),
+        Index("ix_source_fragments_project_source", "project_id", "source_asset_id"),
+    )
+
+    source_fragment_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    parsed_artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("parsed_artifacts.parsed_artifact_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    locator_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    original_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    excerpt_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    parsed_artifact: Mapped[ParsedArtifactModel] = relationship(back_populates="fragments")
+    project: Mapped[ProjectModel] = relationship(back_populates="source_fragments")
 
 
 class EvidenceModel(Base):
@@ -369,9 +458,20 @@ class EvidenceModel(Base):
         nullable=True,
         index=True,
     )
-    source_url: Mapped[str] = mapped_column(Text, nullable=False)
-    normalized_source_url: Mapped[str] = mapped_column(Text, nullable=False)
-    source_domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_fragment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_fragments.source_fragment_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_locator_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     source_type: Mapped[str] = mapped_column(String(80), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     original_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
