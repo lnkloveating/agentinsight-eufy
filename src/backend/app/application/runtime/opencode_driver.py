@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from typing import cast
 from urllib.parse import urlsplit
 
 from app.application.runtime.cli_contracts import CliCommand, CliWorkspace
@@ -160,7 +161,7 @@ class OpenCodeCliDriver:
     @staticmethod
     def _try_json(value: str) -> object | None:
         try:
-            return json.loads(value)
+            return cast(object, json.loads(value))
         except json.JSONDecodeError:
             return None
 
@@ -181,7 +182,7 @@ class OpenCodeCliDriver:
                 parsed, _ = decoder.raw_decode(stripped[index:])
             except json.JSONDecodeError:
                 continue
-            return parsed
+            return cast(object, parsed)
         return None
 
     @staticmethod

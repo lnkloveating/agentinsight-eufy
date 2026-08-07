@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、原始资料接入、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway 已经完成；外部资料解析 Runtime 和领域 Agent 尚未开始完整接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、原始资料接入、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway 与安全的外部 CLI Runtime 已经完成；资料解析管线和领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -38,6 +38,7 @@ http://localhost:8000/api/v1
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
+| External CLI Runtime | 固定 Driver 注册、CLI 健康探测、项目/运行隔离目录、输出限制、超时/取消、密钥脱敏、OpenCode Driver | 可以通过 `/runtimes` 展示外部 Agent 是否真实可用；不能把未声明的网站/视频能力标成可用 |
 | Model Gateway | 模型目录、项目默认模型、Agent 级覆盖、Prompt 版本、结构化输出、重试、Token/成本审计 | 可以实现模型选择器和 Agent 调用审计展示 |
 | 主办方模型路由 | 已接入 GLM 5.2 与 DeepSeek V4 Pro，并完成真实联网冒烟测试 | 前端只使用 `/models` 返回的 `model_id`，不接触 API Key |
 
@@ -48,13 +49,14 @@ http://localhost:8000/api/v1
 1. LangGraph 主图能够在测试 Runtime 下完成并行节点、三次暂停和 Checkpoint 恢复。
 2. Agent Runtime 能够调用显式注册的 Adapter，并保存 Agent Run 与版本化 Artifact。
 3. `InternalModelAgentAdapter` 能够通过 Model Gateway 调用真实模型。
-4. Evidence 和 Innovation 服务可以保存、校验和查询真实持久化记录。
+4. `ExternalCliAgentAdapter` 能够通过 OpenCode 调用主办方模型，并返回结构化 `ResearchArtifact`。
+5. Evidence 和 Innovation 服务可以保存、校验和查询真实持久化记录。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
 - 用户研究、竞品、产品技术、商业和红队等业务 Prompt；
-- 外部 Runtime Adapter，以及把解析结果确定性转换为 Evidence 的处理管线；
+- 把 SourceAsset 投递给外部 Runtime、解析定位并确定性转换为 Evidence 的处理管线；
 - 竞品 A2A Runtime；
 - 最终报告、Package Risk Demo 和飞书集成。
 
@@ -66,6 +68,7 @@ http://localhost:8000/api/v1
 |---|---|---|---|
 | `GET` | `/health` | 可用 | 服务健康状态 |
 | `GET` | `/models` | 可用 | 模型选择器；返回安全模型目录和凭据可用状态 |
+| `GET` | `/runtimes` | 可用 | 外部 Agent 选择器；返回 CLI、凭据、版本和已验证能力状态，不返回本机路径与密钥信息 |
 | `GET` | `/projects` | 可用 | 项目列表 |
 | `POST` | `/projects` | 可用 | 创建项目，提交 Brief 和可选模型策略 |
 | `GET` | `/projects/{project_id}` | 可用 | 项目详情、进度和待审批信息 |
@@ -97,7 +100,7 @@ http://localhost:8000/api/v1
 - Package Risk Demo Result；
 - 最终报告和方法对照指标；
 - 飞书 Aily Skills、审批卡片和文档沉淀；
-- 外部 Runtime、竞品 A2A 和真实资料解析任务控制。
+- 外部 Runtime 任务启动/取消、竞品 A2A 和真实资料解析任务控制。
 
 ## 4. 前端需要立即对齐的数据契约
 
@@ -140,7 +143,17 @@ GET /api/v1/models
 
 模型 ID 必须来自 `/models`，不要在前端硬编码 Provider 内部模型名，更不能保存或请求 API Key。
 
-### 4.2 `Project` 类型
+### 4.2 外部 Runtime 选择
+
+前端应调用：
+
+```http
+GET /api/v1/runtimes
+```
+
+当前目录包含 `opencode`，并区分 `enabled`、`executable_available`、`credential_available` 和最终 `available`。前端只能允许用户选择 `available=true` 的 Runtime；`capabilities` 目前只声明 `text`、`structured_output` 和 `local_files`，不应展示网页、图片、音频或视频已可解析。`unavailable_reason` 应直接映射成“未安装”“缺凭据”“探测失败”或“已禁用”，不要静默回退到假结果。
+
+### 4.3 `Project` 类型
 
 当前后端 `Project` 比前端类型多一个字段：
 
@@ -150,7 +163,7 @@ model_selection: ModelSelection | null
 
 前端应保留该字段，用于项目详情和模型审计展示。
 
-### 4.3 `AgentRun` 类型
+### 4.4 `AgentRun` 类型
 
 后端支持的状态比当前前端类型更多：
 
@@ -185,7 +198,7 @@ estimated_cost_microusd
 
 前端的 Agent 历史、错误状态和成本展示可以直接基于这些字段设计。
 
-### 4.4 `SourceAsset` 类型
+### 4.5 `SourceAsset` 类型
 
 前端资料输入页可以直接接入 `/sources/files` 和 `/sources/links`。文件上传使用 `multipart/form-data`，必须提交：
 
@@ -199,9 +212,9 @@ purpose
 
 链接登记使用 JSON，除授权字段外还需提交 `source_url` 和 `display_name`。`authorization_basis` 只能是 `user_owned`、`enterprise_authorized` 或 `publicly_available`。
 
-响应中的 `collection_job_id` 表示已经建立待解析任务，但当前分支不会调用外部 Agent。`SourceAsset` 不是 Evidence，前端不得把“上传成功”显示成“证据已验证”。文件系统路径不会通过 API 返回，API Key 也不参与该流程。
+响应中的 `collection_job_id` 表示已经建立待解析任务。当前已有通用外部 CLI Runtime，但尚未把 SourceAsset 自动投递给它；该连接属于下一阶段 Evidence Processing Pipeline。`SourceAsset` 不是 Evidence，前端不得把“上传成功”或“Runtime 可用”显示成“证据已验证”。文件系统路径不会通过 API 返回，API Key 也不参与该流程。
 
-### 4.5 `Evidence` 类型
+### 4.6 `Evidence` 类型
 
 当前前端类型与真实后端存在字段名差异：
 
@@ -212,7 +225,7 @@ purpose
 
 后端还返回 `source_domain`、`claim_type`、`product`、`region`、`user_segment`、`published_at`、`authority_score`、`recency_score` 和 `diversity_score`。Evidence Center 应以真实后端字段为准。
 
-### 4.6 `Claim` 类型
+### 4.7 `Claim` 类型
 
 除现有字段外，后端还返回：
 
@@ -223,7 +236,7 @@ scope
 
 Claim 状态包括 `proposed`、`supported`、`disputed`、`missing_evidence`、`rejected` 和 `unknown`。
 
-### 4.7 使用 `Innovation` 替代旧 `Concept`
+### 4.8 使用 `Innovation` 替代旧 `Concept`
 
 当前真实候选接口是：
 
@@ -242,7 +255,7 @@ GET /api/v1/projects/{project_id}/innovations
 
 候选比较页应围绕 `Innovation` 设计，旧 `/concepts` 不应继续作为长期契约。
 
-### 4.8 SSE 当前行为
+### 4.9 SSE 当前行为
 
 当前 v1 后端会把 `event_type` 同时作为 SSE 的命名事件类型，并在 `data` 中发送完整 `ProjectEvent` JSON。
 
@@ -341,18 +354,18 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 83 passed
+pytest: 93 passed
 ruff: passed
-mypy: passed（94 个源文件）
+mypy: passed（102 个源文件）
 Alembic: 空数据库升级到 0006_source_ingestion 通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 冒烟测试通过
+外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
 ```
 
 接下来的后端开发顺序应从真实数据接入开始：
 
 ```text
-External Runtime Adapter（先接一个真实 Runtime）
-→ Evidence Processing Pipeline
+Evidence Processing Pipeline（把 SourceAsset 投递给已验证 Runtime）
 → User Research Agent
 → Competitor A2A
 → Product Technical Agent
