@@ -13,14 +13,16 @@ from app.application.innovations import InnovationService
 from app.application.model_gateway import CredentialResolver, ModelCatalog
 from app.application.projects import ProjectService
 from app.application.runtime import ExternalRuntimeCatalog
-from app.application.sources import SourceAssetService
+from app.application.sources import SourceAssetService, SourceProcessingService
 from app.core.config import Settings
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.innovation_repository import InnovationRepository
 from app.infrastructure.database.repositories import ProjectRepository
 from app.infrastructure.database.source_repository import SourceAssetRepository
+from app.infrastructure.source_processing_workspace import SourceProcessingWorkspaceManager
 from app.infrastructure.source_storage import LocalSourceStorage
+from app.sources.parsers import default_source_parser_registry
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -82,6 +84,34 @@ def get_source_asset_service(
 
 SourceAssetServiceDependency = Annotated[
     SourceAssetService, Depends(get_source_asset_service)
+]
+
+
+def get_source_processing_service(
+    request: Request, session: SessionDependency
+) -> SourceProcessingService:
+    settings: Settings = request.app.state.settings
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return SourceProcessingService(
+        SourceAssetRepository(session),
+        ProjectRepository(session),
+        LocalSourceStorage(
+            Path(settings.source_storage_root),
+            settings.source_max_upload_bytes,
+        ),
+        SourceProcessingWorkspaceManager(
+            Path(settings.source_processing_workspace_root)
+        ),
+        default_source_parser_registry(settings.source_processing_max_excerpt_chars),
+        max_input_bytes=settings.source_processing_max_input_bytes,
+        max_fragments=settings.source_processing_max_fragments,
+        trace_id=trace_id,
+        event_broker=request.app.state.event_broker,
+    )
+
+
+SourceProcessingServiceDependency = Annotated[
+    SourceProcessingService, Depends(get_source_processing_service)
 ]
 
 

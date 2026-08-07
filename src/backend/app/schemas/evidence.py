@@ -12,6 +12,7 @@ class CollectionJobStatus(StrEnum):
     PARTIAL = "partial"
     BLOCKED = "blocked"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class CollectionJob(BaseModel):

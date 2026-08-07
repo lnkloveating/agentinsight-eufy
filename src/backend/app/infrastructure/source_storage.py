@@ -77,6 +77,22 @@ class LocalSourceStorage:
         path = self._resolve_key(storage_key)
         path.unlink(missing_ok=True)
 
+    def resolve_for_read(self, storage_key: str | None) -> Path:
+        if storage_key is None:
+            raise AppError(
+                code="SOURCE_CONTENT_MISSING",
+                message="原始资料内容不存在。",
+                status_code=409,
+            )
+        path = self._resolve_key(storage_key)
+        if not path.is_file():
+            raise AppError(
+                code="SOURCE_CONTENT_MISSING",
+                message="原始资料内容不存在。",
+                status_code=409,
+            )
+        return path
+
     def _project_directory(self, project_id: str) -> Path:
         allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
         if not project_id or any(character not in allowed for character in project_id):

@@ -11,9 +11,11 @@ from app.infrastructure.database.models import (
     EvidenceModel,
     InnovationModel,
     ModelCallModel,
+    ParsedArtifactModel,
     ProjectEventModel,
     ProjectModel,
     SourceAssetModel,
+    SourceFragmentModel,
 )
 from app.infrastructure.database.session import Database
 
@@ -29,7 +31,9 @@ __all__ = [
     "EvidenceModel",
     "InnovationModel",
     "ModelCallModel",
+    "ParsedArtifactModel",
     "ProjectEventModel",
     "ProjectModel",
     "SourceAssetModel",
+    "SourceFragmentModel",
 ]

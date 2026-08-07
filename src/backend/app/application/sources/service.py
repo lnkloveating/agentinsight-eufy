@@ -224,17 +224,28 @@ class SourceAssetService:
             return self._to_source_asset(model)
         now = datetime.now(UTC)
         self.storage.delete(model.storage_key)
+        await self.repository.delete_processing_for_source(project_id, source_asset_id)
         model.storage_key = None
         model.status = SourceAssetStatus.DELETED
         model.deleted_at = now
         model.updated_at = now
         collection_job = await self.repository.get_collection_job(model.collection_job_id)
-        if collection_job is not None and collection_job.status == CollectionJobStatus.QUEUED:
+        if collection_job is not None and collection_job.status in {
+            CollectionJobStatus.QUEUED,
+            CollectionJobStatus.RUNNING,
+            CollectionJobStatus.SUCCEEDED,
+            CollectionJobStatus.PARTIAL,
+        }:
             collection_job.status = CollectionJobStatus.BLOCKED
             collection_job.error_code = "SOURCE_ASSET_DELETED"
             collection_job.error_message = "原始资料已删除，任务不会交给外部 Runtime。"
             collection_job.completed_at = now
             collection_job.updated_at = now
+            collection_job.result_json = {
+                "source_asset_id": source_asset_id,
+                "progress": 100,
+                "parsed_content_purged": True,
+            }
         await self._add_event(model, "source_asset_deleted", now)
         try:
             await self.repository.commit()
