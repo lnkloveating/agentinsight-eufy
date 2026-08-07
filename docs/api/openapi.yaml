@@ -1000,6 +1000,9 @@ components:
         - evidence_id
         - source_url
         - source_domain
+        - source_asset_id
+        - source_fragment_id
+        - source_locator
         - source_type
         - title
         - original_excerpt
@@ -1010,8 +1013,14 @@ components:
         - confidence
       properties:
         evidence_id: { type: string }
-        source_url: { type: string, format: uri }
-        source_domain: { type: string }
+        source_url: { type: [string, "null"], format: uri }
+        source_domain: { type: [string, "null"] }
+        source_asset_id: { type: [string, "null"] }
+        source_fragment_id: { type: [string, "null"] }
+        source_locator:
+          oneOf:
+            - $ref: "#/components/schemas/SourceLocator"
+            - type: "null"
         source_type: { type: string }
         title: { type: string }
         original_excerpt: { type: string }
