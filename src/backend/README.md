@@ -38,7 +38,7 @@ opencode --version
 
 后端通过 `ExternalCliAgentAdapter` 启动固定注册的 OpenCode Driver，不接受 API 请求提交任意命令。每次运行使用 `EXTERNAL_RUNTIME_WORKSPACE_ROOT` 下的项目/Agent Run 隔离目录；只向子进程注入配置指定的凭据，原始 stdout/stderr 不写日志，非零退出的错误文本会先脱敏。
 
-OpenCode 当前只声明 `text`、`structured_output` 和 `local_files`。Driver 明确禁止 bash、编辑、外部目录、网页访问和子 Agent，因此不能把“OpenCode 可用”解释成“已经支持网站或视频解析”。前端通过 `GET /api/v1/runtimes` 获取真实安装、凭据、版本和能力状态。
+OpenCode 当前只声明 `text`、`structured_output` 和 `local_files`。Driver 明确禁止 bash、编辑、外部目录、网页访问和子 Agent；网页获取由独立 Web Connector 完成，OpenCode 只能在后续业务 Agent 中读取已经验证的 Source Fragment。视频仍未支持。前端通过 `GET /api/v1/runtimes` 获取真实安装、凭据、版本和能力状态。
 
 本地真实模型冒烟：
 
@@ -95,7 +95,7 @@ GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/fragments
 
 生产 Parser 当前支持 UTF-8 TXT/Markdown、CSV、JSON 和可提取文本的 PDF。处理时先把文件复制到 Collection Job 独占工作区，校验 SourceAsset 内容哈希，解析后再次读取同一快照验证每个 excerpt 的字符范围、行号、CSV 行记录或 PDF 页码，最后才保存 `ParsedArtifact` 和 `SourceFragment`。工作区在成功和失败后都会清理。
 
-网页、DOCX、图片、音频和视频在没有注册 Connector 时返回 `blocked`；不会调用模型猜测内容。外部 Agent 也不能直接提交原文进入 Evidence，必须引用已持久化且验证状态为 `verified` 的 Source Fragment；入湖后默认是 `partially_verified`，因为“引用与原文一致”不等于“来源主张已经被多源证实”。删除 SourceAsset 会同时清除解析片段和由其派生的 Evidence，只保留最小任务审计状态。
+授权公开网页已接入安全 HTTP Connector：每次请求和重定向前检查公网 DNS，遵守 `robots.txt`，限制超时、重定向、解压后响应大小和 HTML 类型，并拒绝登录页。成功内容会保存成当前项目的 HTML 快照，片段携带字符范围和 Web Path，二次读取快照复核后才能进入 Evidence。该能力不包含登录、Cookie、浏览器渲染、验证码或反爬绕过。DOCX、图片、音频和视频在没有注册 Connector 时返回 `blocked`；不会调用模型猜测内容。外部 Agent 也不能直接提交原文进入 Evidence，必须引用已持久化且验证状态为 `verified` 的 Source Fragment；入湖后默认是 `partially_verified`，因为“引用与原文一致”不等于“来源主张已经被多源证实”。删除 SourceAsset 会同时清除网页快照、解析片段和由其派生的 Evidence，只保留最小任务审计状态。
 
 ## v2 实现顺序
 
@@ -106,17 +106,18 @@ GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/fragments
 5. Model Gateway、多模型选择、Prompt 版本、Token/成本和 Provider 边界（框架已完成；等待真实 Provider 凭据验证）；
 6. Source Ingestion、项目隔离存储、授权审计和待解析 Collection Job（已完成）；
 7. Evidence Processing Pipeline，确定性解析、原文复核、任务恢复和受控 Evidence 入湖（已完成）；
-8. Codex、Claude Code 等外部 Runtime Driver 和能力探测；
-9. 用户研究、竞品 A2A、产品技术、商业与红队领域 Agent；
-10. Package Risk Intelligence Demo Result；
-11. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
-12. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
+8. Web Connector、安全网页快照与 Web Locator（已完成）；
+9. 视频/音频处理 Connector；
+10. 用户研究、竞品 A2A、产品技术、商业与红队领域 Agent；
+11. Package Risk Intelligence Demo Result；
+12. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
+13. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
 
 Evidence Foundation 的自动化验收映射：
 
 - AC-04：`test_evidence_normalization.py`、`test_evidence_ingestion.py`、`test_collection_job_failure.py` 和 `test_evidence_query_api.py`；
 - AC-04 原始资料入口：`test_source_validation.py` 和 `test_source_ingestion_api.py` 验证授权、类型/大小限制、私网 URL、哈希去重、项目隔离、文件删除、任务阻断和恢复；
-- AC-04 Source Processing：`test_source_parsers.py` 和 `test_source_processing_api.py` 验证 TXT/Markdown、CSV、JSON、PDF、隔离工作区、原文定位复核、失败、重试、取消、无 Connector 阻塞、删除清理与受控 Evidence 入湖；
+- AC-04 Source Processing：`test_source_parsers.py`、`test_web_connector.py` 和 `test_source_processing_api.py` 验证 TXT/Markdown、CSV、JSON、PDF、授权公开网页、SSRF/robots/重定向/大小限制、隔离快照、原文定位复核、失败、重试、取消、无 Connector 阻塞、删除清理与受控 Evidence 入湖；
 - AC-05：`test_claim_gate.py` 和 `test_claim_gate_persistence.py`。
 
 Innovation Foundation 的自动化验收映射：
