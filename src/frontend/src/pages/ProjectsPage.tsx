@@ -11,11 +11,13 @@ function SelectField({
   options,
   onChange,
   ariaLabel,
+  placeholder = '请选择',
 }: {
   value: string;
   options: readonly string[];
   onChange: (nextValue: string) => void;
   ariaLabel: string;
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,7 @@ function SelectField({
         }}
         type="button"
       >
-        <span>{value}</span>
+        <span style={{ color: value ? 'inherit' : 'var(--muted)' }}>{value || placeholder}</span>
         <span aria-hidden="true" className="ui-selectbox__chevron">
           <svg fill="none" height="16" viewBox="0 0 16 16" width="16" xmlns="http://www.w3.org/2000/svg">
             <path d="M4 6.5L8 10.5L12 6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
@@ -102,11 +104,18 @@ export function ProjectsPage() {
 
   const [activePage, setActivePage] = useState<PageId>(initialPage);
   const [createStep, setCreateStep] = useState(1);
-  const [question, setQuestion] = useState('我想知道 eufy 下一代家庭安防还能做什么。');
-  const [market, setMarket] = useState('美国');
-  const [home, setHome] = useState('独栋住宅');
-  const [scope, setScope] = useState('可视门铃 / 摄像头');
-  const [direction, setDirection] = useState('AI / 软件能力');
+
+  useEffect(() => {
+    const page = (searchParams.get('page') as PageId) || 'projects';
+    setActivePage(page);
+    if (page === 'create') setCreateStep(1);
+  }, [searchParams]);
+  const [question, setQuestion] = useState('');
+  const [market, setMarket] = useState('');
+  const [home, setHome] = useState('');
+  const [scope, setScope] = useState('');
+  const [direction, setDirection] = useState('');
+  const [externalUrl, setExternalUrl] = useState('');
 
   const [activeInsight, setActiveInsight] = useState(0);
   const [activeConcept, setActiveConcept] = useState('context');
@@ -115,6 +124,26 @@ export function ProjectsPage() {
   const [scenarioEarly, setScenarioEarly] = useState(false);
   const [scenarioPresent, setScenarioPresent] = useState(true);
   const [rainProb, setRainProb] = useState(87);
+
+  const generatedProjectName = (() => {
+    const scopeShort = scope ? scope.split('(')[0].trim() : '';
+    const dirLabel = direction === 'AI / 软件能力' ? 'AI 能力' : direction === '新硬件机会' ? '新硬件' : direction === '新使用场景' ? '新场景' : '';
+    const parts = ['eufy', scopeShort, dirLabel].filter(Boolean);
+    return parts.length > 0 ? `${parts.join(' ')} 研究` : 'eufy 产品机会研究';
+  })();
+
+  const generatedValidationPoints = (() => {
+    const points: string[] = [];
+    if (scope) points.push(`${scope} 的核心用户痛点是什么`);
+    if (market) points.push(`${market}市场的独特需求和约束`);
+    if (home) points.push(`${home}用户的典型使用场景`);
+    if (direction === 'AI / 软件能力') points.push('现有 AI 能力是否足以支持该场景');
+    if (direction === '新硬件机会') points.push('新硬件形态是否符合用户安装与使用习惯');
+    if (direction === '新使用场景') points.push('场景频次是否足以支撑产品价值');
+    points.push('竞品是否已有类似方案');
+    points.push('技术落地可行性与成本评估');
+    return points.length > 0 ? points : ['产品价值验证', '用户需求确认', '竞品方案调研', '技术可行性评估', '市场匹配度分析'];
+  })();
 
   const computedDecision = (() => {
     if (scenarioCovered) return { text: '不打扰', badge: '保持安静', tone: 'gray' as const, msTime: '—', msg: '包裹处于受遮挡区域，当前不需要提醒。' };
@@ -203,10 +232,9 @@ export function ProjectsPage() {
       <section className={`demo-page-section${activePage === 'create' ? ' active' : ''}`} id="create">
         <div className="demo-panel">
           <div className="demo-panel-head">
-            <div>
-              <div className="demo-panel-title">新建产品研究</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>步骤 {createStep} / 3</div>
-            </div>
+            <h2 style={{ fontSize: 20, margin: 0 }}>
+              {createStep === 1 ? '你今天想研究什么产品机会？' : createStep === 2 ? '确认研究边界' : '确认研究内容'}
+            </h2>
             <span className={`demo-status demo-status--${createStep === 1 ? 'purple' : createStep === 2 ? 'purple' : 'green'}`}>
 步骤 {createStep}/3
             </span>
@@ -214,7 +242,6 @@ export function ProjectsPage() {
           <div style={{ padding: 18 }}>
             {createStep === 1 && (
               <div>
-                <h2 style={{ fontSize: 20, margin: '6px 0 8px' }}>你今天想研究什么产品机会？</h2>
                 <textarea
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
@@ -230,8 +257,6 @@ export function ProjectsPage() {
 
             {createStep === 2 && (
               <div>
-                <div className="eyebrow">AI 澄清</div>
-                <h2 style={{ fontSize: 20, margin: '6px 0 8px' }}>确认研究边界</h2>
                 <div className="demo-fields">
                   <div className="demo-field">
                     <small>主要市场</small>
@@ -261,6 +286,16 @@ export function ProjectsPage() {
                     <SelectField ariaLabel="优先探索方向" options={['AI / 软件能力', '新硬件机会', '新使用场景', '暂不限制']} value={direction} onChange={setDirection} />
                   </div>
                 </div>
+                <div className="demo-field" style={{ marginTop: 14 }}>
+                  <small>外部资料链接（可选）</small>
+                  <input
+                    className="ui-input"
+                    placeholder="输入 URL，多个链接请换行输入"
+                    style={{ width: '100%', marginTop: 6 }}
+                    value={externalUrl}
+                    onChange={(e) => setExternalUrl(e.target.value)}
+                  />
+                </div>
                 <div className="demo-actions">
                   <button className="demo-btn demo-btn--ghost" onClick={() => setCreateStep(1)}>返回</button>
                   <button className="demo-btn demo-btn--primary" onClick={() => setCreateStep(3)}>下一步</button>
@@ -270,12 +305,10 @@ export function ProjectsPage() {
 
             {createStep === 3 && (
               <div>
-                <div className="eyebrow">研究 Brief 确认</div>
-                <h2 style={{ fontSize: 20, margin: '6px 0 8px' }}>确认研究 Brief</h2>
                 <div className="demo-panel" style={{ boxShadow: 'none', marginTop: 14 }}>
                   <div style={{ padding: 16 }}>
                     <div className="demo-fields">
-                      <div className="demo-field"><small>项目名称</small><b>eufy 下一代情境感知家庭安防研究</b></div>
+                      <div className="demo-field"><small>项目名称</small><b>{generatedProjectName}</b></div>
                       <div className="demo-field"><small>地区</small><b>{market}</b></div>
                       <div className="demo-field"><small>住宅类型</small><b>{home}</b></div>
                       <div className="demo-field"><small>产品范围</small><b>{scope}</b></div>
@@ -283,17 +316,15 @@ export function ProjectsPage() {
                     <div className="demo-field" style={{ marginTop: 10 }}>
                       <small>核心研究问题</small>
                       <b style={{ fontSize: 12, lineHeight: 1.6 }}>
-                        在家庭安防中，有哪些场景是设备已经正确检测到了事件，但由于缺乏上下文理解，仍然没能帮助用户及时作出正确行动？
+                        {question || '（请返回第 1 步填写研究问题）'}
                       </b>
                     </div>
                     <div className="demo-field" style={{ marginTop: 10 }}>
                       <small>重点验证</small>
                       <b style={{ fontSize: 11, lineHeight: 1.8 }}>
-                        ✓ 单一事件是否不足以完成判断<br />
-                        ✓ 外部天气是否能提升提醒价值<br />
-                        ✓ 家庭在家状态是否改变提醒决策<br />
-                        ✓ 用户是否接受主动预测与提前干预<br />
-                        ✓ 什么情况下 AI 应该保持安静
+                        {generatedValidationPoints.map((p, i) => (
+                          <span key={i}>{i > 0 && <br />}✓ {p}</span>
+                        ))}
                       </b>
                     </div>
                   </div>
