@@ -71,6 +71,44 @@ class LocalSourceStorage:
             byte_size=byte_size,
         )
 
+    def save_bytes(
+        self,
+        *,
+        project_id: str,
+        source_asset_id: str,
+        suffix: str,
+        content: bytes,
+    ) -> StoredSource:
+        if not content:
+            raise AppError(
+                code="SOURCE_FILE_EMPTY",
+                message="The source snapshot cannot be empty.",
+                status_code=422,
+            )
+        if len(content) > self.max_upload_bytes:
+            raise AppError(
+                code="SOURCE_FILE_TOO_LARGE",
+                message="The source snapshot exceeds the storage size limit.",
+                status_code=413,
+                details={"max_bytes": self.max_upload_bytes},
+            )
+        project_directory = self._project_directory(project_id)
+        project_directory.mkdir(parents=True, exist_ok=True)
+        storage_key = f"{project_id}/{source_asset_id}{suffix}"
+        final_path = self._resolve_key(storage_key)
+        temporary_path = self._resolve_key(f"{project_id}/.{source_asset_id}.capturing")
+        try:
+            temporary_path.write_bytes(content)
+            temporary_path.replace(final_path)
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
+        return StoredSource(
+            storage_key=storage_key,
+            content_hash=sha256(content).hexdigest(),
+            byte_size=len(content),
+        )
+
     def delete(self, storage_key: str | None) -> None:
         if storage_key is None:
             return

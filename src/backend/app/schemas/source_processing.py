@@ -20,6 +20,7 @@ class SourceLocatorKind(StrEnum):
     PAGE = "page"
     ROW = "row"
     JSON = "json"
+    WEB = "web"
 
 
 class SourceFragmentVerificationStatus(StrEnum):
@@ -36,6 +37,7 @@ class SourceLocator(BaseModel):
     char_start: int | None = Field(default=None, ge=0)
     char_end: int | None = Field(default=None, ge=1)
     json_pointer: str | None = None
+    web_path: str | None = None
 
     @model_validator(mode="after")
     def validate_locator_shape(self) -> "SourceLocator":
@@ -49,6 +51,8 @@ class SourceLocator(BaseModel):
             raise ValueError("row locator requires row_number")
         if self.kind is SourceLocatorKind.JSON and self.json_pointer is None:
             raise ValueError("JSON locator requires json_pointer")
+        if self.kind is SourceLocatorKind.WEB and self.web_path is None:
+            raise ValueError("web locator requires web_path")
         if self.line_start is not None and self.line_end is not None:
             if self.line_end < self.line_start:
                 raise ValueError("source locator line range is invalid")

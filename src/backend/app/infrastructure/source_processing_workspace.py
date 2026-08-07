@@ -45,6 +45,29 @@ class SourceProcessingWorkspaceManager:
             content_hash=digest.hexdigest(),
         )
 
+    def materialize_bytes(
+        self,
+        *,
+        project_id: str,
+        collection_job_id: str,
+        content: bytes,
+        suffix: str,
+    ) -> MaterializedSource:
+        project_component = self._safe_component(project_id)
+        job_component = self._safe_component(collection_job_id)
+        workspace = self._resolve(project_component, job_component)
+        if workspace.exists():
+            shutil.rmtree(workspace)
+        input_directory = workspace / "input"
+        input_directory.mkdir(parents=True, exist_ok=False)
+        source_path = input_directory / f"source{suffix}"
+        source_path.write_bytes(content)
+        return MaterializedSource(
+            workspace=workspace,
+            source_path=source_path,
+            content_hash=sha256(content).hexdigest(),
+        )
+
     def cleanup(self, workspace: Path | None) -> None:
         if workspace is None:
             return

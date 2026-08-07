@@ -17,7 +17,7 @@ from app.schemas.evidence import (
     EvidenceIngestResult,
     EvidenceStatus,
 )
-from app.schemas.source import SourceAssetStatus
+from app.schemas.source import SourceAssetKind, SourceAssetStatus
 from app.schemas.source_processing import (
     CollectionJobStatus,
     SourceFragmentVerificationStatus,
@@ -81,10 +81,18 @@ class SourceEvidencePromotionService:
             )
         job = await self.source_repository.get_collection_job(artifact.collection_job_id)
         excerpt_hash = sha256(fragment.original_excerpt.encode("utf-8")).hexdigest()
+        provenance_hash_matches = artifact.source_content_hash == asset.content_hash
+        if asset.kind == SourceAssetKind.LINK:
+            provenance_hash_matches = (
+                job is not None
+                and artifact.source_content_hash
+                == job.result_json.get("captured_content_hash")
+                and asset.storage_key is not None
+            )
         if (
             asset.status != SourceAssetStatus.READY
             or artifact.source_asset_id != asset.source_asset_id
-            or artifact.source_content_hash != asset.content_hash
+            or not provenance_hash_matches
             or fragment.excerpt_hash != excerpt_hash
             or job is None
             or job.status != CollectionJobStatus.SUCCEEDED
@@ -105,6 +113,10 @@ class SourceEvidencePromotionService:
             )
 
         source_url: str | None = asset.source_url
+        if asset.kind == SourceAssetKind.LINK and job is not None:
+            final_url = job.result_json.get("final_url")
+            if isinstance(final_url, str):
+                source_url = final_url
         normalized_source_url: str | None = None
         source_domain: str | None = None
         if source_url is not None:
