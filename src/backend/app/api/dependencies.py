@@ -23,6 +23,7 @@ from app.infrastructure.database.source_repository import SourceAssetRepository
 from app.infrastructure.source_processing_workspace import SourceProcessingWorkspaceManager
 from app.infrastructure.source_storage import LocalSourceStorage
 from app.sources.parsers import default_source_parser_registry
+from app.sources.web_connector import WebConnector
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -103,6 +104,7 @@ def get_source_processing_service(
             Path(settings.source_processing_workspace_root)
         ),
         default_source_parser_registry(settings.source_processing_max_excerpt_chars),
+        web_connector=cast(WebConnector | None, request.app.state.web_connector),
         max_input_bytes=settings.source_processing_max_input_bytes,
         max_fragments=settings.source_processing_max_fragments,
         trace_id=trace_id,

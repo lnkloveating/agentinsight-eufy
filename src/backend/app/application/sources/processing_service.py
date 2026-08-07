@@ -29,6 +29,7 @@ from app.schemas.source_processing import (
     SourceProcessingStatus,
 )
 from app.sources.parsers import SourceParserError, SourceParserRegistry
+from app.sources.web_connector import WebConnector, WebConnectorError
 
 
 class SourceProcessingService:
@@ -42,6 +43,7 @@ class SourceProcessingService:
         workspaces: SourceProcessingWorkspaceManager,
         parsers: SourceParserRegistry,
         *,
+        web_connector: WebConnector | None,
         max_input_bytes: int,
         max_fragments: int,
         trace_id: str,
@@ -52,6 +54,7 @@ class SourceProcessingService:
         self.storage = storage
         self.workspaces = workspaces
         self.parsers = parsers
+        self.web_connector = web_connector
         self.max_input_bytes = max_input_bytes
         self.max_fragments = max_fragments
         self.trace_id = trace_id
@@ -103,31 +106,63 @@ class SourceProcessingService:
 
         collection_job_id = job.collection_job_id
         workspace: Path | None = None
+        captured_storage_key: str | None = None
+        web_result: dict[str, object] = {}
         try:
             if asset.kind == SourceAssetKind.LINK:
-                raise SourceParserError(
-                    "SOURCE_CONNECTOR_NOT_CONFIGURED",
-                    "Registered links require an explicit web connector before processing.",
-                    blocked=True,
+                if self.web_connector is None:
+                    raise SourceParserError(
+                        "SOURCE_CONNECTOR_NOT_CONFIGURED",
+                        "Registered links require an explicit web connector before processing.",
+                        blocked=True,
+                    )
+                if asset.source_url is None:
+                    raise SourceParserError(
+                        "SOURCE_URL_MISSING",
+                        "The registered webpage source URL is missing.",
+                        blocked=True,
+                    )
+                fetched = await self.web_connector.fetch(asset.source_url)
+                if len(fetched.body_utf8) > self.max_input_bytes:
+                    raise SourceParserError(
+                        "SOURCE_PROCESSING_INPUT_TOO_LARGE",
+                        "The captured webpage exceeds the deterministic processing size limit.",
+                        blocked=True,
+                    )
+                materialized = self.workspaces.materialize_bytes(
+                    project_id=project_id,
+                    collection_job_id=collection_job_id,
+                    content=fetched.body_utf8,
+                    suffix=".html",
                 )
-            if asset.byte_size > self.max_input_bytes:
-                raise SourceParserError(
-                    "SOURCE_PROCESSING_INPUT_TOO_LARGE",
-                    "The source exceeds the deterministic processing size limit.",
-                    blocked=True,
+                web_result = {
+                    "captured_content_hash": materialized.content_hash,
+                    "requested_url": fetched.requested_url,
+                    "final_url": fetched.final_url,
+                    "http_status": fetched.status_code,
+                    "fetched_at": fetched.fetched_at.isoformat(),
+                    "etag": fetched.etag,
+                    "last_modified": fetched.last_modified,
+                }
+            else:
+                if asset.byte_size > self.max_input_bytes:
+                    raise SourceParserError(
+                        "SOURCE_PROCESSING_INPUT_TOO_LARGE",
+                        "The source exceeds the deterministic processing size limit.",
+                        blocked=True,
+                    )
+                source_path = self.storage.resolve_for_read(asset.storage_key)
+                materialized = self.workspaces.materialize(
+                    project_id=project_id,
+                    collection_job_id=collection_job_id,
+                    source_path=source_path,
                 )
-            source_path = self.storage.resolve_for_read(asset.storage_key)
-            materialized = self.workspaces.materialize(
-                project_id=project_id,
-                collection_job_id=collection_job_id,
-                source_path=source_path,
-            )
+                if materialized.content_hash != asset.content_hash:
+                    raise SourceParserError(
+                        "SOURCE_CONTENT_HASH_MISMATCH",
+                        "The stored source no longer matches its registered content hash.",
+                    )
             workspace = materialized.workspace
-            if materialized.content_hash != asset.content_hash:
-                raise SourceParserError(
-                    "SOURCE_CONTENT_HASH_MISMATCH",
-                    "The stored source no longer matches its registered content hash.",
-                )
             parser = self.parsers.get(asset.media_type)
             parsed = parser.parse(materialized.source_path)
             if not parsed.fragments:
@@ -145,6 +180,24 @@ class SourceProcessingService:
             # This is a second read of the isolated source snapshot. No LLM output can
             # satisfy this check without matching the original bytes or extracted page.
             parser.verify(materialized.source_path, parsed.fragments)
+
+            if asset.kind == SourceAssetKind.LINK:
+                stored_snapshot = self.storage.save_bytes(
+                    project_id=project_id,
+                    source_asset_id=source_asset_id,
+                    suffix=".html",
+                    content=materialized.source_path.read_bytes(),
+                )
+                if stored_snapshot.content_hash != materialized.content_hash:
+                    raise SourceParserError(
+                        "SOURCE_CONTENT_HASH_MISMATCH",
+                        "The persisted webpage snapshot did not match the verified capture.",
+                    )
+                captured_storage_key = stored_snapshot.storage_key
+                asset.storage_key = stored_snapshot.storage_key
+                asset.byte_size = stored_snapshot.byte_size
+                asset.media_type = "text/html"
+                asset.updated_at = datetime.now(UTC)
 
             completed_at = datetime.now(UTC)
             artifact = ParsedArtifactModel(
@@ -184,6 +237,7 @@ class SourceProcessingService:
                 "fragment_count": len(fragments),
                 "progress": 100,
                 "verification": "deterministic",
+                **web_result,
             }
             job.completed_at = completed_at
             job.updated_at = completed_at
@@ -193,8 +247,25 @@ class SourceProcessingService:
             await self.repository.commit()
             await self.event_broker.notify(project_id)
             return self._to_status(asset, job, artifact)
+        except WebConnectorError as exc:
+            await self.repository.rollback()
+            self.storage.delete(captured_storage_key)
+            current_asset = await self.repository.get_by_project(
+                project_id, source_asset_id
+            )
+            current_job = await self.repository.get_collection_job(collection_job_id)
+            if current_asset is None or current_job is None:
+                raise
+            return await self._finish_error(
+                current_asset,
+                current_job,
+                code=exc.code,
+                message=exc.message,
+                blocked=exc.blocked,
+            )
         except SourceParserError as exc:
             await self.repository.rollback()
+            self.storage.delete(captured_storage_key)
             current_asset = await self.repository.get_by_project(
                 project_id, source_asset_id
             )
@@ -210,6 +281,7 @@ class SourceProcessingService:
             )
         except AppError as exc:
             await self.repository.rollback()
+            self.storage.delete(captured_storage_key)
             current_asset = await self.repository.get_by_project(
                 project_id, source_asset_id
             )
@@ -225,6 +297,7 @@ class SourceProcessingService:
             )
         except Exception:
             await self.repository.rollback()
+            self.storage.delete(captured_storage_key)
             current_asset = await self.repository.get_by_project(
                 project_id, source_asset_id
             )

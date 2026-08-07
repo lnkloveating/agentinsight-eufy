@@ -26,6 +26,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
 from app.infrastructure.database import Database
+from app.sources.web_connector import SafeHttpWebConnector
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -68,6 +69,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     external_runtime_catalog = ExternalRuntimeCatalog(
         (opencode_driver,), credential_resolver, external_cli_process_runner
     )
+    web_connector = (
+        SafeHttpWebConnector(
+            user_agent=resolved_settings.web_connector_user_agent,
+            timeout_seconds=resolved_settings.web_connector_timeout_seconds,
+            max_response_bytes=resolved_settings.web_connector_max_response_bytes,
+            max_redirects=resolved_settings.web_connector_max_redirects,
+            respect_robots_txt=resolved_settings.web_connector_respect_robots_txt,
+            allowed_domains=tuple(resolved_settings.web_connector_allowed_domains),
+        )
+        if resolved_settings.web_connector_enabled
+        else None
+    )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -106,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.external_cli_process_runner = external_cli_process_runner
     application.state.external_runtime_catalog = external_runtime_catalog
     application.state.opencode_driver = opencode_driver
+    application.state.web_connector = web_connector
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
         CORSMiddleware,

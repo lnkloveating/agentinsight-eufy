@@ -3,6 +3,7 @@ import io
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import NoReturn, Protocol
 
@@ -200,6 +201,36 @@ class PdfSourceParser:
             _verify_character_fragment(pages[page_index], fragment)
 
 
+class HtmlSourceParser:
+    parser_id = "deterministic-html"
+    parser_version = "1.0"
+    media_types = ("text/html", "application/xhtml+xml")
+
+    def __init__(self, max_excerpt_chars: int) -> None:
+        self.max_excerpt_chars = max_excerpt_chars
+
+    def parse(self, path: Path) -> DeterministicParseResult:
+        html = _read_utf8(path)
+        collector = _VisibleHtmlTextCollector(html, self.max_excerpt_chars)
+        try:
+            collector.feed(html)
+            collector.close()
+        except (AssertionError, ValueError) as exc:
+            raise SourceParserError(
+                "SOURCE_HTML_INVALID", "HTML content could not be parsed safely."
+            ) from exc
+        return DeterministicParseResult(
+            self.parser_id, self.parser_version, tuple(collector.fragments)
+        )
+
+    def verify(self, path: Path, fragments: Sequence[ParsedFragmentCandidate]) -> None:
+        html = _read_utf8(path)
+        for fragment in fragments:
+            if fragment.locator.kind is not SourceLocatorKind.WEB:
+                _verification_failed()
+            _verify_character_fragment(html, fragment)
+
+
 def default_source_parser_registry(max_excerpt_chars: int) -> SourceParserRegistry:
     return SourceParserRegistry(
         (
@@ -207,8 +238,81 @@ def default_source_parser_registry(max_excerpt_chars: int) -> SourceParserRegist
             CsvSourceParser(),
             JsonSourceParser(max_excerpt_chars),
             PdfSourceParser(max_excerpt_chars),
+            HtmlSourceParser(max_excerpt_chars),
         )
     )
+
+
+class _VisibleHtmlTextCollector(HTMLParser):
+    _hidden_tags = {"script", "style", "noscript", "svg", "template"}
+
+    def __init__(self, html: str, max_excerpt_chars: int) -> None:
+        super().__init__(convert_charrefs=False)
+        self.html = html
+        self.max_excerpt_chars = max_excerpt_chars
+        self.line_offsets = _line_offsets(html)
+        self.stack: list[str] = []
+        self.fragments: list[ParsedFragmentCandidate] = []
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        del attrs
+        self.stack.append(tag.lower())
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        del tag, attrs
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index] == normalized:
+                del self.stack[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if not data.strip() or any(tag in self._hidden_tags for tag in self.stack):
+            return
+        line_number, column = self.getpos()
+        if line_number < 1 or line_number > len(self.line_offsets):
+            raise ValueError("HTML parser returned an invalid source position")
+        raw_start = self.line_offsets[line_number - 1] + column
+        if self.html[raw_start : raw_start + len(data)] != data:
+            raise ValueError("HTML parser data did not match the source snapshot")
+        cursor = 0
+        while cursor < len(data):
+            while cursor < len(data) and data[cursor].isspace():
+                cursor += 1
+            if cursor >= len(data):
+                return
+            end = min(cursor + self.max_excerpt_chars, len(data))
+            if end < len(data):
+                preferred = max(
+                    data.rfind("\n", cursor + self.max_excerpt_chars // 2, end),
+                    data.rfind(" ", cursor + self.max_excerpt_chars // 2, end),
+                )
+                if preferred > cursor:
+                    end = preferred
+            start, end = _trim_span(data, cursor, end)
+            if start < end and len(data[start:end].strip()) >= 2:
+                absolute_start = raw_start + start
+                absolute_end = raw_start + end
+                self.fragments.append(
+                    ParsedFragmentCandidate(
+                        locator=SourceLocator(
+                            kind=SourceLocatorKind.WEB,
+                            line_start=_line_number(self.html, absolute_start),
+                            line_end=_line_number(self.html, absolute_end - 1),
+                            char_start=absolute_start,
+                            char_end=absolute_end,
+                            web_path="/" + "/".join(self.stack),
+                        ),
+                        original_excerpt=self.html[absolute_start:absolute_end],
+                    )
+                )
+            cursor = max(end, cursor + 1)
 
 
 def _read_utf8(path: Path) -> str:

@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     )
     source_processing_max_fragments: int = Field(default=5_000, ge=1, le=50_000)
     source_processing_max_excerpt_chars: int = Field(default=4_000, ge=200, le=20_000)
+    web_connector_enabled: bool = True
+    web_connector_user_agent: str = "AgentInsightResearchBot/0.1"
+    web_connector_timeout_seconds: float = Field(default=20.0, ge=1, le=120)
+    web_connector_max_response_bytes: int = Field(
+        default=5_242_880, ge=1_024, le=52_428_800
+    )
+    web_connector_max_redirects: int = Field(default=5, ge=0, le=10)
+    web_connector_respect_robots_txt: bool = True
+    web_connector_allowed_domains: list[str] = Field(default_factory=list)
     source_max_upload_bytes: int = Field(
         default=262_144_000,
         ge=1,
