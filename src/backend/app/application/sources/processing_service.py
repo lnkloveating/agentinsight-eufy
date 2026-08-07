@@ -18,9 +18,9 @@ from app.infrastructure.source_processing_workspace import (
     SourceProcessingWorkspaceManager,
 )
 from app.infrastructure.source_storage import LocalSourceStorage
-from app.schemas.evidence import CollectionJobStatus
 from app.schemas.source import SourceAssetKind, SourceAssetStatus
 from app.schemas.source_processing import (
+    CollectionJobStatus,
     ParsedArtifact,
     SourceFragment,
     SourceFragmentPage,

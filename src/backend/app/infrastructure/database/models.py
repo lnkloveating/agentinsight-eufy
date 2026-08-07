@@ -458,9 +458,20 @@ class EvidenceModel(Base):
         nullable=True,
         index=True,
     )
-    source_url: Mapped[str] = mapped_column(Text, nullable=False)
-    normalized_source_url: Mapped[str] = mapped_column(Text, nullable=False)
-    source_domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_fragment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_fragments.source_fragment_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_locator_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     source_type: Mapped[str] = mapped_column(String(80), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     original_excerpt: Mapped[str] = mapped_column(Text, nullable=False)

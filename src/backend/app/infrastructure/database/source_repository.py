@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.models import (
     CollectionJobModel,
+    EvidenceModel,
     ParsedArtifactModel,
     ProjectModel,
     SourceAssetModel,
@@ -54,6 +55,24 @@ class SourceAssetRepository:
         )
         return cast(ParsedArtifactModel | None, await self.session.scalar(statement))
 
+    async def get_parsed_artifact_by_id(
+        self, project_id: str, parsed_artifact_id: str
+    ) -> ParsedArtifactModel | None:
+        statement = select(ParsedArtifactModel).where(
+            ParsedArtifactModel.project_id == project_id,
+            ParsedArtifactModel.parsed_artifact_id == parsed_artifact_id,
+        )
+        return cast(ParsedArtifactModel | None, await self.session.scalar(statement))
+
+    async def get_fragment(
+        self, project_id: str, source_fragment_id: str
+    ) -> SourceFragmentModel | None:
+        statement = select(SourceFragmentModel).where(
+            SourceFragmentModel.project_id == project_id,
+            SourceFragmentModel.source_fragment_id == source_fragment_id,
+        )
+        return cast(SourceFragmentModel | None, await self.session.scalar(statement))
+
     async def list_fragments(
         self,
         project_id: str,
@@ -91,6 +110,12 @@ class SourceAssetRepository:
     async def delete_processing_for_source(
         self, project_id: str, source_asset_id: str
     ) -> None:
+        await self.session.execute(
+            delete(EvidenceModel).where(
+                EvidenceModel.project_id == project_id,
+                EvidenceModel.source_asset_id == source_asset_id,
+            )
+        )
         await self.session.execute(
             delete(SourceFragmentModel).where(
                 SourceFragmentModel.project_id == project_id,

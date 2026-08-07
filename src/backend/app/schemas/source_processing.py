@@ -4,7 +4,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.evidence import CollectionJobStatus
+
+class CollectionJobStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    PARTIAL = "partial"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class SourceLocatorKind(StrEnum):

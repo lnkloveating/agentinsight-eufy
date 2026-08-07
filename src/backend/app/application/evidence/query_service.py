@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from app.core.errors import AppError
 from app.infrastructure.database.evidence_repository import EvidenceRepository
+from app.infrastructure.database.models import EvidenceModel
 from app.schemas.evidence import (
     Claim,
     Evidence,
@@ -80,5 +81,11 @@ class EvidenceServiceMapper:
     """集中保存数据库模型到公开 Schema 的确定性映射。"""
 
     @staticmethod
-    def to_evidence(model: object) -> Evidence:
-        return Evidence.model_validate(model, from_attributes=True)
+    def to_evidence(model: EvidenceModel) -> Evidence:
+        values = {
+            name: getattr(model, name)
+            for name in Evidence.model_fields
+            if name != "source_locator"
+        }
+        values["source_locator"] = model.source_locator_json
+        return Evidence.model_validate(values)

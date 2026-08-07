@@ -15,7 +15,6 @@ from app.infrastructure.database.models import (
 from app.infrastructure.database.repositories import ProjectRepository
 from app.infrastructure.database.source_repository import SourceAssetRepository
 from app.infrastructure.source_storage import AsyncUploadStream, LocalSourceStorage, StoredSource
-from app.schemas.evidence import CollectionJobStatus
 from app.schemas.source import (
     SourceAsset,
     SourceAssetIngestResult,
@@ -26,6 +25,7 @@ from app.schemas.source import (
     SourceLinkCreate,
     SourceMediaCategory,
 )
+from app.schemas.source_processing import CollectionJobStatus
 from app.sources.validation import (
     SourceFileProfile,
     classify_source_file,

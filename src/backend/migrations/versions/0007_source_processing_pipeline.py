@@ -98,8 +98,59 @@ def upgrade() -> None:
         "source_fragments",
         ["project_id", "source_asset_id"],
     )
+    with op.batch_alter_table("evidence") as batch_op:
+        batch_op.alter_column("source_url", existing_type=sa.Text(), nullable=True)
+        batch_op.alter_column(
+            "normalized_source_url", existing_type=sa.Text(), nullable=True
+        )
+        batch_op.alter_column(
+            "source_domain", existing_type=sa.String(length=255), nullable=True
+        )
+        batch_op.add_column(sa.Column("source_asset_id", sa.String(length=40), nullable=True))
+        batch_op.add_column(
+            sa.Column("source_fragment_id", sa.String(length=40), nullable=True)
+        )
+        batch_op.add_column(sa.Column("source_locator_json", sa.JSON(), nullable=True))
+        batch_op.create_foreign_key(
+            "fk_evidence_source_asset_id",
+            "source_assets",
+            ["source_asset_id"],
+            ["source_asset_id"],
+            ondelete="SET NULL",
+        )
+        batch_op.create_foreign_key(
+            "fk_evidence_source_fragment_id",
+            "source_fragments",
+            ["source_fragment_id"],
+            ["source_fragment_id"],
+            ondelete="SET NULL",
+        )
+        batch_op.create_index(
+            "ix_evidence_source_asset_id", ["source_asset_id"], unique=False
+        )
+        batch_op.create_index(
+            "ix_evidence_source_fragment_id", ["source_fragment_id"], unique=False
+        )
 
 
 def downgrade() -> None:
+    op.execute(sa.text("DELETE FROM evidence WHERE source_asset_id IS NOT NULL"))
+    with op.batch_alter_table("evidence") as batch_op:
+        batch_op.drop_index("ix_evidence_source_fragment_id")
+        batch_op.drop_index("ix_evidence_source_asset_id")
+        batch_op.drop_constraint(
+            "fk_evidence_source_fragment_id", type_="foreignkey"
+        )
+        batch_op.drop_constraint("fk_evidence_source_asset_id", type_="foreignkey")
+        batch_op.drop_column("source_locator_json")
+        batch_op.drop_column("source_fragment_id")
+        batch_op.drop_column("source_asset_id")
+        batch_op.alter_column(
+            "source_domain", existing_type=sa.String(length=255), nullable=False
+        )
+        batch_op.alter_column(
+            "normalized_source_url", existing_type=sa.Text(), nullable=False
+        )
+        batch_op.alter_column("source_url", existing_type=sa.Text(), nullable=False)
     op.drop_table("source_fragments")
     op.drop_table("parsed_artifacts")
