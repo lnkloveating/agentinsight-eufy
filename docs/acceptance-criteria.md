@@ -32,6 +32,8 @@ Aily 必须实际完成意图澄清和技能调用，不能只发送静态链接
 
 TXT、Markdown、CSV、JSON 与可提取文本的 PDF 必须生成持久化 `ParsedArtifact` 和带原文定位的 `SourceFragment`；后端必须重新读取隔离工作区中的原始内容并验证每个 excerpt。网页链接、DOCX、图片、音频和视频在没有已注册连接器时必须进入 `blocked`，不得生成片段。失败、重试、排队取消和删除后禁止处理均需保留 Collection Job 状态；外部 Agent 输出不能直接绕过片段验证写入 Evidence。
 
+授权公开网页必须经过 DNS 与每次重定向的公网地址校验、robots.txt、响应类型、解压后大小、超时和重定向次数限制。只允许保存当前项目的 HTML 快照；片段必须携带快照字符范围与 Web Path，并可在第二次读取快照时复核。私网解析、凭据 URL、robots 明确禁止、登录页、二进制响应、过大响应和无效 HTML 必须分类失败或阻塞，不得调用 OpenCode 猜测缺失内容。浏览器隐身、验证码或 Cloudflare 绕过不属于本分支能力。
+
 ## AC-05 Claim Gate
 
 事实性 Claim 没有至少一个同项目、非 Mock、非 Invalid 且可回溯的 Evidence ID 时，不能晋级或进入最终报告。竞品“未验证”不能被改写为“没有”。冲突、未知项和被排除 Claim 保持可见。
