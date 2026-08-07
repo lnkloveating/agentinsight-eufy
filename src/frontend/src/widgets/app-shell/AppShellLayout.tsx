@@ -6,11 +6,35 @@ import type { ResearchBrief } from '../../shared/types/api';
 import { AppNavLink, Button } from '../../shared/ui/primitives';
 import { ProjectCreationPanel } from './WorkbenchComponents';
 
-function SidebarIcon({ kind }: { kind: 'home' | 'project' | 'metrics' | 'report' | 'create' }) {
+function SidebarIcon({ kind }: { kind: 'home' | 'project' | 'metrics' | 'report' | 'create' | 'workspace' | 'currentProject' | 'scenario' }) {
   if (kind === 'home') {
     return (
       <svg aria-hidden="true" viewBox="0 0 16 16">
         <path d="M2.5 7.25L8 2.75L13.5 7.25V13.25H9.75V9.75H6.25V13.25H2.5V7.25Z" />
+      </svg>
+    );
+  }
+
+  if (kind === 'workspace') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M2 2.75H7.25V7.5H2V2.75ZM8.75 2.75H14V7.5H8.75V2.75ZM2 8.5H7.25V13.25H2V8.5ZM8.75 8.5H14V13.25H8.75V8.5Z" />
+      </svg>
+    );
+  }
+
+  if (kind === 'currentProject') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M2.5 3.75H6.25L7.5 5.25H13.5V12.25H2.5V3.75ZM4 5V11H12V6.75H6.75L5.5 5.25H4Z" />
+      </svg>
+    );
+  }
+
+  if (kind === 'scenario') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 16 16">
+        <path d="M3.25 2.75H12.75V13.25H3.25V2.75ZM4.5 4V12H11.5V4H4.5ZM6 6.5H10V7.75H6V6.5ZM6 9H10V10.25H6V9Z" />
       </svg>
     );
   }
@@ -57,7 +81,8 @@ export function AppShellLayout() {
   const projectMatch = useMatch('/projects/:projectId');
   const reportMatch = useMatch('/projects/:projectId/report');
   const metricsMatch = useMatch('/projects/:projectId/metrics');
-  const currentProjectId = projectMatch?.params.projectId ?? reportMatch?.params.projectId ?? metricsMatch?.params.projectId;
+  const scenariosMatch = useMatch('/projects/:projectId/scenarios');
+  const currentProjectId = projectMatch?.params.projectId ?? reportMatch?.params.projectId ?? metricsMatch?.params.projectId ?? scenariosMatch?.params.projectId;
 
   const latestProject = useMemo(() => {
     const projects = projectsQuery.data ?? [];
@@ -65,9 +90,10 @@ export function AppShellLayout() {
   }, [projectsQuery.data]);
 
   const resolvedProjectId = currentProjectId ?? latestProject?.project_id;
-  const projectHref = resolvedProjectId ? `/projects/${resolvedProjectId}` : '/projects';
+  const resolvedProject = (projectsQuery.data ?? []).find((item) => item.project_id === resolvedProjectId);
   const metricsHref = resolvedProjectId ? `/projects/${resolvedProjectId}/metrics` : '/projects';
   const reportHref = resolvedProjectId ? `/projects/${resolvedProjectId}/report` : '/projects';
+  const scenariosHref = resolvedProjectId ? `/projects/${resolvedProjectId}/scenarios` : '/projects';
 
   useEffect(() => {
     setSheetOpen(false);
@@ -123,18 +149,38 @@ export function AppShellLayout() {
         </div>
 
         <nav className="app-shell__nav" aria-label="主导航">
-          <AppNavLink end to="/projects">
-            <span className="app-shell__nav-icon">
-              <SidebarIcon kind="home" />
-            </span>
-            <span className="app-shell__nav-label">首页</span>
-          </AppNavLink>
-          <AppNavLink end to={projectHref}>
-            <span className="app-shell__nav-icon">
-              <SidebarIcon kind="project" />
-            </span>
-            <span className="app-shell__nav-label">项目</span>
-          </AppNavLink>
+          <div className="app-shell__nav-group">
+            <p className="app-shell__nav-section-title">工作区</p>
+            <AppNavLink end to="/projects">
+              <span className="app-shell__nav-icon">
+                <SidebarIcon kind="home" />
+              </span>
+              <span className="app-shell__nav-label">我的项目</span>
+            </AppNavLink>
+          </div>
+          <div className="app-shell__nav-group">
+            <p className="app-shell__nav-section-title">当前项目</p>
+            {(projectsQuery.data ?? []).map((project) => (
+              <AppNavLink key={project.project_id} end to={`/projects/${project.project_id}`}>
+                <span className="app-shell__nav-icon">
+                  <SidebarIcon kind="project" />
+                </span>
+                <span className="app-shell__nav-label">{project.brief.category}</span>
+              </AppNavLink>
+            ))}
+          </div>
+          <div className="app-shell__nav-group">
+            <p className="app-shell__nav-section-title">场景验证</p>
+            {(resolvedProject?.brief.scenarios ?? []).map((scenario) => (
+              <AppNavLink key={scenario} end to={scenariosHref}>
+                <span className="app-shell__nav-icon">
+                  <SidebarIcon kind="scenario" />
+                </span>
+                <span className="app-shell__nav-label">{scenario}</span>
+              </AppNavLink>
+            ))}
+          </div>
+          <div className="app-shell__nav-divider" />
           <AppNavLink end to={metricsHref}>
             <span className="app-shell__nav-icon">
               <SidebarIcon kind="metrics" />
@@ -150,7 +196,7 @@ export function AppShellLayout() {
         </nav>
 
         <div className="app-shell__sidebar-footer">
-          <Button onClick={() => setSheetOpen(true)}>
+          <Button onClick={() => navigate('/projects?page=create')}>
             <span className="app-shell__nav-icon">
               <SidebarIcon kind="create" />
             </span>

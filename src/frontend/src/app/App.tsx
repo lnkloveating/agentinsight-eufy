@@ -5,6 +5,7 @@ import { ProjectMetricsPage } from '../pages/ProjectMetricsPage';
 import { ProjectReportPage } from '../pages/ProjectReportPage';
 import { ProjectsPage } from '../pages/ProjectsPage';
 import { ProjectWorkbenchPage } from '../pages/ProjectWorkbenchPage';
+import { ScenarioVerificationPage } from '../pages/ScenarioVerificationPage';
 import { AppShellLayout } from '../widgets/app-shell/AppShellLayout';
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ export function App() {
             <Route path="/projects/:projectId" element={<ProjectWorkbenchPage />} />
             <Route path="/projects/:projectId/report" element={<ProjectReportPage />} />
             <Route path="/projects/:projectId/metrics" element={<ProjectMetricsPage />} />
+            <Route path="/projects/:projectId/scenarios" element={<ScenarioVerificationPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
