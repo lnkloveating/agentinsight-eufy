@@ -9,11 +9,13 @@ requires-python = ">=3.12"
 dependencies = [
   "aiosqlite>=0.20,<1",
   "alembic>=1.14,<2",
+  "av>=18,<19",
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
   "langgraph>=1.0,<2",
   "langgraph-checkpoint-sqlite>=3.0,<4",
   "pydantic-settings>=2.6,<3",
+  "pillow>=12.3,<13",
   "python-multipart>=0.0.20,<1",
   "python-dotenv>=1,<2",
   "pypdf>=5,<7",

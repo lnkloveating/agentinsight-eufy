@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Query, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app.api.dependencies import (
     SourceAssetServiceDependency,
@@ -16,7 +17,12 @@ from app.schemas.source import (
     SourceFileMetadata,
     SourceLinkCreate,
 )
-from app.schemas.source_processing import SourceFragmentPage, SourceProcessingStatus
+from app.schemas.source_processing import (
+    MediaFragmentReview,
+    SourceFragment,
+    SourceFragmentPage,
+    SourceProcessingStatus,
+)
 
 router = APIRouter()
 
@@ -159,4 +165,40 @@ async def list_source_fragments(
 ) -> SourceFragmentPage:
     return await service.list_fragments(
         project_id, source_asset_id, cursor=cursor
+    )
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/review",
+    response_model=SourceFragment,
+)
+async def review_media_source_fragment(
+    project_id: str,
+    source_asset_id: str,
+    source_fragment_id: str,
+    payload: MediaFragmentReview,
+    service: SourceProcessingServiceDependency,
+) -> SourceFragment:
+    return await service.review_media_fragment(
+        project_id, source_asset_id, source_fragment_id, payload
+    )
+
+
+@router.get(
+    "/{project_id}/sources/{source_asset_id}/media-artifacts/{media_artifact_id}",
+    response_class=FileResponse,
+)
+async def get_media_artifact(
+    project_id: str,
+    source_asset_id: str,
+    media_artifact_id: str,
+    service: SourceProcessingServiceDependency,
+) -> FileResponse:
+    path, media_type = await service.get_media_artifact(
+        project_id, source_asset_id, media_artifact_id
+    )
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=f"{media_artifact_id}{path.suffix}",
     )

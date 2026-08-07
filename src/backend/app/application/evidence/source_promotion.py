@@ -21,6 +21,8 @@ from app.schemas.source import SourceAssetKind, SourceAssetStatus
 from app.schemas.source_processing import (
     CollectionJobStatus,
     SourceFragmentVerificationStatus,
+    SourceLocator,
+    SourceLocatorKind,
 )
 
 
@@ -89,10 +91,25 @@ class SourceEvidencePromotionService:
                 == job.result_json.get("captured_content_hash")
                 and asset.storage_key is not None
             )
+        locator = SourceLocator.model_validate(fragment.locator_json)
+        media_locator_matches = True
+        if locator.kind in {
+            SourceLocatorKind.MEDIA_TIME,
+            SourceLocatorKind.MEDIA_FRAME,
+        }:
+            manifest = job.result_json.get("media_manifest") if job is not None else None
+            artifacts = manifest.get("artifacts") if isinstance(manifest, dict) else None
+            media_locator_matches = isinstance(artifacts, list) and any(
+                isinstance(candidate, dict)
+                and candidate.get("artifact_id") == locator.media_artifact_id
+                and candidate.get("content_hash") == locator.media_artifact_hash
+                for candidate in artifacts
+            )
         if (
             asset.status != SourceAssetStatus.READY
             or artifact.source_asset_id != asset.source_asset_id
             or not provenance_hash_matches
+            or not media_locator_matches
             or fragment.excerpt_hash != excerpt_hash
             or job is None
             or job.status != CollectionJobStatus.SUCCEEDED

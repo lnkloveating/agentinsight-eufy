@@ -22,6 +22,10 @@ from app.infrastructure.database.repositories import ProjectRepository
 from app.infrastructure.database.source_repository import SourceAssetRepository
 from app.infrastructure.source_processing_workspace import SourceProcessingWorkspaceManager
 from app.infrastructure.source_storage import LocalSourceStorage
+from app.sources.media_processing import (
+    MediaUnderstandingConnector,
+    PyAvMediaProcessor,
+)
 from app.sources.parsers import default_source_parser_registry
 from app.sources.web_connector import WebConnector
 
@@ -105,6 +109,22 @@ def get_source_processing_service(
         ),
         default_source_parser_registry(settings.source_processing_max_excerpt_chars),
         web_connector=cast(WebConnector | None, request.app.state.web_connector),
+        media_processor=PyAvMediaProcessor(
+            max_duration_seconds=settings.media_processing_max_duration_seconds,
+            max_streams=settings.media_processing_max_streams,
+            frame_interval_seconds=settings.media_processing_frame_interval_seconds,
+            max_frames=settings.media_processing_max_frames,
+            max_frame_dimension=settings.media_processing_max_frame_dimension,
+            max_decoded_video_frames=(
+                settings.media_processing_max_decoded_video_frames
+            ),
+            audio_sample_rate=settings.media_processing_audio_sample_rate,
+            max_audio_bytes=settings.media_processing_max_audio_bytes,
+        ),
+        media_understanding_connector=cast(
+            MediaUnderstandingConnector | None,
+            request.app.state.media_understanding_connector,
+        ),
         max_input_bytes=settings.source_processing_max_input_bytes,
         max_fragments=settings.source_processing_max_fragments,
         trace_id=trace_id,

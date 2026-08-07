@@ -18,17 +18,32 @@ from app.infrastructure.source_processing_workspace import (
     SourceProcessingWorkspaceManager,
 )
 from app.infrastructure.source_storage import LocalSourceStorage
-from app.schemas.source import SourceAssetKind, SourceAssetStatus
+from app.schemas.source import SourceAssetKind, SourceAssetStatus, SourceMediaCategory
 from app.schemas.source_processing import (
     CollectionJobStatus,
+    MediaFragmentReview,
+    MediaFragmentReviewDecision,
     ParsedArtifact,
     SourceFragment,
     SourceFragmentPage,
     SourceFragmentVerificationStatus,
+    SourceLocator,
+    SourceLocatorKind,
     SourceProcessingJob,
     SourceProcessingStatus,
 )
-from app.sources.parsers import SourceParserError, SourceParserRegistry
+from app.sources.media_processing import (
+    MediaProcessingError,
+    MediaUnderstandingConnector,
+    PyAvMediaProcessor,
+    validate_media_understanding,
+)
+from app.sources.parsers import (
+    DeterministicParseResult,
+    ParsedFragmentCandidate,
+    SourceParserError,
+    SourceParserRegistry,
+)
 from app.sources.web_connector import WebConnector, WebConnectorError
 
 
@@ -44,6 +59,8 @@ class SourceProcessingService:
         parsers: SourceParserRegistry,
         *,
         web_connector: WebConnector | None,
+        media_processor: PyAvMediaProcessor,
+        media_understanding_connector: MediaUnderstandingConnector | None,
         max_input_bytes: int,
         max_fragments: int,
         trace_id: str,
@@ -55,6 +72,8 @@ class SourceProcessingService:
         self.workspaces = workspaces
         self.parsers = parsers
         self.web_connector = web_connector
+        self.media_processor = media_processor
+        self.media_understanding_connector = media_understanding_connector
         self.max_input_bytes = max_input_bytes
         self.max_fragments = max_fragments
         self.trace_id = trace_id
@@ -163,8 +182,26 @@ class SourceProcessingService:
                         "The stored source no longer matches its registered content hash.",
                     )
             workspace = materialized.workspace
-            parser = self.parsers.get(asset.media_type)
-            parsed = parser.parse(materialized.source_path)
+            verification_status = SourceFragmentVerificationStatus.VERIFIED
+            processing_result = dict(web_result)
+            if asset.media_category in {
+                SourceMediaCategory.AUDIO,
+                SourceMediaCategory.VIDEO,
+            }:
+                parsed, media_result = await self._parse_media(
+                    project_id=project_id,
+                    source_asset_id=source_asset_id,
+                    source_path=materialized.source_path,
+                    output_directory=materialized.workspace / "media",
+                )
+                verification_status = SourceFragmentVerificationStatus.DERIVED
+                processing_result.update(media_result)
+            else:
+                parser = self.parsers.get(asset.media_type)
+                parsed = parser.parse(materialized.source_path)
+                # This is a second read of the isolated source snapshot. No LLM output
+                # can satisfy this check without matching the source bytes or page.
+                parser.verify(materialized.source_path, parsed.fragments)
             if not parsed.fragments:
                 raise SourceParserError(
                     "SOURCE_NO_EXTRACTABLE_CONTENT",
@@ -177,10 +214,6 @@ class SourceProcessingService:
                     "The source produced more fragments than the configured safe limit.",
                     blocked=True,
                 )
-            # This is a second read of the isolated source snapshot. No LLM output can
-            # satisfy this check without matching the original bytes or extracted page.
-            parser.verify(materialized.source_path, parsed.fragments)
-
             if asset.kind == SourceAssetKind.LINK:
                 stored_snapshot = self.storage.save_bytes(
                     project_id=project_id,
@@ -223,7 +256,7 @@ class SourceProcessingService:
                     excerpt_hash=sha256(
                         candidate.original_excerpt.encode("utf-8")
                     ).hexdigest(),
-                    verification_status=SourceFragmentVerificationStatus.VERIFIED,
+                    verification_status=verification_status,
                     created_at=completed_at,
                 )
                 for ordinal, candidate in enumerate(parsed.fragments)
@@ -236,8 +269,13 @@ class SourceProcessingService:
                 "parsed_artifact_id": artifact.parsed_artifact_id,
                 "fragment_count": len(fragments),
                 "progress": 100,
-                "verification": "deterministic",
-                **web_result,
+                "verification": (
+                    "human_review_required"
+                    if verification_status
+                    is SourceFragmentVerificationStatus.DERIVED
+                    else "deterministic"
+                ),
+                **processing_result,
             }
             job.completed_at = completed_at
             job.updated_at = completed_at
@@ -247,6 +285,23 @@ class SourceProcessingService:
             await self.repository.commit()
             await self.event_broker.notify(project_id)
             return self._to_status(asset, job, artifact)
+        except MediaProcessingError as exc:
+            await self.repository.rollback()
+            self.storage.delete(captured_storage_key)
+            current_asset = await self.repository.get_by_project(
+                project_id, source_asset_id
+            )
+            current_job = await self.repository.get_collection_job(collection_job_id)
+            if current_asset is None or current_job is None:
+                raise
+            return await self._finish_error(
+                current_asset,
+                current_job,
+                code=exc.code,
+                message=exc.message,
+                blocked=exc.blocked,
+                extra_result=exc.result,
+            )
         except WebConnectorError as exc:
             await self.repository.rollback()
             self.storage.delete(captured_storage_key)
@@ -402,6 +457,89 @@ class SourceProcessingService:
             total=total,
         )
 
+    async def review_media_fragment(
+        self,
+        project_id: str,
+        source_asset_id: str,
+        source_fragment_id: str,
+        payload: MediaFragmentReview,
+    ) -> SourceFragment:
+        asset, job = await self._require_asset_and_job(project_id, source_asset_id)
+        if asset.media_category not in {
+            SourceMediaCategory.AUDIO,
+            SourceMediaCategory.VIDEO,
+        }:
+            raise AppError(
+                code="MEDIA_FRAGMENT_REVIEW_NOT_APPLICABLE",
+                message="Only media-derived fragments can be reviewed.",
+                status_code=409,
+            )
+        fragment = await self.repository.get_fragment(project_id, source_fragment_id)
+        if fragment is None or fragment.source_asset_id != source_asset_id:
+            raise AppError(
+                code="SOURCE_FRAGMENT_NOT_FOUND",
+                message="The source fragment does not exist.",
+                status_code=404,
+            )
+        if fragment.verification_status != SourceFragmentVerificationStatus.DERIVED:
+            raise AppError(
+                code="MEDIA_FRAGMENT_ALREADY_REVIEWED",
+                message="The media-derived fragment has already been reviewed.",
+                status_code=409,
+            )
+        locator = SourceLocator.model_validate(fragment.locator_json)
+        if locator.media_artifact_id is None:
+            raise AppError(
+                code="SOURCE_PROVENANCE_INVALID",
+                message="The media fragment does not reference a retained artifact.",
+                status_code=409,
+            )
+        retained_path, _ = self._resolve_media_artifact(
+            asset, job, locator.media_artifact_id
+        )
+        if locator.media_artifact_hash != sha256(retained_path.read_bytes()).hexdigest():
+            raise AppError(
+                code="MEDIA_ARTIFACT_HASH_MISMATCH",
+                message="The reviewed media artifact does not match the fragment locator.",
+                status_code=409,
+            )
+        fragment.verification_status = (
+            SourceFragmentVerificationStatus.VERIFIED
+            if payload.decision is MediaFragmentReviewDecision.VERIFIED
+            else SourceFragmentVerificationStatus.INVALID
+        )
+        now = datetime.now(UTC)
+        await self.project_repository.add_event(
+            ProjectEventModel(
+                event_id=f"evt_{uuid4().hex[:16]}",
+                project_id=project_id,
+                sequence_number=0,
+                event_type="media_fragment_reviewed",
+                data_json={
+                    "source_asset_id": source_asset_id,
+                    "source_fragment_id": source_fragment_id,
+                    "decision": payload.decision,
+                    "reviewer": payload.reviewer,
+                    "reason": payload.reason,
+                },
+                trace_id=self.trace_id,
+                created_at=now,
+            )
+        )
+        try:
+            await self.repository.commit()
+        except Exception:
+            await self.repository.rollback()
+            raise
+        await self.event_broker.notify(project_id)
+        return self._to_fragment(fragment)
+
+    async def get_media_artifact(
+        self, project_id: str, source_asset_id: str, media_artifact_id: str
+    ) -> tuple[Path, str]:
+        asset, job = await self._require_asset_and_job(project_id, source_asset_id)
+        return self._resolve_media_artifact(asset, job, media_artifact_id)
+
     async def _finish_error(
         self,
         asset: SourceAssetModel,
@@ -410,6 +548,7 @@ class SourceProcessingService:
         code: str,
         message: str,
         blocked: bool,
+        extra_result: dict[str, object] | None = None,
     ) -> SourceProcessingStatus:
         now = datetime.now(UTC)
         job.status = (
@@ -419,6 +558,7 @@ class SourceProcessingService:
             "source_asset_id": asset.source_asset_id,
             "progress": 100,
             "coverage_gap": True,
+            **(extra_result or {}),
         }
         job.error_code = code
         job.error_message = message
@@ -433,6 +573,173 @@ class SourceProcessingService:
         await self.repository.commit()
         await self.event_broker.notify(asset.project_id)
         return self._to_status(asset, job, None)
+
+    async def _parse_media(
+        self,
+        *,
+        project_id: str,
+        source_asset_id: str,
+        source_path: Path,
+        output_directory: Path,
+    ) -> tuple[DeterministicParseResult, dict[str, object]]:
+        self.storage.delete_derived(project_id, source_asset_id)
+        prepared = self.media_processor.prepare(source_path, output_directory)
+        try:
+            for media_artifact in prepared.artifacts:
+                suffix = (
+                    ".wav" if media_artifact.media_type == "audio/wav" else ".png"
+                )
+                stored = self.storage.save_derived_bytes(
+                    project_id=project_id,
+                    source_asset_id=source_asset_id,
+                    artifact_id=media_artifact.artifact_id,
+                    suffix=suffix,
+                    content=media_artifact.path.read_bytes(),
+                )
+                if (
+                    stored.content_hash != media_artifact.content_hash
+                    or stored.byte_size != media_artifact.byte_size
+                ):
+                    raise MediaProcessingError(
+                        "MEDIA_ARTIFACT_HASH_MISMATCH",
+                        "A retained media artifact did not match the decoded output.",
+                    )
+        except Exception:
+            self.storage.delete_derived(project_id, source_asset_id)
+            raise
+        media_result: dict[str, object] = {
+            "media_manifest": prepared.public_manifest(),
+            "semantic_analysis": "pending",
+        }
+        connector = self.media_understanding_connector
+        if connector is None:
+            raise MediaProcessingError(
+                "MEDIA_UNDERSTANDING_CONNECTOR_NOT_CONFIGURED",
+                "Media was decoded safely, but no ASR or vision connector is configured.",
+                blocked=True,
+                result=media_result,
+            )
+        try:
+            understood = await connector.analyze(prepared)
+        except MediaProcessingError:
+            raise
+        except Exception as exc:
+            raise MediaProcessingError(
+                "MEDIA_UNDERSTANDING_FAILED",
+                "The media understanding connector failed without producing fragments.",
+                result=media_result,
+            ) from exc
+        if (
+            understood.connector_id != connector.connector_id
+            or understood.connector_version != connector.connector_version
+            or understood.model_id != connector.model_id
+        ):
+            raise MediaProcessingError(
+                "MEDIA_UNDERSTANDING_INVALID",
+                "The media connector returned inconsistent identity metadata.",
+                result=media_result,
+            )
+        try:
+            derived = validate_media_understanding(
+                prepared,
+                understood,
+                max_fragments=self.max_fragments,
+                max_text_chars=20_000,
+            )
+        except MediaProcessingError as exc:
+            raise MediaProcessingError(
+                exc.code,
+                exc.message,
+                blocked=exc.blocked,
+                result=media_result,
+            ) from exc
+        candidates = tuple(
+            ParsedFragmentCandidate(
+                locator=SourceLocator(
+                    kind=SourceLocatorKind(item.kind),
+                    timestamp_start_ms=item.timestamp_start_ms,
+                    timestamp_end_ms=item.timestamp_end_ms,
+                    frame_index=item.media_artifact.frame_index,
+                    media_artifact_id=item.media_artifact.artifact_id,
+                    media_artifact_hash=item.media_artifact.content_hash,
+                    connector_id=understood.connector_id,
+                    model_id=understood.model_id,
+                    confidence=item.confidence,
+                ),
+                original_excerpt=item.text,
+            )
+            for item in derived
+        )
+        media_result.update(
+            {
+                "semantic_analysis": "completed",
+                "connector_id": understood.connector_id,
+                "connector_version": understood.connector_version,
+                "model_id": understood.model_id,
+                "review_required": True,
+            }
+        )
+        return (
+            DeterministicParseResult(
+                parser_id=f"media-{understood.connector_id}",
+                parser_version=understood.connector_version,
+                fragments=candidates,
+            ),
+            media_result,
+        )
+
+    def _resolve_media_artifact(
+        self,
+        asset: SourceAssetModel,
+        job: CollectionJobModel,
+        media_artifact_id: str,
+    ) -> tuple[Path, str]:
+        manifest = job.result_json.get("media_manifest")
+        artifacts = manifest.get("artifacts") if isinstance(manifest, dict) else None
+        if not isinstance(artifacts, list):
+            raise AppError(
+                code="MEDIA_ARTIFACT_NOT_FOUND",
+                message="No retained media artifacts exist for this source.",
+                status_code=404,
+            )
+        metadata = next(
+            (
+                candidate
+                for candidate in artifacts
+                if isinstance(candidate, dict)
+                and candidate.get("artifact_id") == media_artifact_id
+            ),
+            None,
+        )
+        if metadata is None:
+            raise AppError(
+                code="MEDIA_ARTIFACT_NOT_FOUND",
+                message="The requested media artifact does not exist.",
+                status_code=404,
+            )
+        media_type = metadata.get("media_type")
+        if media_type not in {"audio/wav", "image/png"}:
+            raise AppError(
+                code="MEDIA_ARTIFACT_TYPE_INVALID",
+                message="The retained media artifact type is invalid.",
+                status_code=409,
+            )
+        suffix = ".wav" if media_type == "audio/wav" else ".png"
+        path = self.storage.resolve_derived_for_read(
+            project_id=asset.project_id,
+            source_asset_id=asset.source_asset_id,
+            artifact_id=media_artifact_id,
+            suffix=suffix,
+        )
+        expected_hash = metadata.get("content_hash")
+        actual_hash = sha256(path.read_bytes()).hexdigest()
+        if expected_hash != actual_hash:
+            raise AppError(
+                code="MEDIA_ARTIFACT_HASH_MISMATCH",
+                message="The retained media artifact failed its integrity check.",
+                status_code=409,
+            )
+        return path, media_type
 
     async def _require_asset_and_job(
         self, project_id: str, source_asset_id: str

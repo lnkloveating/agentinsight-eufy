@@ -21,9 +21,17 @@ class SourceLocatorKind(StrEnum):
     ROW = "row"
     JSON = "json"
     WEB = "web"
+    MEDIA_TIME = "media_time"
+    MEDIA_FRAME = "media_frame"
 
 
 class SourceFragmentVerificationStatus(StrEnum):
+    VERIFIED = "verified"
+    DERIVED = "derived"
+    INVALID = "invalid"
+
+
+class MediaFragmentReviewDecision(StrEnum):
     VERIFIED = "verified"
     INVALID = "invalid"
 
@@ -38,13 +46,29 @@ class SourceLocator(BaseModel):
     char_end: int | None = Field(default=None, ge=1)
     json_pointer: str | None = None
     web_path: str | None = None
+    timestamp_start_ms: int | None = Field(default=None, ge=0)
+    timestamp_end_ms: int | None = Field(default=None, ge=1)
+    frame_index: int | None = Field(default=None, ge=0)
+    media_artifact_id: str | None = None
+    media_artifact_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    connector_id: str | None = None
+    model_id: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def validate_locator_shape(self) -> "SourceLocator":
-        if self.char_start is None or self.char_end is None:
-            raise ValueError("source locator requires a character range")
-        if self.char_end <= self.char_start:
-            raise ValueError("source locator character range is invalid")
+        character_kinds = {
+            SourceLocatorKind.TEXT,
+            SourceLocatorKind.PAGE,
+            SourceLocatorKind.ROW,
+            SourceLocatorKind.JSON,
+            SourceLocatorKind.WEB,
+        }
+        if self.kind in character_kinds:
+            if self.char_start is None or self.char_end is None:
+                raise ValueError("source locator requires a character range")
+            if self.char_end <= self.char_start:
+                raise ValueError("source locator character range is invalid")
         if self.kind is SourceLocatorKind.PAGE and self.page_number is None:
             raise ValueError("page locator requires page_number")
         if self.kind is SourceLocatorKind.ROW and self.row_number is None:
@@ -53,10 +77,39 @@ class SourceLocator(BaseModel):
             raise ValueError("JSON locator requires json_pointer")
         if self.kind is SourceLocatorKind.WEB and self.web_path is None:
             raise ValueError("web locator requires web_path")
+        if self.kind in {
+            SourceLocatorKind.MEDIA_TIME,
+            SourceLocatorKind.MEDIA_FRAME,
+        }:
+            if (
+                self.timestamp_start_ms is None
+                or self.media_artifact_id is None
+                or self.media_artifact_hash is None
+                or self.connector_id is None
+                or self.model_id is None
+                or self.confidence is None
+            ):
+                raise ValueError("media locator requires complete derivation provenance")
+        if self.kind is SourceLocatorKind.MEDIA_TIME:
+            timestamp_start_ms = self.timestamp_start_ms
+            if (
+                self.timestamp_end_ms is None
+                or timestamp_start_ms is None
+                or self.timestamp_end_ms <= timestamp_start_ms
+            ):
+                raise ValueError("media time locator requires a valid end timestamp")
+        if self.kind is SourceLocatorKind.MEDIA_FRAME and self.frame_index is None:
+            raise ValueError("media frame locator requires frame_index")
         if self.line_start is not None and self.line_end is not None:
             if self.line_end < self.line_start:
                 raise ValueError("source locator line range is invalid")
         return self
+
+
+class MediaFragmentReview(BaseModel):
+    decision: MediaFragmentReviewDecision
+    reviewer: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=1_000)
 
 
 class SourceProcessingJob(BaseModel):

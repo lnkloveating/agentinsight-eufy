@@ -224,6 +224,7 @@ class SourceAssetService:
             return self._to_source_asset(model)
         now = datetime.now(UTC)
         self.storage.delete(model.storage_key)
+        self.storage.delete_derived(project_id, source_asset_id)
         await self.repository.delete_processing_for_source(project_id, source_asset_id)
         model.storage_key = None
         model.status = SourceAssetStatus.DELETED

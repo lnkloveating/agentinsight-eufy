@@ -120,6 +120,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.external_runtime_catalog = external_runtime_catalog
     application.state.opencode_driver = opencode_driver
     application.state.web_connector = web_connector
+    # A production ASR/vision connector must be registered explicitly. The two
+    # organizer models currently declare text capabilities only.
+    application.state.media_understanding_connector = None
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
         CORSMiddleware,
