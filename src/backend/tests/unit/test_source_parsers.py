@@ -8,6 +8,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from app.schemas.source_processing import SourceLocatorKind
 from app.sources.parsers import (
     CsvSourceParser,
+    HtmlSourceParser,
     JsonSourceParser,
     PdfSourceParser,
     SourceParserError,
@@ -109,3 +110,29 @@ def test_pdf_parser_extracts_and_revalidates_page_text(tmp_path: Path) -> None:
     assert result.fragments[0].locator.page_number == 1
     assert "Package risk evidence" in result.fragments[0].original_excerpt
     parser.verify(path, result.fragments)
+
+
+def test_html_parser_keeps_exact_visible_text_and_web_path(tmp_path: Path) -> None:
+    path = tmp_path / "page.html"
+    path.write_text(
+        "<html><head><style>hidden</style></head><body>"
+        "<main><h1>Package intelligence</h1>"
+        "<script>also hidden</script><p>Rain risk is high.</p></main>"
+        "</body></html>",
+        encoding="utf-8",
+    )
+    parser = HtmlSourceParser(max_excerpt_chars=200)
+
+    result = parser.parse(path)
+
+    assert [item.original_excerpt for item in result.fragments] == [
+        "Package intelligence",
+        "Rain risk is high.",
+    ]
+    assert result.fragments[0].locator.kind is SourceLocatorKind.WEB
+    assert result.fragments[0].locator.web_path == "/html/body/main/h1"
+    parser.verify(path, result.fragments)
+
+    path.write_text(path.read_text(encoding="utf-8").replace("high", "low"), encoding="utf-8")
+    with pytest.raises(SourceParserError, match="could not be verified"):
+        parser.verify(path, result.fragments)

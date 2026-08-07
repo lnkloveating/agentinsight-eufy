@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -14,6 +15,40 @@ from app.schemas.evidence import (
     EvidenceClaimType,
     EvidenceFromSourceFragmentIngest,
 )
+from app.sources.web_connector import WebConnectorError, WebFetchResult
+
+
+class StaticWebConnector:
+    def __init__(self, body: bytes) -> None:
+        self.body = body
+        self.calls = 0
+
+    async def fetch(self, source_url: str) -> WebFetchResult:
+        self.calls += 1
+        return WebFetchResult(
+            requested_url=source_url,
+            final_url="https://www.eufy.com/products/example",
+            media_type="text/html",
+            status_code=200,
+            body_utf8=self.body,
+            fetched_at=datetime(2026, 8, 7, tzinfo=UTC),
+            etag='"fixture-v1"',
+        )
+
+
+class FailingWebConnector:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def fetch(self, source_url: str) -> WebFetchResult:
+        del source_url
+        self.calls += 1
+        raise WebConnectorError(
+            "WEB_FETCH_TIMEOUT",
+            "The webpage fetch timed out.",
+            blocked=False,
+            retryable=True,
+        )
 
 
 def _create_project(client: TestClient, question: str = "研究门铃包裹风险") -> str:
@@ -215,9 +250,14 @@ def test_link_and_media_without_connectors_are_explicitly_blocked(
         media_type="audio/mpeg",
     )
 
-    link_result = client.post(
-        f"/api/v1/projects/{project_id}/sources/{link['source_asset_id']}/processing"
-    )
+    configured_connector = client.app.state.web_connector
+    client.app.state.web_connector = None
+    try:
+        link_result = client.post(
+            f"/api/v1/projects/{project_id}/sources/{link['source_asset_id']}/processing"
+        )
+    finally:
+        client.app.state.web_connector = configured_connector
     audio_result = client.post(
         f"/api/v1/projects/{project_id}/sources/{audio['source_asset_id']}/processing"
     )
@@ -229,6 +269,129 @@ def test_link_and_media_without_connectors_are_explicitly_blocked(
     )
     assert audio_result.json()["job"]["status"] == "blocked"
     assert audio_result.json()["job"]["error_code"] == "SOURCE_PARSER_NOT_CONFIGURED"
+
+
+def test_authorized_webpage_is_snapshotted_verified_and_promoted(
+    client: TestClient, tmp_path: Path
+) -> None:
+    project_id = _create_project(client)
+    registered = client.post(
+        f"/api/v1/projects/{project_id}/sources/links",
+        json={
+            "source_url": "https://www.eufy.com/products/example?utm_source=test",
+            "display_name": "Authorized product page",
+            "authorization_basis": "publicly_available",
+            "authorization_confirmed": True,
+            "authorized_by": "research-team",
+            "purpose": "Product opportunity research",
+        },
+    )
+    assert registered.status_code == 201
+    source_asset_id = registered.json()["source_asset"]["source_asset_id"]
+    connector = StaticWebConnector(
+        b"<html><body><main><h1>Doorbell product</h1>"
+        b"<script>untrusted hidden text</script>"
+        b"<p>Local package detection is supported.</p></main></body></html>"
+    )
+    client.app.state.web_connector = connector
+
+    processed = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing"
+    )
+    fragments_response = client.get(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/fragments"
+    )
+
+    assert processed.status_code == 200
+    result = processed.json()
+    assert result["job"]["status"] == "succeeded"
+    assert result["parsed_artifact"]["parser_id"] == "deterministic-html"
+    assert result["job"]["result"]["final_url"] == (
+        "https://www.eufy.com/products/example"
+    )
+    assert result["job"]["result"]["captured_content_hash"] == result[
+        "parsed_artifact"
+    ]["source_content_hash"]
+    assert connector.calls == 1
+    fragments = fragments_response.json()["items"]
+    assert [item["original_excerpt"] for item in fragments] == [
+        "Doorbell product",
+        "Local package detection is supported.",
+    ]
+    assert fragments[0]["locator"]["kind"] == "web"
+    assert fragments[0]["locator"]["web_path"] == "/html/body/main/h1"
+    snapshot = tmp_path / "sources" / project_id / f"{source_asset_id}.html"
+    assert snapshot.is_file()
+    assert b"untrusted hidden text" in snapshot.read_bytes()
+
+    async def promote() -> object:
+        async with client.app.state.database.session() as session:
+            service = SourceEvidencePromotionService(
+                SourceAssetRepository(session),
+                EvidenceRepository(session),
+                ProjectRepository(session),
+                "trace_web_test",
+                client.app.state.event_broker,
+            )
+            return await service.promote(
+                project_id,
+                EvidenceFromSourceFragmentIngest(
+                    source_fragment_id=fragments[1]["source_fragment_id"],
+                    claim_type=EvidenceClaimType.FACT,
+                    confidence=0.8,
+                    authority_score=0.8,
+                    recency_score=0.8,
+                    diversity_score=0.5,
+                ),
+            )
+
+    promoted = asyncio.run(promote())
+    assert promoted.created is True
+    assert str(promoted.evidence.source_url) == "https://www.eufy.com/products/example"
+    assert promoted.evidence.source_locator.kind == "web"
+
+    deleted = client.delete(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}"
+    )
+    assert deleted.status_code == 200
+    assert snapshot.exists() is False
+
+
+def test_retryable_web_failure_creates_no_snapshot_or_fragments(
+    client: TestClient, tmp_path: Path
+) -> None:
+    project_id = _create_project(client)
+    registered = client.post(
+        f"/api/v1/projects/{project_id}/sources/links",
+        json={
+            "source_url": "https://example.com/research",
+            "display_name": "Unavailable page",
+            "authorization_basis": "publicly_available",
+            "authorization_confirmed": True,
+            "authorized_by": "research-team",
+            "purpose": "Competitor research",
+        },
+    ).json()["source_asset"]
+    source_asset_id = registered["source_asset_id"]
+    connector = FailingWebConnector()
+    client.app.state.web_connector = connector
+
+    first = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing"
+    )
+    second = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing/retry"
+    )
+    fragments = client.get(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/fragments"
+    )
+
+    assert first.json()["job"]["status"] == "failed"
+    assert first.json()["job"]["error_code"] == "WEB_FETCH_TIMEOUT"
+    assert second.json()["job"]["attempt_count"] == 2
+    assert connector.calls == 2
+    assert fragments.json()["total"] == 0
+    assert not list((tmp_path / "sources" / project_id).glob("*.html"))
 
 
 def test_delete_purges_verified_fragments_and_blocks_completed_job(
