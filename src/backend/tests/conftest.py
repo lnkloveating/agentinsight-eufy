@@ -17,6 +17,7 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
         auto_create_schema=True,
         sse_heartbeat_seconds=0.05,
         model_credentials_env_file=None,
+        source_storage_root=str(tmp_path / "sources"),
     )
     with TestClient(create_app(settings)) as test_client:
         yield test_client

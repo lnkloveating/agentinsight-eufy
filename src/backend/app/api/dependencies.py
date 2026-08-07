@@ -1,6 +1,7 @@
 """FastAPI 依赖注入。"""
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
@@ -11,11 +12,14 @@ from app.application.evidence import EvidenceQueryService
 from app.application.innovations import InnovationService
 from app.application.model_gateway import CredentialResolver, ModelCatalog
 from app.application.projects import ProjectService
+from app.application.sources import SourceAssetService
 from app.core.config import Settings
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.innovation_repository import InnovationRepository
 from app.infrastructure.database.repositories import ProjectRepository
+from app.infrastructure.database.source_repository import SourceAssetRepository
+from app.infrastructure.source_storage import LocalSourceStorage
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -55,6 +59,28 @@ def get_evidence_query_service(session: SessionDependency) -> EvidenceQueryServi
 
 EvidenceQueryServiceDependency = Annotated[
     EvidenceQueryService, Depends(get_evidence_query_service)
+]
+
+
+def get_source_asset_service(
+    request: Request, session: SessionDependency
+) -> SourceAssetService:
+    settings: Settings = request.app.state.settings
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return SourceAssetService(
+        SourceAssetRepository(session),
+        ProjectRepository(session),
+        LocalSourceStorage(
+            Path(settings.source_storage_root),
+            settings.source_max_upload_bytes,
+        ),
+        trace_id,
+        request.app.state.event_broker,
+    )
+
+
+SourceAssetServiceDependency = Annotated[
+    SourceAssetService, Depends(get_source_asset_service)
 ]
 
 

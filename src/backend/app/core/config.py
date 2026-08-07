@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     default_model_id: str | None = None
     model_max_retries: int = Field(default=2, ge=0, le=5)
     model_retry_base_seconds: float = Field(default=0.5, ge=0, le=30)
+    source_storage_root: str = "./data/sources"
+    source_max_upload_bytes: int = Field(
+        default=262_144_000,
+        ge=1,
+        le=2_147_483_648,
+    )
 
 
 @lru_cache

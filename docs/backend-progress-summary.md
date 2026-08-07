@@ -4,7 +4,7 @@
 >
 > 基线分支：`main`
 >
-> 基线提交：`a415310`（合并多模型网关与主办方模型路由）
+> 基线提交：以 `main` 最新提交为准
 
 ## 1. 这份文档解决什么问题
 
@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway 已经完成；真实数据连接器和领域 Agent 尚未开始完整接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、原始资料接入、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway 已经完成；外部资料解析 Runtime 和领域 Agent 尚未开始完整接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -34,6 +34,7 @@ http://localhost:8000/api/v1
 | 项目生命周期 | 创建/查询项目、Brief 人工审批、状态迁移、持久化事件 | 可以实现项目列表、Brief 确认页和审批面板 |
 | SSE 事件 | 历史事件回放、实时事件、断线续传游标、心跳 | 可以实现实时研究时间线和连接状态 |
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
+| Source Ingestion | 用户/企业授权文件上传、公开链接登记、项目隔离存储、哈希去重、授权审计、删除与 Collection Job | 可以实现真实资料输入页和资料资产列表；上传资料尚未自动解析成 Evidence |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
@@ -53,7 +54,7 @@ http://localhost:8000/api/v1
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
 - 用户研究、竞品、产品技术、商业和红队等业务 Prompt；
-- 真实 Evidence Connectors；
+- 外部 Runtime Adapter，以及把解析结果确定性转换为 Evidence 的处理管线；
 - 竞品 A2A Runtime；
 - 最终报告、Package Risk Demo 和飞书集成。
 
@@ -71,6 +72,11 @@ http://localhost:8000/api/v1
 | `GET` | `/projects/{project_id}/agents` | 可用 | Agent Run 列表与模型调用审计摘要 |
 | `GET` | `/projects/{project_id}/events` | 可用 | SSE 实时事件和历史回放 |
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
+| `POST` | `/projects/{project_id}/sources/files` | 可用 | 上传用户或企业授权的 PDF、文本、DOCX、CSV、JSON、图片、音频或视频 |
+| `POST` | `/projects/{project_id}/sources/links` | 可用 | 登记用户指定的公开 HTTP/HTTPS 链接；请求本身不会抓取网页 |
+| `GET` | `/projects/{project_id}/sources` | 可用 | 按类型和状态查询项目原始资料 |
+| `GET` | `/projects/{project_id}/sources/{source_asset_id}` | 可用 | 查询资料元数据和待解析任务 ID |
+| `DELETE` | `/projects/{project_id}/sources/{source_asset_id}` | 可用 | 删除文件内容、阻止待运行任务并保留最小审计状态 |
 | `GET` | `/projects/{project_id}/evidence` | 可用 | Evidence 分页、状态/来源筛选 |
 | `GET` | `/projects/{project_id}/claims` | 可用 | Claim 与支持/反对 Evidence IDs |
 | `GET` | `/projects/{project_id}/innovations` | 可用 | 候选机会、事件理解、评分和红队结果 |
@@ -91,7 +97,7 @@ http://localhost:8000/api/v1
 - Package Risk Demo Result；
 - 最终报告和方法对照指标；
 - 飞书 Aily Skills、审批卡片和文档沉淀；
-- 外部 Runtime、竞品 A2A 和真实数据采集任务控制。
+- 外部 Runtime、竞品 A2A 和真实资料解析任务控制。
 
 ## 4. 前端需要立即对齐的数据契约
 
@@ -179,7 +185,23 @@ estimated_cost_microusd
 
 前端的 Agent 历史、错误状态和成本展示可以直接基于这些字段设计。
 
-### 4.4 `Evidence` 类型
+### 4.4 `SourceAsset` 类型
+
+前端资料输入页可以直接接入 `/sources/files` 和 `/sources/links`。文件上传使用 `multipart/form-data`，必须提交：
+
+```text
+file
+authorization_basis
+authorization_confirmed=true
+authorized_by
+purpose
+```
+
+链接登记使用 JSON，除授权字段外还需提交 `source_url` 和 `display_name`。`authorization_basis` 只能是 `user_owned`、`enterprise_authorized` 或 `publicly_available`。
+
+响应中的 `collection_job_id` 表示已经建立待解析任务，但当前分支不会调用外部 Agent。`SourceAsset` 不是 Evidence，前端不得把“上传成功”显示成“证据已验证”。文件系统路径不会通过 API 返回，API Key 也不参与该流程。
+
+### 4.5 `Evidence` 类型
 
 当前前端类型与真实后端存在字段名差异：
 
@@ -190,7 +212,7 @@ estimated_cost_microusd
 
 后端还返回 `source_domain`、`claim_type`、`product`、`region`、`user_segment`、`published_at`、`authority_score`、`recency_score` 和 `diversity_score`。Evidence Center 应以真实后端字段为准。
 
-### 4.5 `Claim` 类型
+### 4.6 `Claim` 类型
 
 除现有字段外，后端还返回：
 
@@ -201,7 +223,7 @@ scope
 
 Claim 状态包括 `proposed`、`supported`、`disputed`、`missing_evidence`、`rejected` 和 `unknown`。
 
-### 4.6 使用 `Innovation` 替代旧 `Concept`
+### 4.7 使用 `Innovation` 替代旧 `Concept`
 
 当前真实候选接口是：
 
@@ -220,7 +242,7 @@ GET /api/v1/projects/{project_id}/innovations
 
 候选比较页应围绕 `Innovation` 设计，旧 `/concepts` 不应继续作为长期契约。
 
-### 4.7 SSE 当前行为
+### 4.8 SSE 当前行为
 
 当前 v1 后端会把 `event_type` 同时作为 SSE 的命名事件类型，并在 `data` 中发送完整 `ProjectEvent` JSON。
 
@@ -245,6 +267,9 @@ agent_timed_out
 agent_cancelled
 evidence_added
 evidence_collection_failed
+source_asset_created
+source_asset_deleted
+source_asset_restored
 claim_evaluated
 innovation_scored
 red_team_reviewed
@@ -264,12 +289,13 @@ workflow_finished
 5. 新增 `Innovation` Type、Client 和候选比较 UI，逐步替代旧 Concept。
 6. 修复 SSE 命名事件监听。
 7. 对真实接口的 `404/409/422/500/501` 显示明确错误，不要全部静默回退 Mock。
+8. 增加资料上传/链接登记页，显示授权依据、文件类型、大小、解析任务状态和删除操作。
 
 ### P1：可以先设计、等待真实数据接入
 
 1. Deep Research 输入和 Brief 确认页面。
 2. Agent 运行时间线、并行节点和错误恢复展示。
-3. Evidence Center、来源筛选和 Claim-Evidence 下钻。
+3. Source Asset 与 Evidence 分层展示：前者是待解析原始资料，后者是通过校验的研究证据。
 4. Innovation 候选竞技场、评分雷达和红队意见。
 5. 三个 Human Gate 的审批面板。
 6. Package Risk 交互 Demo 原型。
@@ -315,17 +341,18 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 67 passed
+pytest: 83 passed
 ruff: passed
-mypy: passed（86 个源文件）
+mypy: passed（94 个源文件）
+Alembic: 空数据库升级到 0006_source_ingestion 通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 冒烟测试通过
 ```
 
 接下来的后端开发顺序应从真实数据接入开始：
 
 ```text
-Evidence Connectors
-→ Crawler Fallback
+External Runtime Adapter（先接一个真实 Runtime）
+→ Evidence Processing Pipeline
 → User Research Agent
 → Competitor A2A
 → Product Technical Agent

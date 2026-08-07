@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -138,6 +138,115 @@ paths:
             text/event-stream:
               schema:
                 type: string
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources:
+    get:
+      tags: [Evidence]
+      summary: 查询项目已授权的原始资料
+      operationId: listSourceAssets
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Cursor"
+        - name: kind
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/SourceAssetKind"
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/SourceAssetStatus"
+      responses:
+        "200":
+          description: 只返回当前项目的 Source Asset，不返回文件系统路径。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceAssetPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/files:
+    post:
+      tags: [Evidence]
+      summary: 上传并登记一份用户或企业授权的原始文件
+      operationId: uploadSourceFile
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/SourceFileUpload"
+      responses:
+        "201":
+          description: 文件已按项目隔离保存，同时创建待解析 Collection Job；重复内容返回既有资产。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceAssetIngestResult"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/links:
+    post:
+      tags: [Evidence]
+      summary: 登记一个用户明确指定的公开资料链接
+      description: 该操作只登记和校验链接，不在请求中抓取网页内容。
+      operationId: createSourceLink
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceLinkCreate"
+      responses:
+        "201":
+          description: 链接已登记，同时创建待解析 Collection Job；重复链接返回既有资产。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceAssetIngestResult"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}:
+    get:
+      tags: [Evidence]
+      summary: 查询单个原始资料资产
+      operationId: getSourceAsset
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: Source Asset 元数据。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceAsset"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Evidence]
+      summary: 删除原始资料内容并保留最小审计记录
+      operationId: deleteSourceAsset
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: 文件内容已删除，资产状态变为 deleted，审计记录保留。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceAsset"
         default:
           $ref: "#/components/responses/Error"
 
@@ -422,6 +531,13 @@ components:
         type: string
         minLength: 8
         maxLength: 128
+    SourceAssetId:
+      name: source_asset_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^source_[A-Za-z0-9_-]+$"
 
   responses:
     Error:
@@ -526,6 +642,22 @@ components:
     EvidenceStatus:
       type: string
       enum: [verified, partially_verified, unverified, outdated, mock, invalid]
+
+    SourceAssetKind:
+      type: string
+      enum: [file, link]
+
+    SourceAssetStatus:
+      type: string
+      enum: [ready, deleted]
+
+    SourceMediaCategory:
+      type: string
+      enum: [document, dataset, image, video, audio, webpage]
+
+    SourceAuthorizationBasis:
+      type: string
+      enum: [user_owned, enterprise_authorized, publicly_available]
 
     ClaimStatus:
       type: string
@@ -729,6 +861,103 @@ components:
         authority_score: { type: number, minimum: 0, maximum: 1 }
         recency_score: { type: number, minimum: 0, maximum: 1 }
         diversity_score: { type: number, minimum: 0, maximum: 1 }
+
+    SourceFileUpload:
+      type: object
+      additionalProperties: false
+      required: [file, authorization_basis, authorization_confirmed, authorized_by, purpose]
+      properties:
+        file: { type: string, format: binary }
+        authorization_basis:
+          $ref: "#/components/schemas/SourceAuthorizationBasis"
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+
+    SourceLinkCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - source_url
+        - display_name
+        - authorization_basis
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+      properties:
+        source_url: { type: string, format: uri }
+        display_name: { type: string, minLength: 1, maxLength: 255 }
+        authorization_basis:
+          $ref: "#/components/schemas/SourceAuthorizationBasis"
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+
+    SourceAsset:
+      type: object
+      additionalProperties: false
+      required:
+        - source_asset_id
+        - project_id
+        - kind
+        - status
+        - display_name
+        - media_type
+        - media_category
+        - content_hash
+        - byte_size
+        - authorization_basis
+        - authorization_confirmed_at
+        - authorized_by
+        - purpose
+        - collection_job_id
+        - created_at
+        - updated_at
+      properties:
+        source_asset_id: { type: string }
+        project_id: { type: string }
+        kind:
+          $ref: "#/components/schemas/SourceAssetKind"
+        status:
+          $ref: "#/components/schemas/SourceAssetStatus"
+        display_name: { type: string }
+        original_filename: { type: [string, "null"] }
+        source_url: { type: [string, "null"], format: uri }
+        media_type: { type: string }
+        media_category:
+          $ref: "#/components/schemas/SourceMediaCategory"
+        content_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        byte_size: { type: integer, minimum: 0 }
+        authorization_basis:
+          $ref: "#/components/schemas/SourceAuthorizationBasis"
+        authorization_confirmed_at: { type: string, format: date-time }
+        authorized_by: { type: string }
+        purpose: { type: string }
+        collection_job_id: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        deleted_at: { type: [string, "null"], format: date-time }
+
+    SourceAssetIngestResult:
+      type: object
+      additionalProperties: false
+      required: [source_asset, created]
+      properties:
+        source_asset:
+          $ref: "#/components/schemas/SourceAsset"
+        created: { type: boolean }
+
+    SourceAssetPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceAsset"
+        next_cursor: { type: [string, "null"] }
+        total: { type: integer, minimum: 0 }
 
     EvidencePage:
       type: object
