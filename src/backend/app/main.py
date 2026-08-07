@@ -17,6 +17,11 @@ from app.application.model_gateway import (
     PromptRegistry,
     parse_openai_compatible_provider_configs,
 )
+from app.application.runtime import (
+    ExternalCliProcessRunner,
+    ExternalRuntimeCatalog,
+    OpenCodeCliDriver,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
@@ -47,6 +52,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         )
     prompt_registry = PromptRegistry()
+    external_cli_process_runner = ExternalCliProcessRunner(
+        max_output_bytes=resolved_settings.external_cli_max_output_bytes,
+        probe_timeout_seconds=resolved_settings.external_cli_probe_timeout_seconds,
+    )
+    opencode_driver = OpenCodeCliDriver(
+        executable=resolved_settings.opencode_executable,
+        provider_id=resolved_settings.opencode_provider_id,
+        provider_name=resolved_settings.opencode_provider_name,
+        provider_base_url=resolved_settings.opencode_provider_base_url,
+        provider_model=resolved_settings.opencode_provider_model,
+        credential_env=resolved_settings.opencode_credential_env,
+        enabled=resolved_settings.opencode_runtime_enabled,
+    )
+    external_runtime_catalog = ExternalRuntimeCatalog(
+        (opencode_driver,), credential_resolver, external_cli_process_runner
+    )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -82,6 +103,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.model_credentials = credential_resolver
     application.state.model_provider_registry = model_provider_registry
     application.state.prompt_registry = prompt_registry
+    application.state.external_cli_process_runner = external_cli_process_runner
+    application.state.external_runtime_catalog = external_runtime_catalog
+    application.state.opencode_driver = opencode_driver
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
         CORSMiddleware,

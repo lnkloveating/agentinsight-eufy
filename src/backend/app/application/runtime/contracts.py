@@ -19,6 +19,11 @@ class RuntimeErrorCode(StrEnum):
     ARTIFACT_INVALID = "artifact_invalid"
     PERMISSION_DENIED = "permission_denied"
     DEPENDENCY_MISSING = "dependency_missing"
+    EXECUTABLE_MISSING = "executable_missing"
+    CREDENTIAL_MISSING = "credential_missing"
+    PROBE_FAILED = "probe_failed"
+    PROCESS_FAILED = "process_failed"
+    OUTPUT_TOO_LARGE = "output_too_large"
 
 
 class CancellationToken:
@@ -35,6 +40,9 @@ class CancellationToken:
     def raise_if_cancelled(self) -> None:
         if self.cancelled:
             raise RuntimeCancellationError("agent invocation was cancelled")
+
+    async def wait(self) -> None:
+        await self._event.wait()
 
 
 @dataclass(frozen=True)
