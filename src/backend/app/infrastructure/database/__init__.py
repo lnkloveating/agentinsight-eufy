@@ -13,6 +13,7 @@ from app.infrastructure.database.models import (
     ModelCallModel,
     ProjectEventModel,
     ProjectModel,
+    SourceAssetModel,
 )
 from app.infrastructure.database.session import Database
 
@@ -30,4 +31,5 @@ __all__ = [
     "ModelCallModel",
     "ProjectEventModel",
     "ProjectModel",
+    "SourceAssetModel",
 ]

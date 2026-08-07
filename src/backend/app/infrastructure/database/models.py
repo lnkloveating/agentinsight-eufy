@@ -60,6 +60,9 @@ class ProjectModel(Base):
     collection_jobs: Mapped[list["CollectionJobModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    source_assets: Mapped[list["SourceAssetModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     evidence_records: Mapped[list["EvidenceModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -291,6 +294,60 @@ class CollectionJobModel(Base):
     evidence_records: Mapped[list["EvidenceModel"]] = relationship(
         back_populates="collection_job"
     )
+    source_asset: Mapped["SourceAssetModel | None"] = relationship(
+        back_populates="collection_job", uselist=False
+    )
+
+
+class SourceAssetModel(Base):
+    """用户明确提供并授权给当前研究项目使用的原始资料。"""
+
+    __tablename__ = "source_assets"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "kind", "content_hash", name="uq_source_asset_project_kind_hash"
+        ),
+        UniqueConstraint("collection_job_id", name="uq_source_asset_collection_job"),
+        Index("ix_source_assets_project_status", "project_id", "status"),
+        Index("ix_source_assets_project_kind", "project_id", "kind"),
+    )
+
+    source_asset_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    collection_job_id: Mapped[str] = mapped_column(
+        ForeignKey("collection_jobs.collection_job_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    media_type: Mapped[str] = mapped_column(String(160), nullable=False)
+    media_category: Mapped[str] = mapped_column(String(30), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    authorization_basis: Mapped[str] = mapped_column(String(40), nullable=False)
+    authorization_confirmed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    authorized_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    project: Mapped[ProjectModel] = relationship(back_populates="source_assets")
+    collection_job: Mapped[CollectionJobModel] = relationship(back_populates="source_asset")
 
 
 class EvidenceModel(Base):
