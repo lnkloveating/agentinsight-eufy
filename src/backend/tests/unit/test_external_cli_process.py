@@ -16,6 +16,7 @@ async def test_process_runner_executes_without_inheriting_unapproved_secrets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("UNAPPROVED_TEST_SECRET", "must-not-leak")
+    monkeypatch.setenv("SYSTEMROOT", r"C:\Windows")
     runner = ExternalCliProcessRunner(
         max_output_bytes=4096, probe_timeout_seconds=2
     )
@@ -34,6 +35,7 @@ async def test_process_runner_executes_without_inheriting_unapproved_secrets(
 
     assert result.exit_code == 0
     assert result.stdout.decode().splitlines() == ["missing", "visible"]
+    assert ExternalCliProcessRunner._base_environment()["SYSTEMROOT"] == r"C:\Windows"
 
 
 @pytest.mark.asyncio

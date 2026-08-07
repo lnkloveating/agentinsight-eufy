@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.application.runtime.cli_contracts import CliWorkspace
 from app.application.runtime.contracts import AgentInvocation
+from app.workflows.contracts import ResearchArtifact
 
 _SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 
@@ -87,4 +88,5 @@ class ExternalCliWorkspaceManager:
             "input_artifact_ids": list(invocation.input_artifact_ids),
             "task": invocation.task.model_dump(mode="json"),
             "context": invocation.context.model_dump(mode="json"),
+            "output_schema": ResearchArtifact.model_json_schema(),
         }

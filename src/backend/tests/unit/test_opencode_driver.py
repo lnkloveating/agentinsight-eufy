@@ -112,3 +112,5 @@ def test_workspace_hashes_unsafe_identifiers_and_contains_only_invocation(
     assert workspace.root.is_relative_to(tmp_path.resolve())
     assert workspace.root.parent.name.startswith("id_")
     assert [path.name for path in workspace.input_dir.iterdir()] == ["invocation.json"]
+    payload = json.loads(workspace.invocation_path.read_text(encoding="utf-8"))
+    assert payload["output_schema"]["title"] == "ResearchArtifact"

@@ -229,7 +229,7 @@ class ExternalCliProcessRunner:
         allowed = {
             "PATH",
             "PATHEXT",
-            "SystemRoot",
+            "SYSTEMROOT",
             "WINDIR",
             "COMSPEC",
             "TEMP",
