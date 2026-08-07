@@ -8,8 +8,6 @@
 
 ## 1. 这份文档解决什么问题
 
-这份文档用于帮助前端同学在后端继续开发时并行适配，明确区分：
-
 - 当前 `/api/v1` 已经可以真实调用的能力；
 - 已完成底层实现、但还没有接入完整 HTTP 业务流程的能力；
 - 仍然返回 `501` 或尚未开发的能力；
@@ -304,32 +302,7 @@ workflow_finished
 
 这些页面可以使用明确标识为 `DEMO SAMPLE` 的展示数据完成布局，但不能在 UI 中把它们表示为后端真实研究结果。
 
-### P2：等待后端后续分支
-
-- 最终报告和 Metrics 的真实数据接入；
-- Package Risk Demo Result 接口；
-- 飞书协作入口和卡片状态；
-- 外部 Runtime 选择、解析进度和错误重试；
-- A2A 专家运行细节。
-
-## 6. 前端当前需要避免的行为
-
-1. 不要把 `/api/v2` 目标契约当成已经上线。
-2. 不要在真实接口失败时无提示地显示 Mock Evidence 或 Mock Report。
-3. 不要硬编码 GLM、DeepSeek 或 Provider 内部模型名。
-4. 不要把 API Key 放进浏览器、Local Storage、请求体或前端环境变量。
-5. 不要把“Agent Runtime 底座能运行”描述成“真实业务多 Agent 已经完成调研”。
-6. 不要把 Demo 可运行描述成产品已经满足上架条件。
-
-建议所有使用演示数据的组件显示统一来源标记：
-
-```text
-LIVE API
-DEMO SAMPLE
-NOT AVAILABLE
-```
-
-## 7. 本地联调
+## 6. 本地联调
 
 ### 后端
 
@@ -363,7 +336,7 @@ npm run dev --workspace src/frontend
 VITE_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
-## 8. 验证状态与下一步后端计划
+## 7. 验证状态与下一步后端计划
 
 最近一次后端完整验证：
 
@@ -389,5 +362,3 @@ External Runtime Adapter（先接一个真实 Runtime）
 → Feishu Integration
 → E2E Hardening
 ```
-
-其中爬虫不再作为主路径，只在后续确有必要时作为定向补证兜底。前端最先会受到 External Runtime、领域 Agent 和 Package Risk Demo 三个阶段的数据契约影响；新增公共接口时以后端先更新 OpenAPI 和契约测试为准。
