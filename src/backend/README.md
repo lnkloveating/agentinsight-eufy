@@ -81,6 +81,22 @@ POST /api/v1/projects/{project_id}/decisions
 
 SSE 会先回放数据库历史事件，再等待实时通知；客户端可以通过 `Last-Event-ID` 恢复断线后的事件。
 
+## 确定性资料处理
+
+上传或登记 SourceAsset 后，可通过以下接口控制其 Collection Job：
+
+```text
+GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/processing
+POST /api/v1/projects/{project_id}/sources/{source_asset_id}/processing
+POST /api/v1/projects/{project_id}/sources/{source_asset_id}/processing/retry
+POST /api/v1/projects/{project_id}/sources/{source_asset_id}/processing/cancel
+GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/fragments
+```
+
+生产 Parser 当前支持 UTF-8 TXT/Markdown、CSV、JSON 和可提取文本的 PDF。处理时先把文件复制到 Collection Job 独占工作区，校验 SourceAsset 内容哈希，解析后再次读取同一快照验证每个 excerpt 的字符范围、行号、CSV 行记录或 PDF 页码，最后才保存 `ParsedArtifact` 和 `SourceFragment`。工作区在成功和失败后都会清理。
+
+网页、DOCX、图片、音频和视频在没有注册 Connector 时返回 `blocked`；不会调用模型猜测内容。外部 Agent 也不能直接提交原文进入 Evidence，必须引用已持久化且验证状态为 `verified` 的 Source Fragment；入湖后默认是 `partially_verified`，因为“引用与原文一致”不等于“来源主张已经被多源证实”。删除 SourceAsset 会同时清除解析片段和由其派生的 Evidence，只保留最小任务审计状态。
+
 ## v2 实现顺序
 
 1. Evidence、Collection Job 和 Claim Gate（已完成基础实现）；
@@ -89,15 +105,18 @@ SSE 会先回放数据库历史事件，再等待实时通知；客户端可以�
 4. Agent Runtime Core、外部 CLI Adapter、运行记录、版本化 Artifact、超时与取消（已完成；等待业务 Agent 绑定和任务启动 API）；
 5. Model Gateway、多模型选择、Prompt 版本、Token/成本和 Provider 边界（框架已完成；等待真实 Provider 凭据验证）；
 6. Source Ingestion、项目隔离存储、授权审计和待解析 Collection Job（已完成）；
-7. Evidence Processing Pipeline，把 SourceAsset 安全投递给已验证的外部 Runtime；
-8. Package Risk Intelligence Demo Result；
-9. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
-10. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
+7. Evidence Processing Pipeline，确定性解析、原文复核、任务恢复和受控 Evidence 入湖（已完成）；
+8. Codex、Claude Code 等外部 Runtime Driver 和能力探测；
+9. 用户研究、竞品 A2A、产品技术、商业与红队领域 Agent；
+10. Package Risk Intelligence Demo Result；
+11. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
+12. v2 契约、集成和端到端测试全部通过后再启用 `/api/v2` 路由。
 
 Evidence Foundation 的自动化验收映射：
 
 - AC-04：`test_evidence_normalization.py`、`test_evidence_ingestion.py`、`test_collection_job_failure.py` 和 `test_evidence_query_api.py`；
 - AC-04 原始资料入口：`test_source_validation.py` 和 `test_source_ingestion_api.py` 验证授权、类型/大小限制、私网 URL、哈希去重、项目隔离、文件删除、任务阻断和恢复；
+- AC-04 Source Processing：`test_source_parsers.py` 和 `test_source_processing_api.py` 验证 TXT/Markdown、CSV、JSON、PDF、隔离工作区、原文定位复核、失败、重试、取消、无 Connector 阻塞、删除清理与受控 Evidence 入湖；
 - AC-05：`test_claim_gate.py` 和 `test_claim_gate_persistence.py`。
 
 Innovation Foundation 的自动化验收映射：
