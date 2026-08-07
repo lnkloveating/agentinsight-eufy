@@ -38,7 +38,7 @@ opencode --version
 
 后端通过 `ExternalCliAgentAdapter` 启动固定注册的 OpenCode Driver，不接受 API 请求提交任意命令。每次运行使用 `EXTERNAL_RUNTIME_WORKSPACE_ROOT` 下的项目/Agent Run 隔离目录；只向子进程注入配置指定的凭据，原始 stdout/stderr 不写日志，非零退出的错误文本会先脱敏。
 
-OpenCode 当前只声明 `text`、`structured_output` 和 `local_files`。Driver 明确禁止 bash、编辑、外部目录、网页访问和子 Agent；网页获取由独立 Web Connector 完成，OpenCode 只能在后续业务 Agent 中读取已经验证的 Source Fragment。视频仍未支持。前端通过 `GET /api/v1/runtimes` 获取真实安装、凭据、版本和能力状态。
+OpenCode 当前只声明 `text`、`structured_output` 和 `local_files`。Driver 明确禁止 bash、编辑、外部目录、网页访问和子 Agent；网页与媒体预处理由独立 Connector 完成，OpenCode 只能在后续业务 Agent 中读取已经验证的 Source Fragment。主办方两个模型没有声明 ASR 或视觉能力，因此不能把“媒体预处理可用”解释成“OpenCode 已经能听懂或看懂视频”。前端通过 `GET /api/v1/runtimes` 获取真实安装、凭据、版本和能力状态。
 
 本地真实模型冒烟：
 
@@ -91,11 +91,17 @@ POST /api/v1/projects/{project_id}/sources/{source_asset_id}/processing
 POST /api/v1/projects/{project_id}/sources/{source_asset_id}/processing/retry
 POST /api/v1/projects/{project_id}/sources/{source_asset_id}/processing/cancel
 GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/fragments
+POST /api/v1/projects/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/review
+GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/media-artifacts/{media_artifact_id}
 ```
 
 生产 Parser 当前支持 UTF-8 TXT/Markdown、CSV、JSON 和可提取文本的 PDF。处理时先把文件复制到 Collection Job 独占工作区，校验 SourceAsset 内容哈希，解析后再次读取同一快照验证每个 excerpt 的字符范围、行号、CSV 行记录或 PDF 页码，最后才保存 `ParsedArtifact` 和 `SourceFragment`。工作区在成功和失败后都会清理。
 
-授权公开网页已接入安全 HTTP Connector：每次请求和重定向前检查公网 DNS，遵守 `robots.txt`，限制超时、重定向、解压后响应大小和 HTML 类型，并拒绝登录页。成功内容会保存成当前项目的 HTML 快照，片段携带字符范围和 Web Path，二次读取快照复核后才能进入 Evidence。该能力不包含登录、Cookie、浏览器渲染、验证码或反爬绕过。DOCX、图片、音频和视频在没有注册 Connector 时返回 `blocked`；不会调用模型猜测内容。外部 Agent 也不能直接提交原文进入 Evidence，必须引用已持久化且验证状态为 `verified` 的 Source Fragment；入湖后默认是 `partially_verified`，因为“引用与原文一致”不等于“来源主张已经被多源证实”。删除 SourceAsset 会同时清除网页快照、解析片段和由其派生的 Evidence，只保留最小任务审计状态。
+授权公开网页已接入安全 HTTP Connector：每次请求和重定向前检查公网 DNS，遵守 `robots.txt`，限制超时、重定向、解压后响应大小和 HTML 类型，并拒绝登录页。成功内容会保存成当前项目的 HTML 快照，片段携带字符范围和 Web Path，二次读取快照复核后才能进入 Evidence。该能力不包含登录、Cookie、浏览器渲染、验证码或反爬绕过。
+
+授权音频和视频已接入 PyAV 媒体预处理：在隔离工作区中探测容器和流、限制时长/流数量/解码帧数、把音轨标准化成 16 kHz 单声道 WAV，并按间隔抽取有 Hash 和时间戳的 PNG 帧。衍生产物按项目保留供审核，不通过 API 暴露本地路径。没有显式 ASR/视觉 Connector 时任务在完成预处理后返回 `blocked` 和 `media_manifest`；不会让文本模型猜测声音或画面。Connector 输出先保存为 `derived` 片段，人工对照保留音轨/帧确认后才变成 `verified` 并允许进入 Evidence。删除 SourceAsset 会同时清除媒体衍生产物、解析片段和派生 Evidence。
+
+DOCX 和独立图片仍在没有专用 Connector 时返回 `blocked`。外部 Agent 不能直接提交内容进入 Evidence，必须引用已持久化且验证状态为 `verified` 的 Source Fragment；入湖后默认是 `partially_verified`，因为“引用与来源一致”不等于“来源主张已经被多源证实”。
 
 ## v2 实现顺序
 
@@ -107,7 +113,7 @@ GET  /api/v1/projects/{project_id}/sources/{source_asset_id}/fragments
 6. Source Ingestion、项目隔离存储、授权审计和待解析 Collection Job（已完成）；
 7. Evidence Processing Pipeline，确定性解析、原文复核、任务恢复和受控 Evidence 入湖（已完成）；
 8. Web Connector、安全网页快照与 Web Locator（已完成）；
-9. 视频/音频处理 Connector；
+9. 音视频容器探测、音轨/关键帧提取、衍生产物和人工复核（已完成；等待真实 ASR/视觉 Connector）；
 10. 用户研究、竞品 A2A、产品技术、商业与红队领域 Agent；
 11. Package Risk Intelligence Demo Result；
 12. 飞书五个 Aily API Skill、卡片决定和结果沉淀；
@@ -117,7 +123,7 @@ Evidence Foundation 的自动化验收映射：
 
 - AC-04：`test_evidence_normalization.py`、`test_evidence_ingestion.py`、`test_collection_job_failure.py` 和 `test_evidence_query_api.py`；
 - AC-04 原始资料入口：`test_source_validation.py` 和 `test_source_ingestion_api.py` 验证授权、类型/大小限制、私网 URL、哈希去重、项目隔离、文件删除、任务阻断和恢复；
-- AC-04 Source Processing：`test_source_parsers.py`、`test_web_connector.py` 和 `test_source_processing_api.py` 验证 TXT/Markdown、CSV、JSON、PDF、授权公开网页、SSRF/robots/重定向/大小限制、隔离快照、原文定位复核、失败、重试、取消、无 Connector 阻塞、删除清理与受控 Evidence 入湖；
+- AC-04 Source Processing：`test_source_parsers.py`、`test_web_connector.py`、`test_media_processing.py` 和 `test_source_processing_api.py` 验证文档/网页解析、SSRF/robots/重定向/大小限制、真实 WAV/MP4 解码、音轨/关键帧 Hash、无语义 Connector 阻塞、重试、媒体人工复核、删除清理与受控 Evidence 入湖；
 - AC-05：`test_claim_gate.py` 和 `test_claim_gate_persistence.py`。
 
 Innovation Foundation 的自动化验收映射：

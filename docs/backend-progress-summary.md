@@ -35,7 +35,7 @@ http://localhost:8000/api/v1
 | SSE 事件 | 历史事件回放、实时事件、断线续传游标、心跳 | 可以实现实时研究时间线和连接状态 |
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
 | Source Ingestion | 用户/企业授权文件上传、公开链接登记、项目隔离存储、哈希去重、授权审计、删除与 Collection Job | 可以实现真实资料输入页和资料资产列表 |
-| Source Processing | TXT、Markdown、CSV、JSON、可提取文本 PDF 和授权公开 HTML 的确定性解析、隔离快照、原文定位复核、失败/重试/取消、Verified Fragment 与受控 Evidence 入湖 | 可以展示网页获取与处理状态、最终 URL、错误、解析产物和可回溯片段；DOCX、图片、音频、视频仍会明确 blocked |
+| Source Processing | 文档/网页确定性解析；音视频容器探测、标准化音轨、关键帧、衍生产物 Hash；失败/重试/取消、媒体人工复核与受控 Evidence 入湖 | 可以展示网页和媒体处理状态、可回溯片段、保留音轨/帧及审核操作；未配置 ASR/视觉 Connector 时媒体语义阶段明确 blocked |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
@@ -51,7 +51,7 @@ http://localhost:8000/api/v1
 2. Agent Runtime 能够调用显式注册的 Adapter，并保存 Agent Run 与版本化 Artifact。
 3. `InternalModelAgentAdapter` 能够通过 Model Gateway 调用真实模型。
 4. `ExternalCliAgentAdapter` 能够通过 OpenCode 调用主办方模型，并返回结构化 `ResearchArtifact`。
-5. Source Processing 可以把支持的授权文件或公开网页快照解析成带定位且经原文复核的 `SourceFragment`，并通过受控服务进入 Evidence Lake。
+5. Source Processing 可以解析授权文件/网页，并真实解码音视频；媒体 Connector 输出会保持 `derived`，人工复核后才能通过受控服务进入 Evidence Lake。
 6. Evidence 和 Innovation 服务可以保存、校验和查询真实持久化记录。
 
 当前仍缺少：
@@ -59,6 +59,7 @@ http://localhost:8000/api/v1
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
 - 用户研究、竞品、产品技术、商业和红队等业务 Prompt；
 - 把已验证 SourceFragment 提供给领域 Agent 和外部 Runtime 的语义分析接线；
+- 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 竞品 A2A Runtime；
 - 最终报告、Package Risk Demo 和飞书集成。
 
@@ -87,6 +88,8 @@ http://localhost:8000/api/v1
 | `POST` | `/projects/{project_id}/sources/{source_asset_id}/processing/retry` | 可用 | 重试 failed、blocked 或 cancelled 任务并累计尝试次数 |
 | `POST` | `/projects/{project_id}/sources/{source_asset_id}/processing/cancel` | 可用 | 在开始执行前取消 queued 任务 |
 | `GET` | `/projects/{project_id}/sources/{source_asset_id}/fragments` | 可用 | 分页查询通过原文复核的定位片段 |
+| `POST` | `/projects/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/review` | 可用 | 对照保留媒体审核 derived 片段；只有 verified 可进入 Evidence |
+| `GET` | `/projects/{project_id}/sources/{source_asset_id}/media-artifacts/{media_artifact_id}` | 可用 | 项目内读取供审核的 WAV 音轨或 PNG 关键帧，不暴露本地路径 |
 | `GET` | `/projects/{project_id}/evidence` | 可用 | Evidence 分页、状态/来源筛选 |
 | `GET` | `/projects/{project_id}/claims` | 可用 | Claim 与支持/反对 Evidence IDs |
 | `GET` | `/projects/{project_id}/innovations` | 可用 | 候选机会、事件理解、评分和红队结果 |
@@ -158,7 +161,7 @@ GET /api/v1/models
 GET /api/v1/runtimes
 ```
 
-当前目录只包含 `opencode`，并区分 `enabled`、`executable_available`、`credential_available` 和最终 `available`。前端只能允许用户选择 `available=true` 的 Runtime；`capabilities` 目前只声明 `text`、`structured_output` 和 `local_files`。网页能力来自 Source Processing 的独立 Web Connector，不是 OpenCode Runtime capability；图片、音频和视频仍不可解析。`unavailable_reason` 应直接映射成“未安装”“缺凭据”“探测失败”或“已禁用”，不要静默回退到假结果。
+当前目录只包含 `opencode`，并区分 `enabled`、`executable_available`、`credential_available` 和最终 `available`。前端只能允许用户选择 `available=true` 的 Runtime；`capabilities` 目前只声明 `text`、`structured_output` 和 `local_files`。网页获取和音视频预处理来自 Source Processing 的独立 Connector，不是 OpenCode Runtime capability；当前没有生产 ASR/视觉 Connector，所以不能标记“语音转写/画面理解可用”。`unavailable_reason` 应直接映射成“未安装”“缺凭据”“探测失败”或“已禁用”，不要静默回退到假结果。
 
 ### 4.3 `Project` 类型
 
@@ -221,7 +224,11 @@ purpose
 
 响应中的 `collection_job_id` 表示已经建立待解析任务。前端可以调用 `POST /sources/{source_asset_id}/processing` 执行当前有界同步处理，通过 `GET /processing` 查询状态，通过 `/processing/retry` 和 `/processing/cancel` 处理失败或排队任务，并从 `GET /fragments` 展示带页码、行号、行记录或字符范围的原文片段。
 
-当前确定性 Parser 支持 TXT、Markdown、CSV、JSON、可提取文本的 PDF 和授权公开 HTML。网页处理成功后，`job.result` 会提供 `requested_url`、`final_url`、`http_status`、`fetched_at`、`captured_content_hash`、`etag` 和 `last_modified`；失败时提供明确的 `error_code`。网页片段的 locator 为 `kind=web`，包含快照字符范围、行号和 `web_path`。DOCX、图片、音频和视频在没有专用 Connector 时返回 `blocked`，不会伪装成成功。`SourceAsset` 不是 Evidence；只有持久化且重新对照原文验证的 `SourceFragment` 才能通过内部受控服务进入 Evidence Lake。文件系统路径和 API Key 都不会通过接口返回。
+当前确定性 Parser 支持 TXT、Markdown、CSV、JSON、可提取文本的 PDF 和授权公开 HTML。网页处理成功后，`job.result` 会提供 URL、HTTP 和快照 Hash 元数据；网页 locator 为 `kind=web`。
+
+音视频处理使用 PyAV 自带 FFmpeg 库，不要求用户额外安装 `ffmpeg` 命令。`job.result.media_manifest` 提供容器、时长、流以及音轨/关键帧的安全元数据。没有 ASR/视觉 Connector 时任务返回 `MEDIA_UNDERSTANDING_CONNECTOR_NOT_CONFIGURED`，但保留媒体审核产物；前端可以展示“预处理完成、语义分析待配置”。有 Connector 时，转写 locator 为 `media_time`，画面描述 locator 为 `media_frame`，并包含产物 Hash、Connector、模型和置信度。它们最初为 `derived`，必须调用 review 接口确认后才能晋级 Evidence。
+
+DOCX 和独立图片仍在没有专用 Connector 时返回 `blocked`。`SourceAsset` 不是 Evidence；只有 `verified` Source Fragment 才能通过内部受控服务进入 Evidence Lake。文件系统路径和 API Key 都不会通过接口返回。
 
 网页输入必须由用户登记并确认授权。前端不提供“全网自动爬取”开关，也不展示验证码、Cloudflare 绕过或登录 Cookie 配置。生产部署仍应通过网络出口策略禁止后端访问内网地址，形成应用层 SSRF 校验之外的第二道边界。
 

@@ -1,19 +1,32 @@
 import asyncio
+import math
+import struct
+import wave
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
+import av
+import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from app.application.evidence import SourceEvidencePromotionService
+from app.core.errors import AppError
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.repositories import ProjectRepository
 from app.infrastructure.database.source_repository import SourceAssetRepository
 from app.schemas.evidence import (
     EvidenceClaimType,
     EvidenceFromSourceFragmentIngest,
+)
+from app.sources.media_processing import (
+    MediaFrameObservation,
+    MediaTranscriptSegment,
+    MediaUnderstandingResult,
+    PreparedMedia,
 )
 from app.sources.web_connector import WebConnectorError, WebFetchResult
 
@@ -48,6 +61,44 @@ class FailingWebConnector:
             "The webpage fetch timed out.",
             blocked=False,
             retryable=True,
+        )
+
+
+class StubMediaConnector:
+    connector_id = "test-media"
+    connector_version = "1.0"
+    model_id = "test-multimodal-model"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def analyze(self, prepared: PreparedMedia) -> MediaUnderstandingResult:
+        self.calls += 1
+        transcript_segments: tuple[MediaTranscriptSegment, ...] = ()
+        frame_observations: tuple[MediaFrameObservation, ...] = ()
+        if prepared.audio_artifact is not None:
+            transcript_segments = (
+                MediaTranscriptSegment(
+                    text="A package was delivered at the front door.",
+                    timestamp_start_ms=0,
+                    timestamp_end_ms=min(900, prepared.duration_ms),
+                    confidence=0.92,
+                ),
+            )
+        if prepared.frame_artifacts:
+            frame_observations = (
+                MediaFrameObservation(
+                    text="A parcel is visible near the doorway.",
+                    media_artifact_id=prepared.frame_artifacts[0].artifact_id,
+                    confidence=0.88,
+                ),
+            )
+        return MediaUnderstandingResult(
+            connector_id=self.connector_id,
+            connector_version=self.connector_version,
+            model_id=self.model_id,
+            transcript_segments=transcript_segments,
+            frame_observations=frame_observations,
         )
 
 
@@ -116,6 +167,37 @@ def _pdf_with_text(text: str) -> bytes:
     output = BytesIO()
     writer.write(output)
     return output.getvalue()
+
+
+def _wav_content(duration_seconds: float = 1.0) -> bytes:
+    output = BytesIO()
+    sample_rate = 8_000
+    with wave.open(output, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(sample_rate)
+        for index in range(int(sample_rate * duration_seconds)):
+            sample = int(8_000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+            audio.writeframesraw(struct.pack("<h", sample))
+    return output.getvalue()
+
+
+def _video_content(tmp_path: Path) -> bytes:
+    path = tmp_path / "doorbell-fixture.mp4"
+    with av.open(str(path), mode="w") as container:
+        stream = container.add_stream("mpeg4", rate=2)
+        stream.width = 64
+        stream.height = 48
+        stream.pix_fmt = "yuv420p"
+        for index, color in enumerate(("red", "green", "blue", "white")):
+            image = Image.new("RGB", (64, 48), color=color)
+            frame = av.VideoFrame.from_image(image)  # type: ignore[no-untyped-call]
+            frame.pts = index
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+    return path.read_bytes()
 
 
 def test_text_processing_persists_verified_artifact_and_cleans_workspace(
@@ -227,7 +309,7 @@ def test_invalid_json_fails_without_artifact_and_retry_is_audited(
     assert fragments.json()["total"] == 0
 
 
-def test_link_and_media_without_connectors_are_explicitly_blocked(
+def test_link_without_connector_and_invalid_media_are_explicitly_classified(
     client: TestClient,
 ) -> None:
     project_id = _create_project(client)
@@ -267,8 +349,163 @@ def test_link_and_media_without_connectors_are_explicitly_blocked(
     assert link_result.json()["job"]["error_code"] == (
         "SOURCE_CONNECTOR_NOT_CONFIGURED"
     )
-    assert audio_result.json()["job"]["status"] == "blocked"
-    assert audio_result.json()["job"]["error_code"] == "SOURCE_PARSER_NOT_CONFIGURED"
+    assert audio_result.json()["job"]["status"] == "failed"
+    assert audio_result.json()["job"]["error_code"] == "MEDIA_CONTAINER_INVALID"
+
+
+def test_audio_preprocessing_retains_review_artifact_and_retry_uses_connector(
+    client: TestClient, tmp_path: Path
+) -> None:
+    project_id = _create_project(client)
+    asset = _upload(
+        client,
+        project_id,
+        filename="authorized-interview.wav",
+        content=_wav_content(),
+        media_type="audio/wav",
+    )
+    source_asset_id = str(asset["source_asset_id"])
+
+    blocked = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing"
+    )
+
+    assert blocked.status_code == 200
+    blocked_job = blocked.json()["job"]
+    assert blocked_job["status"] == "blocked"
+    assert blocked_job["error_code"] == (
+        "MEDIA_UNDERSTANDING_CONNECTOR_NOT_CONFIGURED"
+    )
+    manifest = blocked_job["result"]["media_manifest"]
+    assert manifest["duration_ms"] >= 900
+    assert manifest["artifacts"][0]["artifact_id"] == "audio_track"
+    audio = client.get(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}"
+        "/media-artifacts/audio_track"
+    )
+    assert audio.status_code == 200
+    assert audio.headers["content-type"].startswith("audio/wav")
+    assert audio.content.startswith(b"RIFF")
+
+    connector = StubMediaConnector()
+    client.app.state.media_understanding_connector = connector
+    retried = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing/retry"
+    )
+    fragments = client.get(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/fragments"
+    ).json()["items"]
+
+    assert retried.json()["job"]["status"] == "succeeded"
+    assert retried.json()["job"]["attempt_count"] == 2
+    assert retried.json()["job"]["result"]["review_required"] is True
+    assert connector.calls == 1
+    assert fragments[0]["verification_status"] == "derived"
+    assert fragments[0]["locator"]["kind"] == "media_time"
+    assert fragments[0]["locator"]["media_artifact_id"] == "audio_track"
+
+    deleted = client.delete(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}"
+    )
+    assert deleted.status_code == 200
+    assert not (tmp_path / "sources" / project_id / f"{source_asset_id}.media").exists()
+
+
+def test_video_observation_requires_human_review_before_evidence(
+    client: TestClient, tmp_path: Path
+) -> None:
+    project_id = _create_project(client)
+    asset = _upload(
+        client,
+        project_id,
+        filename="authorized-doorbell.mp4",
+        content=_video_content(tmp_path),
+        media_type="video/mp4",
+    )
+    source_asset_id = str(asset["source_asset_id"])
+    connector = StubMediaConnector()
+    client.app.state.media_understanding_connector = connector
+
+    processed = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing"
+    )
+    fragments = client.get(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/fragments"
+    ).json()["items"]
+
+    assert processed.status_code == 200
+    assert processed.json()["job"]["status"] == "succeeded"
+    assert processed.json()["parsed_artifact"]["parser_id"] == "media-test-media"
+    assert len(fragments) == 1
+    fragment = fragments[0]
+    assert fragment["verification_status"] == "derived"
+    assert fragment["locator"]["kind"] == "media_frame"
+    frame_id = fragment["locator"]["media_artifact_id"]
+    frame = client.get(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}"
+        f"/media-artifacts/{frame_id}"
+    )
+    assert frame.status_code == 200
+    assert frame.headers["content-type"].startswith("image/png")
+    assert frame.content.startswith(b"\x89PNG")
+
+    async def promote() -> object:
+        async with client.app.state.database.session() as session:
+            service = SourceEvidencePromotionService(
+                SourceAssetRepository(session),
+                EvidenceRepository(session),
+                ProjectRepository(session),
+                "trace_media_test",
+                client.app.state.event_broker,
+            )
+            return await service.promote(
+                project_id,
+                EvidenceFromSourceFragmentIngest(
+                    source_fragment_id=fragment["source_fragment_id"],
+                    claim_type=EvidenceClaimType.FACT,
+                    confidence=0.7,
+                    authority_score=0.7,
+                    recency_score=0.8,
+                    diversity_score=0.5,
+                ),
+            )
+
+    with pytest.raises(AppError) as before_review:
+        asyncio.run(promote())
+    assert before_review.value.code == "SOURCE_FRAGMENT_NOT_VERIFIED"
+
+    reviewed = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}"
+        f"/fragments/{fragment['source_fragment_id']}/review",
+        json={
+            "decision": "verified",
+            "reviewer": "research-reviewer",
+            "reason": "Compared the observation against the retained frame.",
+        },
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["verification_status"] == "verified"
+
+    promoted = asyncio.run(promote())
+    assert promoted.created is True
+    assert promoted.evidence.source_locator.kind == "media_frame"
+    assert promoted.evidence.original_excerpt == (
+        "A parcel is visible near the doorway."
+    )
+
+    repeated_review = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}"
+        f"/fragments/{fragment['source_fragment_id']}/review",
+        json={
+            "decision": "verified",
+            "reviewer": "research-reviewer",
+            "reason": "Duplicate review should not overwrite the audit decision.",
+        },
+    )
+    assert repeated_review.status_code == 409
+    assert repeated_review.json()["code"] == (
+        "MEDIA_FRAGMENT_ALREADY_REVIEWED"
+    )
 
 
 def test_authorized_webpage_is_snapshotted_verified_and_promoted(

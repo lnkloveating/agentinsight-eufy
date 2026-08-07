@@ -34,6 +34,10 @@ TXT、Markdown、CSV、JSON 与可提取文本的 PDF 必须生成持久化 `Par
 
 授权公开网页必须经过 DNS 与每次重定向的公网地址校验、robots.txt、响应类型、解压后大小、超时和重定向次数限制。只允许保存当前项目的 HTML 快照；片段必须携带快照字符范围与 Web Path，并可在第二次读取快照时复核。私网解析、凭据 URL、robots 明确禁止、登录页、二进制响应、过大响应和无效 HTML 必须分类失败或阻塞，不得调用 OpenCode 猜测缺失内容。浏览器隐身、验证码或 Cloudflare 绕过不属于本分支能力。
 
+授权音频和视频必须先在 Collection Job 隔离工作区内完成格式探测、时长/分辨率/流数量限制、标准化音轨提取和有界关键帧抽取。保留供审核的音轨与关键帧必须记录 Hash、媒体类型和时间位置，不能在 API 中暴露本地路径。损坏文件、媒体炸弹、超长内容、无可用音视频流和解码错误必须明确失败，不能交给模型猜测。
+
+语音转写和画面描述必须来自显式注册且声明对应能力的 Media Understanding Connector；未配置 Connector 时任务必须返回 `blocked` 和已经完成的媒体探测结果。模型生成的转写或画面观察只能保存为 `derived` Source Fragment，携带时间范围或帧位置、衍生媒体 Hash、Connector、模型和置信度。`derived` 片段不得直接进入 Evidence Lake；只有项目授权审核人对照保留的音轨或关键帧提交 `verified` 决定后才能晋级，`invalid` 片段必须保持不可用。删除 SourceAsset 必须同时清除所有媒体衍生产物。
+
 ## AC-05 Claim Gate
 
 事实性 Claim 没有至少一个同项目、非 Mock、非 Invalid 且可回溯的 Evidence ID 时，不能晋级或进入最终报告。竞品“未验证”不能被改写为“没有”。冲突、未知项和被排除 Claim 保持可见。

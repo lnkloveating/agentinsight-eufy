@@ -45,6 +45,26 @@ class Settings(BaseSettings):
     web_connector_max_redirects: int = Field(default=5, ge=0, le=10)
     web_connector_respect_robots_txt: bool = True
     web_connector_allowed_domains: list[str] = Field(default_factory=list)
+    media_processing_max_duration_seconds: float = Field(
+        default=1_800, ge=1, le=14_400
+    )
+    media_processing_max_streams: int = Field(default=8, ge=1, le=32)
+    media_processing_frame_interval_seconds: float = Field(
+        default=10, ge=0.5, le=600
+    )
+    media_processing_max_frames: int = Field(default=60, ge=1, le=1_000)
+    media_processing_max_frame_dimension: int = Field(
+        default=1_280, ge=64, le=4_096
+    )
+    media_processing_max_decoded_video_frames: int = Field(
+        default=100_000, ge=1, le=2_000_000
+    )
+    media_processing_audio_sample_rate: int = Field(
+        default=16_000, ge=8_000, le=48_000
+    )
+    media_processing_max_audio_bytes: int = Field(
+        default=115_200_000, ge=1_024, le=1_073_741_824
+    )
     source_max_upload_bytes: int = Field(
         default=262_144_000,
         ge=1,
