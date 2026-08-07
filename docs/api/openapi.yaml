@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.7.0
+  version: 0.8.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -289,7 +289,9 @@ paths:
       description: |
         The request runs the bounded parser synchronously in v1 while persisting every
         Collection Job transition. Authorized public links use the registered safe web
-        connector; unsupported media are blocked explicitly and never reported as parsed.
+        connector. Audio and video first pass bounded deterministic media preparation;
+        semantic transcript or frame observations require an explicitly registered media
+        understanding connector and remain review-required until a human verifies them.
       operationId: processSourceAsset
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -343,7 +345,7 @@ paths:
   /projects/{project_id}/sources/{source_asset_id}/fragments:
     get:
       tags: [Evidence]
-      summary: List deterministically verified source fragments
+      summary: List verified or review-required source fragments
       operationId: listSourceFragments
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -351,11 +353,56 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
-          description: Verified excerpts with page, row, JSON or text locators.
+          description: Original excerpts and media-derived text with auditable locators.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SourceFragmentPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/review:
+    post:
+      tags: [Evidence]
+      summary: Review an AI-derived media fragment against its retained media artifact
+      operationId: reviewMediaSourceFragment
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+        - $ref: "#/components/parameters/SourceFragmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaFragmentReview"
+      responses:
+        "200":
+          description: Updated fragment. Only verified fragments may be promoted to Evidence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceFragment"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/media-artifacts/{media_artifact_id}:
+    get:
+      tags: [Evidence]
+      summary: Read a retained audio track or sampled frame for authorized human review
+      operationId: getMediaArtifact
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+        - $ref: "#/components/parameters/MediaArtifactId"
+      responses:
+        "200":
+          description: Project-scoped media derivative used by the analysis connector.
+          content:
+            audio/wav:
+              schema: { type: string, contentEncoding: binary }
+            image/png:
+              schema: { type: string, contentEncoding: binary }
         default:
           $ref: "#/components/responses/Error"
 
@@ -647,6 +694,20 @@ components:
       schema:
         type: string
         pattern: "^source_[A-Za-z0-9_-]+$"
+    SourceFragmentId:
+      name: source_fragment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^fragment_[A-Za-z0-9_-]+$"
+    MediaArtifactId:
+      name: media_artifact_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
 
   responses:
     Error:
@@ -822,11 +883,11 @@ components:
 
     SourceFragmentVerificationStatus:
       type: string
-      enum: [verified, invalid]
+      enum: [verified, derived, invalid]
 
     SourceLocatorKind:
       type: string
-      enum: [text, page, row, json, web]
+      enum: [text, page, row, json, web, media_time, media_frame]
 
     ClaimStatus:
       type: string
@@ -1205,6 +1266,27 @@ components:
         char_end: { type: [integer, "null"], minimum: 1 }
         json_pointer: { type: [string, "null"] }
         web_path: { type: [string, "null"] }
+        timestamp_start_ms: { type: [integer, "null"], minimum: 0 }
+        timestamp_end_ms: { type: [integer, "null"], minimum: 1 }
+        frame_index: { type: [integer, "null"], minimum: 0 }
+        media_artifact_id: { type: [string, "null"] }
+        media_artifact_hash:
+          type: [string, "null"]
+          pattern: "^[a-f0-9]{64}$"
+        connector_id: { type: [string, "null"] }
+        model_id: { type: [string, "null"] }
+        confidence: { type: [number, "null"], minimum: 0, maximum: 1 }
+
+    MediaFragmentReview:
+      type: object
+      additionalProperties: false
+      required: [decision, reviewer, reason]
+      properties:
+        decision:
+          type: string
+          enum: [verified, invalid]
+        reviewer: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
 
     SourceFragment:
       type: object
