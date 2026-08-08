@@ -4077,6 +4077,12 @@ select {
   color: var(--muted);
 }
 
+.demo-project-card--empty {
+  border: 1px solid var(--line);
+  background: #fafbfc;
+  cursor: default;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .demo-grid2,

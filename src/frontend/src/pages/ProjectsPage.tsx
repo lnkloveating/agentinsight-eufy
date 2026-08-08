@@ -1,10 +1,34 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useCreateProjectMutation, useProjectsQuery } from '../shared/api/hooks';
+import { useCreateProjectMutation, useProjectsQuery, useWorkspaceQuery } from '../shared/api/hooks';
 import type { ProjectCreateInput } from '../shared/types/api';
 import { api } from '../shared/api/client';
-import { formatDateTime } from '../shared/lib/format';
-import { STATUS_LABELS } from '../shared/lib/project';
+import { EmptyProjectCard, ProjectCard } from '../shared/components/ProjectCard';
+
+const STAGE_LABELS: Record<string, string> = {
+  draft: '草稿',
+  awaiting_brief_approval: 'Brief 审批',
+  researching: '调研中',
+  awaiting_concept_approval: '概念审批',
+  supplementing_research: '补充调研',
+  generating_report: '生成报告',
+  awaiting_final_approval: '最终审批',
+  completed: '已完成',
+  failed: '失败',
+  terminated: '已终止',
+  brief_confirmation: 'Brief 确认',
+  research_planning: '调研规划',
+  concept_synthesis: '概念合成',
+  final_review: '最终评审',
+  scenario_validation: '场景验证',
+};
+
+function getWorkflowStepStatus(step: number, progress: number, status: string): 'done' | 'current' | '' {
+  const thresholds = [0, 10, 25, 45, 60, 75, 100];
+  if (progress >= thresholds[step]) return 'done';
+  if (step > 0 && progress >= thresholds[step - 1] && progress < thresholds[step]) return 'current';
+  return '';
+}
 
 type PageId = 'projects' | 'create' | 'brief' | 'research' | 'evidence' | 'users' | 'concepts' | 'scenario' | 'proposal';
 
@@ -106,6 +130,14 @@ export function ProjectsPage() {
   const createProjectMutation = useCreateProjectMutation();
   const projects = projectsQuery.data ?? [];
 
+  const recentProjects = [...projects]
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+    .slice(0, 2);
+
+  const activeProjectId = recentProjects[0]?.project_id ?? '';
+  const workspaceQuery = useWorkspaceQuery(activeProjectId);
+  const ws = workspaceQuery.data;
+
   const [activePage, setActivePage] = useState<PageId>(initialPage);
   const [createStep, setCreateStep] = useState(1);
 
@@ -114,6 +146,12 @@ export function ProjectsPage() {
     setActivePage(page);
     if (page === 'create') setCreateStep(1);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (ws?.concepts.length) {
+      setActiveConcept(ws.concepts[0].concept_id);
+    }
+  }, [ws?.concepts]);
   const [question, setQuestion] = useState('');
   const [market, setMarket] = useState('');
   const [home, setHome] = useState('');
@@ -122,7 +160,7 @@ export function ProjectsPage() {
   const [externalUrl, setExternalUrl] = useState('');
 
   const [activeInsight, setActiveInsight] = useState(0);
-  const [activeConcept, setActiveConcept] = useState('context');
+  const [activeConcept, setActiveConcept] = useState('');
 
   const [scenarioCovered, setScenarioCovered] = useState(false);
   const [scenarioEarly, setScenarioEarly] = useState(false);
@@ -195,8 +233,6 @@ export function ProjectsPage() {
     }
   }
 
-  const latestProject = [...projects].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0];
-
   return (
     <main className="demo-page">
       <div className="demo-top">
@@ -215,45 +251,18 @@ export function ProjectsPage() {
             <button className="demo-btn demo-btn--accent" onClick={() => { setCreateStep(1); setActivePage('create'); }}>＋ 新建产品研究</button>
           </div>
           <div style={{ padding: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-              <div className="demo-project-card">
-                <div className="eyebrow">当前项目</div>
-                <h3>eufy 情境感知家庭安防</h3>
-                <div className="meta">
-                  <span>阶段：场景验证</span><span>进度：78%</span><span>最近更新：今天</span>
-                </div>
-                <div className="demo-actions">
-                  <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('brief')}>继续研究</button>
-                </div>
+            {recentProjects.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(recentProjects.length, 2)}, minmax(0, 1fr))`, gap: 12 }}>
+                {recentProjects.map((project) => (
+                  <ProjectCard key={project.project_id} project={project} />
+                ))}
               </div>
-              {latestProject ? (
-                <div className="demo-project-card">
-                  <div className="eyebrow">
-                    {latestProject.status === 'researching' || latestProject.status === 'supplementing_research' ? '当前项目' : '历史项目'}
-                  </div>
-                  <h3 style={{ fontSize: 15, margin: '6px 0' }}>{latestProject.brief.category}</h3>
-                  <div className="meta">
-                    <span>{STATUS_LABELS[latestProject.status]}</span>
-                    <span>进度：{latestProject.progress}%</span>
-                    <span>最近更新：{formatDateTime(latestProject.updated_at)}</span>
-                  </div>
-                  <div className="demo-actions">
-                    <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('research')}>继续研究</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="demo-project-card">
-                  <div className="eyebrow">历史项目</div>
-                  <h3 style={{ fontSize: 15, margin: '6px 0' }}>eufy 租房安防机会研究</h3>
-                  <div className="meta">
-                    <span>阶段：证据采集</span><span>进度：46%</span><span>最近更新：2 天前</span>
-                  </div>
-                  <div className="demo-actions">
-                    <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('research')}>继续研究</button>
-                  </div>
-                </div>
-              )}
-            </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                <EmptyProjectCard eyebrow="从这里开始" title="创建你的第一个产品研究" />
+                <EmptyProjectCard eyebrow="AI 原生工作流" title="从证据到决策" />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -373,200 +382,242 @@ export function ProjectsPage() {
 
       {/* ── Section: brief ── */}
       <section className={`demo-page-section${activePage === 'brief' ? ' active' : ''}`} id="brief">
-        <div className="demo-metrics">
-          <div className="demo-metric"><small>研究市场</small><b>北美</b><span>美国优先</span></div>
-          <div className="demo-metric"><small>核心方向</small><b>Level 4</b><span>情境感知主动安防</span></div>
-          <div className="demo-metric"><small>核心场景</small><b>包裹</b><span>天气 × 无人在家</span></div>
-          <div className="demo-metric"><small>当前阶段</small><b style={{ fontSize: 17 }}>场景验证</b><span>验证产品价值</span></div>
-        </div>
-        <div className="demo-grid2">
-          <div className="demo-panel" style={{ padding: 18 }}>
-            <div className="eyebrow" style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>研究简报</div>
-            <h2 style={{ fontSize: '1.25rem', margin: '4px 0 14px' }}>eufy 能否从"事件检测"升级为"场景理解"？</h2>
-            <div className="demo-fields" style={{ marginTop: 0 }}>
-              <div className="demo-field"><small>品类</small><b>可视门铃 / 摄像头</b></div>
-              <div className="demo-field"><small>目标住宅</small><b>北美独栋住宅</b></div>
-              <div className="demo-field"><small>创新路径</small><b>上下文 → 场景 → 未来状态 → 主动行动</b></div>
-              <div className="demo-field"><small>首个验证场景</small><b>包裹 × 天气 × 家庭状态</b></div>
-              <div className="demo-field"><small>核心风险</small><b>误提醒 / 过度打扰 / 隐私</b></div>
-              <div className="demo-field"><small>核心原则</small><b>不是提醒更多，而是理解更深</b></div>
+        {ws ? (
+          <>
+            <div className="demo-metrics">
+              <div className="demo-metric"><small>研究市场</small><b>{ws.project.brief.region}</b><span>{ws.project.brief.region}</span></div>
+              <div className="demo-metric"><small>核心方向</small><b>{ws.project.brief.focus_dimensions[0] ?? '—'}</b><span>{ws.project.brief.focus_dimensions.join(' / ')}</span></div>
+              <div className="demo-metric"><small>核心场景</small><b>{ws.project.brief.scenarios[0] ?? '—'}</b><span>{ws.project.brief.scenarios.join(' × ')}</span></div>
+              <div className="demo-metric"><small>当前阶段</small><b style={{ fontSize: 17 }}>{STAGE_LABELS[ws.project.current_stage] ?? ws.project.current_stage}</b><span>{STAGE_LABELS[ws.project.status] ?? ws.project.status}</span></div>
             </div>
-            <div className="demo-actions">
-              <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('research')}>继续进入实时调研</button>
-              <button className="demo-btn demo-btn--ghost" onClick={() => jumpTo('scenario')}>直接查看 Level 4 演示</button>
+            <div className="demo-grid2">
+              <div className="demo-panel" style={{ padding: 18 }}>
+                <div className="eyebrow" style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>研究简报</div>
+                <h2 style={{ fontSize: '1.25rem', margin: '4px 0 14px' }}>{ws.project.brief.question}</h2>
+                <div className="demo-fields" style={{ marginTop: 0 }}>
+                  <div className="demo-field"><small>品类</small><b>{ws.project.brief.category}</b></div>
+                  <div className="demo-field"><small>目标用户</small><b>{ws.project.brief.target_user}</b></div>
+                  <div className="demo-field"><small>研究方向</small><b>{ws.project.brief.focus_dimensions.join(' / ')}</b></div>
+                  <div className="demo-field"><small>验证场景</small><b>{ws.project.brief.scenarios.join(' × ')}</b></div>
+                  <div className="demo-field"><small>约束</small><b>{ws.project.brief.constraints.join(' / ') || '—'}</b></div>
+                  <div className="demo-field"><small>进度</small><b>{ws.project.progress}%</b></div>
+                </div>
+                <div className="demo-actions">
+                  <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('research')}>继续进入实时调研</button>
+                </div>
+              </div>
+              <div className="demo-panel">
+                <div className="demo-panel-head">
+                  <div className="demo-panel-title">AI 原生工作流</div>
+                </div>
+                <div className="demo-step-list">
+                  {[
+                    { step: 1, title: '定义问题', desc: '明确研究范围' },
+                    { step: 2, title: '收集证据', desc: '用户 / 竞品 / 技术' },
+                    { step: 3, title: '用户替身挑战', desc: '不同用户角色' },
+                    { step: 4, title: '概念竞争', desc: '专家 + 红队' },
+                    { step: 5, title: '场景验证', desc: '反事实测试' },
+                    { step: 6, title: '形成产品定义', desc: '最终提案' },
+                  ].map(({ step, title, desc }) => {
+                    const s = getWorkflowStepStatus(step, ws.project.progress, ws.project.status);
+                    return (
+                      <div className={`demo-step${s ? ` ${s}` : ''}`} key={step}>
+                        <div className="num">{step}</div>
+                        <div><strong>{title}</strong><span>{desc}</span></div>
+                        <span>{s === 'done' ? '已完成' : s === 'current' ? '当前' : '待进行'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="demo-panel">
-            <div className="demo-panel-head">
-              <div className="demo-panel-title">AI 原生工作流</div>
-            </div>
-            <div className="demo-step-list">
-              <div className="demo-step done"><div className="num">1</div><div><strong>定义问题</strong><span>明确研究范围</span></div><span>已完成</span></div>
-              <div className="demo-step done"><div className="num">2</div><div><strong>收集证据</strong><span>用户 / 竞品 / 技术</span></div><span>已完成</span></div>
-              <div className="demo-step done"><div className="num">3</div><div><strong>用户替身挑战</strong><span>不同用户角色</span></div><span>已完成</span></div>
-              <div className="demo-step done"><div className="num">4</div><div><strong>概念竞争</strong><span>专家 + 红队</span></div><span>已完成</span></div>
-              <div className="demo-step current"><div className="num">5</div><div><strong>Level 4 场景验证</strong><span>反事实测试</span></div><span>当前</span></div>
-              <div className="demo-step"><div className="num">6</div><div><strong>形成产品定义</strong><span>最终提案</span></div><span>待进行</span></div>
-            </div>
-          </div>
-        </div>
+          </>
+        ) : null}
       </section>
 
       {/* ── Section: research ── */}
       <section className={`demo-page-section${activePage === 'research' ? ' active' : ''}`} id="research">
-        <div className="demo-metrics">
-          <div className="demo-metric"><small>研究进度</small><b>78%</b><span>2 轮调研</span></div>
-          <div className="demo-metric"><small>来源</small><b>31</b><span>6 个独立域名</span></div>
-          <div className="demo-metric"><small>有效证据</small><b>184</b><span>去重后</span></div>
-          <div className="demo-metric"><small>反方证据</small><b>27</b><span>主动保留</span></div>
-        </div>
-        <div className="demo-research">
-          <div className="demo-panel">
-            <div className="demo-panel-head">
-              <div className="demo-panel-title">调研流程</div>
-              <span className="demo-status demo-status--green">进行中</span>
+        {ws ? (
+          <>
+            <div className="demo-metrics">
+              <div className="demo-metric"><small>研究进度</small><b>{ws.project.progress}%</b><span>{ws.project.current_stage ? STAGE_LABELS[ws.project.current_stage] ?? ws.project.current_stage : ''}</span></div>
+              <div className="demo-metric"><small>来源</small><b>{ws.metrics?.source_diversity ?? ws.evidencePage.total}</b><span>{ws.evidencePage.total} 条证据</span></div>
+              <div className="demo-metric"><small>有效证据</small><b>{ws.metrics?.valid_evidence_count ?? ws.evidencePage.items.length}</b><span>去重后</span></div>
+              <div className="demo-metric"><small>反方证据</small><b>{ws.claims.reduce((sum, c) => sum + c.contradicting_evidence_ids.length, 0)}</b><span>主动保留</span></div>
             </div>
-            <div className="demo-pipeline">
-              <div className="demo-pipe"><b>用户研究</b><div className="demo-bar"><span style={{ width: '100%' }} /></div><span className="demo-status demo-status--green">64 条</span></div>
-              <div className="demo-pipe"><b>竞品研究</b><div className="demo-bar"><span style={{ width: '100%' }} /></div><span className="demo-status demo-status--green">52 条</span></div>
-              <div className="demo-pipe"><b>技术可行性</b><div className="demo-bar"><span style={{ width: '82%' }} /></div><span className="demo-status demo-status--purple">82%</span></div>
-              <div className="demo-pipe"><b>商业分析</b><div className="demo-bar"><span style={{ width: '74%' }} /></div><span className="demo-status demo-status--purple">74%</span></div>
-              <div className="demo-pipe"><b>红队挑战</b><div className="demo-bar"><span style={{ width: '35%' }} /></div><span className="demo-status demo-status--gray">等待中</span></div>
+            <div className="demo-research">
+              <div className="demo-panel">
+                <div className="demo-panel-head">
+                  <div className="demo-panel-title">调研流程</div>
+                  <span className={`demo-status demo-status--${ws.project.status === 'researching' ? 'green' : 'purple'}`}>{STAGE_LABELS[ws.project.status] ?? ws.project.status}</span>
+                </div>
+                <div className="demo-pipeline">
+                  {ws.agentRuns.map((run) => {
+                    const statusColor = run.status === 'completed' ? 'green' : run.status === 'running' ? 'green' : run.status === 'waiting' ? 'purple' : 'gray';
+                    return (
+                      <div className="demo-pipe" key={run.agent_run_id}>
+                        <b>{run.agent_name}</b>
+                        <div className="demo-bar"><span style={{ width: `${run.progress}%` }} /></div>
+                        <span className={`demo-status demo-status--${statusColor}`}>{run.progress === 100 ? `${run.progress}%` : `${run.progress}%`}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="demo-panel">
+                <div className="demo-panel-head">
+                  <div className="demo-panel-title">实时动态</div>
+                </div>
+                <div className="demo-activity">
+                  {ws.events.slice(-4).reverse().map((event) => (
+                    <div className="demo-event" key={event.event_id}>
+                      <b>{event.event_type}</b> {typeof event.data === 'object' ? JSON.stringify(event.data) : String(event.data)}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: '0 14px 14px' }}>
+                  <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('evidence')}>打开证据中心</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="demo-panel">
-            <div className="demo-panel-head">
-              <div className="demo-panel-title">实时动态</div>
-            </div>
-            <div className="demo-activity">
-              <div className="demo-event"><b>用户研究</b>发现：用户缺少的可能不是"更多提醒"，而是"真正需要行动时才出现的提醒"。</div>
-              <div className="demo-event"><b>竞品研究</b>现有产品更多停留在事件检测、识别和通知。</div>
-              <div className="demo-event"><b>技术分析</b>天气、时间、设备状态易获得；家庭在家状态和日历涉及权限与隐私。</div>
-              <div className="demo-event"><b>证据采集</b>正在合并重复来源，并保留支持与反对材料。</div>
-            </div>
-            <div style={{ padding: '0 14px 14px' }}>
-              <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('evidence')}>打开证据中心</button>
-            </div>
-          </div>
-        </div>
+          </>
+        ) : null}
       </section>
 
       {/* ── Section: evidence ── */}
       <section className={`demo-page-section${activePage === 'evidence' ? ' active' : ''}`} id="evidence">
-        <div className="demo-evidence-layout">
-          <div className="demo-panel">
-            <div className="demo-panel-head">
-              <div className="demo-panel-title">机会洞察</div>
+        {ws ? (
+          <>
+            <div className="demo-evidence-layout">
+              <div className="demo-panel">
+                <div className="demo-panel-head">
+                  <div className="demo-panel-title">机会洞察</div>
+                </div>
+                <div className="demo-insights">
+                  {ws.claims.map((claim, i) => (
+                    <button key={claim.claim_id} className={`demo-insight${activeInsight === i ? ' active' : ''}`} onClick={() => setActiveInsight(i)}>
+                      <strong>{claim.statement.slice(0, 30)}</strong>
+                      <span>{claim.statement}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="demo-panel demo-claim">
+                <div className="eyebrow" style={{ color: 'var(--accent)' }}>关键结论</div>
+                <h2>{ws.claims[0]?.statement ?? '—'}</h2>
+                <div className="meta">
+                  <span>{ws.claims[0]?.status === 'supported' ? '高置信度' : ws.claims[0]?.status === 'missing_evidence' ? '中等' : '待验证'}</span>
+                  <span>{ws.claims[0]?.evidence_ids.length ?? 0} 条证据</span>
+                  <span>{new Set(ws.evidencePage.items.filter(e => ws.claims[0]?.evidence_ids.includes(e.evidence_id)).map(e => e.source_type)).size} 个来源</span>
+                  <span>{ws.claims[0]?.contradicting_evidence_ids.length ?? 0} 条反方证据</span>
+                </div>
+                {ws.evidencePage.items.filter(e => ws.claims[0]?.evidence_ids.includes(e.evidence_id)).slice(0, 1).map(e => (
+                  <blockquote key={e.evidence_id}>{e.excerpt}</blockquote>
+                ))}
+                {ws.evidencePage.items.filter(e => ws.claims[0]?.contradicting_evidence_ids.includes(e.evidence_id)).slice(0, 1).map(e => (
+                  <blockquote key={e.evidence_id} style={{ borderLeftColor: '#e7b3b3', background: '#fffafa' }}>反方观点：{e.excerpt}</blockquote>
+                ))}
+              </div>
             </div>
-            <div className="demo-insights">
-              {[
-                { strong: '提醒缺少上下文', span: '用户缺少的不是更多提醒，而是更有行动价值的提醒。' },
-                { strong: '未来环境改变包裹风险', span: '包裹事件本身不足够，天气、家庭状态和时间会改变用户行动。' },
-                { strong: '主动型 AI 必须知道什么时候安静', span: '高级 Agent 需要降低无意义干预，而不是把所有预测都变成通知。' },
-              ].map((item, i) => (
-                <button key={i} className={`demo-insight${activeInsight === i ? ' active' : ''}`} onClick={() => setActiveInsight(i)}>
-                  <strong>{item.strong}</strong>
-                  <span>{item.span}</span>
-                </button>
-              ))}
+            <div className="demo-actions">
+              <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('users')}>进入 AI 用户替身挑战</button>
             </div>
-          </div>
-          <div className="demo-panel demo-claim">
-            <div className="eyebrow" style={{ color: 'var(--accent)' }}>关键结论</div>
-            <h2>真正的价值缺口不在"有没有检测到事件"，而在"是否能结合上下文，在正确的时间提醒"。</h2>
-            <div className="meta">
-              <span>高置信度</span><span>42 条证据</span><span>6 个来源</span><span>8 条反方证据</span>
-            </div>
-            <blockquote>"我已经知道包裹在那里了，真正重要的是我现在是否需要采取行动。"</blockquote>
-            <blockquote style={{ borderLeftColor: '#e7b3b3', background: '#fffafa' }}>反方观点：部分用户更偏好简单事件通知，并不希望系统处理更多上下文。</blockquote>
-          </div>
-        </div>
-        <div className="demo-actions">
-          <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('users')}>进入 AI 用户替身挑战</button>
-        </div>
+          </>
+        ) : null}
       </section>
 
       {/* ── Section: users ── */}
       <section className={`demo-page-section${activePage === 'users' ? ' active' : ''}`} id="users">
-        <div className="demo-personas">
-          {[
-            { avatar: 'M', name: 'Maya · 独居用户', desc: '白天经常不在家，高频收包裹，不喜欢重复通知。', quote: '"如果能在问题发生前提醒我，那才真的有用。"', ground: '由 23 条评论、5 个社区讨论支撑' },
-            { avatar: 'C', name: 'Chris · 家庭用户', desc: '重视多人共用、解释性，以及系统用了哪些家庭状态。', quote: '"我可以接受系统理解上下文，但我要知道它用了什么数据。"', ground: '由 31 条评论、4 份调查支撑' },
-            { avatar: 'E', name: 'Emily · 高频收货用户', desc: '关注包裹安全，认为天气只有在改变行动时才有价值。', quote: '"天气本身不是功能，真正有价值的是它让我知道现在该不该做什么。"', ground: '由 40 条评论、6 个问答讨论支撑' },
-          ].map((p) => (
-            <div className="demo-persona" key={p.avatar}>
-              <div className="demo-avatar">{p.avatar}</div>
-              <h3>{p.name}</h3>
-              <p>{p.desc}</p>
-              <blockquote>{p.quote}</blockquote>
-              <div className="ground">{p.ground}</div>
+        {ws ? (
+          <>
+            <div className="demo-personas">
+              {ws.evidencePage.items.slice(0, 3).map((evidence) => {
+                const sourceTypeLabel = evidence.source_type === 'survey' ? '调查' : evidence.source_type === 'community' ? '社区讨论' : evidence.source_type === 'retail' ? '零售数据' : evidence.source_type;
+                return (
+                  <div className="demo-persona" key={evidence.evidence_id}>
+                    <div className="demo-avatar">{evidence.source_type[0].toUpperCase()}</div>
+                    <h3>{evidence.title}</h3>
+                    <p>{evidence.excerpt}</p>
+                    <blockquote>置信度：{Math.round(evidence.confidence * 100)}%</blockquote>
+                    <div className="ground">来源：{sourceTypeLabel} · 状态：{evidence.status}</div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
-        <div className="demo-actions">
-          <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('concepts')}>进入概念竞技场</button>
-        </div>
+            <div className="demo-actions">
+              <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('concepts')}>进入概念竞技场</button>
+            </div>
+          </>
+        ) : null}
       </section>
 
       {/* ── Section: concepts ── */}
       <section className={`demo-page-section${activePage === 'concepts' ? ' active' : ''}`} id="concepts">
-        <div className="demo-arena">
-          <div className="demo-panel">
-            <div className="demo-panel-head">
-              <div className="demo-panel-title">概念竞技场</div>
-              <span className="demo-status demo-status--purple">人工评审</span>
-            </div>
-            <div className="demo-concept-list">
-              {[
-                { id: 'context', name: 'eufy 情境智能 AI', desc: '跨上下文理解场景，预测未来风险，并在合适时机主动介入。', status: 'green', statusText: '领先方案', score: '8.7', bars: ['90%', '86%', '81%', '83%', '92%'] },
-                { id: 'weather', name: '天气感知可视门铃', desc: '包裹识别后结合天气信息，在风险发生前提醒用户。', status: 'purple', statusText: 'MVP 场景', score: '7.2', bars: ['82%', '64%', '90%', '70%', '60%'] },
-                { id: 'move', name: '搬家模式', desc: '设备、规则和家庭设置一键迁移到新住所。', status: 'red', statusText: '已淘汰', score: '6.5', bars: ['65%', '55%', '90%', '62%', '54%'], rejected: true },
-              ].map((c) => (
-                <button key={c.id} className={`demo-concept-btn${activeConcept === c.id ? ' active' : ''}${c.rejected ? ' rejected' : ''}`} onClick={() => setActiveConcept(c.id)}>
-                  <div className="demo-concept-top">
-                    <div>
-                      <h3>{c.name}</h3>
-                      <p>{c.desc}</p>
-                    </div>
-                    <span className={`demo-status demo-status--${c.status}`}>{c.statusText}</span>
-                  </div>
-                  <div className="demo-scoreline">
-                    <div className="demo-score">{c.score}</div>
-                    <div className="demo-mini-bars">
-                      {c.bars.map((w, i) => (<div className="demo-mini" key={i}><span style={{ width: w }} /></div>))}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="demo-panel demo-concept-detail">
-            <div className="eyebrow" style={{ color: 'var(--accent)' }}>领先方案</div>
-            <h2 style={{ fontSize: 18, margin: '4px 0' }}>eufy 情境智能 AI</h2>
-            <div style={{ marginTop: 12 }}>
-              {[
-                { label: '用户价值', w: '90%', score: '9.0' },
-                { label: '创新性', w: '86%', score: '8.6' },
-                { label: '可行性', w: '81%', score: '8.1' },
-                { label: '商业价值', w: '83%', score: '8.3' },
-                { label: '证据强度', w: '92%', score: '9.2' },
-              ].map((r) => (
-                <div className="demo-score-row" key={r.label}>
-                  <span>{r.label}</span>
-                  <div className="demo-bar"><span style={{ width: r.w }} /></div>
-                  <b>{r.score}</b>
+        {ws ? (
+          <>
+            <div className="demo-arena">
+              <div className="demo-panel">
+                <div className="demo-panel-head">
+                  <div className="demo-panel-title">概念竞技场</div>
+                  <span className="demo-status demo-status--purple">人工评审</span>
                 </div>
-              ))}
+                <div className="demo-concept-list">
+                  {ws.concepts.map((concept) => {
+                    const totalScore = Object.values(concept.scores).reduce((sum, v) => sum + v, 0) / Object.keys(concept.scores).length;
+                    const scoreBars = Object.values(concept.scores).map((v) => `${v * 10}%`);
+                    const statusColor = concept.status === 'rejected' ? 'red' : concept.status === 'candidate' ? 'green' : 'purple';
+                    const statusText = concept.status === 'rejected' ? '已淘汰' : concept.status === 'candidate' ? '领先方案' : '待评估';
+                    return (
+                      <button key={concept.concept_id} className={`demo-concept-btn${activeConcept === concept.concept_id ? ' active' : ''}${concept.status === 'rejected' ? ' rejected' : ''}`} onClick={() => setActiveConcept(concept.concept_id)}>
+                        <div className="demo-concept-top">
+                          <div>
+                            <h3>{concept.name}</h3>
+                            <p>{concept.value_proposition}</p>
+                          </div>
+                          <span className={`demo-status demo-status--${statusColor}`}>{statusText}</span>
+                        </div>
+                        <div className="demo-scoreline">
+                          <div className="demo-score">{totalScore.toFixed(1)}</div>
+                          <div className="demo-mini-bars">
+                            {scoreBars.map((w, i) => (<div className="demo-mini" key={i}><span style={{ width: w }} /></div>))}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {ws.concepts.find(c => c.concept_id === activeConcept) && (
+                <div className="demo-panel demo-concept-detail">
+                  <div className="eyebrow" style={{ color: 'var(--accent)' }}>领先方案</div>
+                  <h2 style={{ fontSize: 18, margin: '4px 0' }}>{ws.concepts.find(c => c.concept_id === activeConcept)!.name}</h2>
+                  <div style={{ marginTop: 12 }}>
+                    {Object.entries(ws.concepts.find(c => c.concept_id === activeConcept)!.scores).map(([key, val]) => {
+                      const label = { desirability: '用户价值', feasibility: '可行性', differentiation: '创新性' }[key] ?? key;
+                      return (
+                        <div className="demo-score-row" key={key}>
+                          <span>{label}</span>
+                          <div className="demo-bar"><span style={{ width: `${val * 10}%` }} /></div>
+                          <b>{val.toFixed(1)}</b>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="demo-panel-title" style={{ marginTop: 14 }}>为什么做 / 为什么不做</div>
+                  {ws.concepts.find(c => c.concept_id === activeConcept)!.risks.map((risk, i) => (
+                    <div className="demo-reason warn" key={`risk-${i}`}><i>!</i><div>{risk}</div></div>
+                  ))}
+                  {ws.concepts.find(c => c.concept_id === activeConcept)!.red_team_findings.map((finding, i) => (
+                    <div className="demo-reason warn" key={`rt-${i}`}><i>!</i><div>{finding}</div></div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="demo-panel-title" style={{ marginTop: 14 }}>为什么做 / 为什么不做</div>
-            <div className="demo-reason"><i>✓</i><div>平台级能力，可覆盖包裹、访客、车辆、家庭状态等多类场景。</div></div>
-            <div className="demo-reason"><i>✓</i><div>创新集中在上下文、场景理解和未来预测层，而不是单一功能。</div></div>
-            <div className="demo-reason warn"><i>!</i><div>主要风险是误干预、隐私授权和可解释性。</div></div>
-          </div>
-        </div>
-        <div className="demo-actions">
-          <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('scenario')}>将优胜概念送入场景智能实验室</button>
-        </div>
+            <div className="demo-actions">
+              <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('scenario')}>将优胜概念送入场景智能实验室</button>
+            </div>
+          </>
+        ) : null}
       </section>
 
       {/* ── Section: scenario ── */}

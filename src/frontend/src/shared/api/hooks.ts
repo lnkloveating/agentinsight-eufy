@@ -57,6 +57,7 @@ export function useWorkspaceQuery(projectId: string) {
         events: api.listMockEvents(projectId),
       };
     },
+    enabled: !!projectId,
   });
 }
 
