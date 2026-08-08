@@ -55,6 +55,25 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_a2a_gateway.py`
 - 可重复真实冒烟：`scripts/smoke_official_product_live.py`
 
+## AC-04A 统一资料路由
+
+用户通过统一 Source API 提交一次授权资料后，系统必须先运行可解释的确定性规则，并只在
+规则不足时通过 Model Gateway 进行受控多标签分类。分类结果只能决定资料应分发给哪些
+Agent 和允许审核哪些 Claim 类型，不得自动创建 Evidence、Claim 或研究事实。
+
+同一资料允许多个 route。模型输出必须使用固定枚举，模型单独建议或低置信/冲突结果保持
+`needs_review`；自动确认只允许高置信确定性结果或规则与模型一致结果。人工确认、修改和
+拒绝必须保存 actor、reason 和时间。未确认、被拒绝、跨项目或已删除资料不得进入要求
+route 的领域 Evidence Context。模型失败必须保留审计并回退到规则结果，不得伪造成功。
+
+自动化映射：
+
+- `tests/unit/test_source_routing_contracts.py`
+- `tests/unit/test_source_routing_rules.py`
+- `tests/integration/test_source_routing_api.py`
+- `tests/integration/test_official_product_agent.py`
+- 可重复真实冒烟：`scripts/smoke_source_routing_live.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

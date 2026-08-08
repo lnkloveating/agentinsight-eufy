@@ -20,6 +20,47 @@ class SourceRouteTarget(StrEnum):
     MEDIA_REVIEW = "media_review"
 
 
+ROUTE_ALLOWED_CLAIM_TYPES: dict[SourceRouteTarget, set[EvidenceClaimType]] = {
+    SourceRouteTarget.OFFICIAL_PRODUCT: {
+        EvidenceClaimType.FACT,
+        EvidenceClaimType.VENDOR_CLAIM,
+        EvidenceClaimType.PRODUCT_IDENTITY,
+        EvidenceClaimType.CAPABILITY,
+        EvidenceClaimType.SPECIFICATION,
+        EvidenceClaimType.COMPATIBILITY,
+        EvidenceClaimType.LIMITATION,
+    },
+    SourceRouteTarget.PRICE_CHANNEL: {
+        EvidenceClaimType.FACT,
+        EvidenceClaimType.PRICE_OBSERVATION,
+        EvidenceClaimType.CHANNEL_AVAILABILITY,
+        EvidenceClaimType.SELLER_INFORMATION,
+        EvidenceClaimType.PROMOTION,
+    },
+    SourceRouteTarget.USER_REVIEW: {EvidenceClaimType.USER_OPINION},
+    SourceRouteTarget.USER_RESEARCH: {EvidenceClaimType.USER_OPINION},
+    SourceRouteTarget.MARKET_RESEARCH: {
+        EvidenceClaimType.FACT,
+        EvidenceClaimType.MARKET_FACT,
+    },
+    SourceRouteTarget.TECHNICAL_DOCUMENT: {
+        EvidenceClaimType.FACT,
+        EvidenceClaimType.SPECIFICATION,
+        EvidenceClaimType.COMPATIBILITY,
+        EvidenceClaimType.LIMITATION,
+        EvidenceClaimType.TECHNICAL_FACT,
+    },
+    SourceRouteTarget.COMMERCIAL_DATA: {
+        EvidenceClaimType.FACT,
+        EvidenceClaimType.MARKET_FACT,
+    },
+    SourceRouteTarget.ENTERPRISE_INTERNAL: {
+        item for item in EvidenceClaimType if item is not EvidenceClaimType.AGENT_INFERENCE
+    },
+    SourceRouteTarget.MEDIA_REVIEW: {EvidenceClaimType.USER_OPINION},
+}
+
+
 class SourceRoutingStatus(StrEnum):
     NEEDS_REVIEW = "needs_review"
     CONFIRMED = "confirmed"
@@ -55,6 +96,13 @@ class SourceRoutingSuggestion(BaseModel):
             raise ValueError("routing suggestion values must be unique")
         return value
 
+    @model_validator(mode="after")
+    def claim_types_match_route(self) -> "SourceRoutingSuggestion":
+        disallowed = set(self.claim_types) - ROUTE_ALLOWED_CLAIM_TYPES[self.route]
+        if disallowed:
+            raise ValueError("routing suggestion contains claim types disallowed for route")
+        return self
+
 
 class SourceRoutingModelOutput(BaseModel):
     suggestions: list[SourceRoutingSuggestion] = Field(default_factory=list, max_length=12)
@@ -87,6 +135,13 @@ class SourceRoutingSelection(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("routing selection claim types must be unique")
         return value
+
+    @model_validator(mode="after")
+    def claim_types_match_route(self) -> "SourceRoutingSelection":
+        disallowed = set(self.claim_types) - ROUTE_ALLOWED_CLAIM_TYPES[self.route]
+        if disallowed:
+            raise ValueError("routing selection contains claim types disallowed for route")
+        return self
 
 
 class SourceRoutingDecisionAction(StrEnum):

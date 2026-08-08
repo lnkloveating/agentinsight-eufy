@@ -154,6 +154,11 @@ class OfficialProductModelSpecialistAdapter:
             in {
                 EvidenceClaimType.VENDOR_CLAIM.value,
                 EvidenceClaimType.FACT.value,
+                EvidenceClaimType.PRODUCT_IDENTITY.value,
+                EvidenceClaimType.CAPABILITY.value,
+                EvidenceClaimType.SPECIFICATION.value,
+                EvidenceClaimType.COMPATIBILITY.value,
+                EvidenceClaimType.LIMITATION.value,
             }
         ]
         return AgentEvidenceContext(

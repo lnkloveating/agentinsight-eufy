@@ -24,6 +24,27 @@ flowchart LR
 
 Feishu is the collaboration layer, not a reasoning or persistence authority. Aily clarifies intent and invokes stable API skills; cards carry progress and human decisions; Base mirrors collaboration summaries; Docs stores the approved proposal. The backend database, Evidence Lake and workflow checkpoints remain the sources of truth.
 
+## Unified source routing
+
+```mermaid
+flowchart LR
+    Center["Unified research source center"] --> Processing["Deterministic source processing"]
+    Processing --> Rules["Explainable routing rules"]
+    Rules --> Model["Optional bounded model classifier"]
+    Rules --> Decision["Routing confidence and human decision"]
+    Model --> Decision
+    Decision --> Routes["Confirmed multi-label routes"]
+    Processing --> Review["Independent fragment/Evidence review"]
+    Review --> Lake["Evidence Lake"]
+    Routes --> Context["Route-scoped Agent Evidence Context"]
+    Lake --> Context
+```
+
+Source routing determines which Agent may inspect a source; it does not validate the source's factual
+content. A route can be auto-confirmed only from high-confidence deterministic signals or rule/model
+agreement. Evidence promotion remains a separate gate, and downstream factual output still requires
+Evidence IDs.
+
 ## Runtime boundaries
 
 - `frontend`: user interaction and visualization only;

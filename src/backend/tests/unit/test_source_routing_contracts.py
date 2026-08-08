@@ -66,6 +66,12 @@ def test_routing_contract_rejects_duplicate_routes_and_claim_types() -> None:
 
 
 def test_routing_decision_requires_confirmed_selection_or_empty_rejection() -> None:
+    with pytest.raises(ValidationError, match="disallowed"):
+        SourceRoutingSelection(
+            route=SourceRouteTarget.PRICE_CHANNEL,
+            claim_types=[EvidenceClaimType.USER_OPINION],
+        )
+
     with pytest.raises(ValidationError, match="at least one"):
         SourceRoutingDecision(
             action=SourceRoutingDecisionAction.CONFIRM,

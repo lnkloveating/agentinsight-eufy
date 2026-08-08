@@ -215,6 +215,35 @@ def run_live_smoke(model_ids: list[str], urls: list[str]) -> list[dict[str, Any]
                         source_url,
                         claim_type="vendor_claim",
                     )
+                    source_asset_id = str(page["source_asset_id"])
+                    _expect(
+                        client.post(
+                            f"/api/v1/projects/{project_id}/sources/"
+                            f"{source_asset_id}/routing/analyze",
+                            json={"use_model": False},
+                        ),
+                        200,
+                        "analyze official source routing",
+                    )
+                    _expect(
+                        client.post(
+                            f"/api/v1/projects/{project_id}/sources/"
+                            f"{source_asset_id}/routing/decision",
+                            json={
+                                "action": "confirm",
+                                "selections": [
+                                    {
+                                        "route": "official_product",
+                                        "claim_types": ["vendor_claim"],
+                                    }
+                                ],
+                                "actor": "backend-smoke-test",
+                                "reason": "The supplied URL is an authorized official product page.",
+                            },
+                        ),
+                        200,
+                        "confirm official source routing",
+                    )
                     pages.append(page)
                     promoted_evidence_ids.extend(evidence_ids)
                 result = asyncio.run(_run_official_specialist(application, project_id))

@@ -8,6 +8,7 @@ import json
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.models import EvidenceModel
 from app.infrastructure.database.session import Database
+from app.infrastructure.database.source_routing_repository import SourceRoutingRepository
 from app.schemas.evidence import EvidenceClaimType, EvidenceStatus
 from app.workflows.contracts import AgentEvidence, AgentEvidenceContext
 
@@ -31,6 +32,9 @@ class OfficialProductEvidenceContextBuilder:
     async def build(self, project_id: str) -> AgentEvidenceContext:
         candidate_limit = min(max(self.max_items * 10, self.max_items), 2_000)
         async with self.database.session() as session:
+            source_asset_ids = await SourceRoutingRepository(session).confirmed_source_asset_ids(
+                project_id, "official_product"
+            )
             candidates, available_count = await EvidenceRepository(
                 session
             ).list_eligible_agent_evidence(
@@ -42,7 +46,13 @@ class OfficialProductEvidenceContextBuilder:
                 claim_types={
                     EvidenceClaimType.VENDOR_CLAIM.value,
                     EvidenceClaimType.FACT.value,
+                    EvidenceClaimType.PRODUCT_IDENTITY.value,
+                    EvidenceClaimType.CAPABILITY.value,
+                    EvidenceClaimType.SPECIFICATION.value,
+                    EvidenceClaimType.COMPATIBILITY.value,
+                    EvidenceClaimType.LIMITATION.value,
                 },
+                source_asset_ids=source_asset_ids,
                 limit=candidate_limit,
             )
 

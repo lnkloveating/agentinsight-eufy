@@ -1,6 +1,6 @@
 # 后端进度与前端适配说明
 
-> 更新时间：2026-08-08
+> 更新时间：2026-08-09
 >
 > 基线分支：`main`
 >
@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、原始资料接入、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料接入与多标签路由、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -36,6 +36,7 @@ http://localhost:8000/api/v1
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
 | Source Ingestion | 用户/企业授权文件上传、公开链接登记、项目隔离存储、哈希去重、授权审计、删除与 Collection Job | 可以实现真实资料输入页和资料资产列表 |
 | Source Processing | 文档/网页确定性解析；音视频容器探测、标准化音轨、关键帧、衍生产物 Hash；失败/重试/取消、媒体人工复核与受控 Evidence 入湖 | 可以展示网页和媒体处理状态、可回溯片段、保留音轨/帧及审核操作；未配置 ASR/视觉 Connector 时媒体语义阶段明确 blocked |
+| Source Routing | 可解释规则、必要时模型辅助、多标签 route、置信度、人工确认/拒绝、模型审计、项目事件 | 可以提供统一资料中心的“自动识别”，用户不再为每个 Agent 重复上传或必须理解 claim_type |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
@@ -57,6 +58,7 @@ http://localhost:8000/api/v1
 5. Source Processing 可以解析授权文件/网页，并真实解码音视频；媒体 Connector 输出会保持 `derived`，人工复核后才能通过受控服务进入 Evidence Lake。
 6. Evidence 和 Innovation 服务可以保存、校验和查询真实持久化记录。
 7. 竞品官方产品专家能够通过项目模型策略调用 GLM 5.2 或 DeepSeek V4 Pro，输出带 Evidence IDs 的结构化官方资料结果。
+8. 已确认的多标签 Source Route 可以限定领域 Agent 的 Evidence Context；分类本身不会自动生成 Evidence。
 
 当前仍缺少：
 
@@ -86,6 +88,9 @@ http://localhost:8000/api/v1
 | `POST` | `/projects/{project_id}/sources/links` | 可用 | 登记用户指定的公开 HTTP/HTTPS 链接；请求本身不会抓取网页 |
 | `GET` | `/projects/{project_id}/sources` | 可用 | 按类型和状态查询项目原始资料 |
 | `GET` | `/projects/{project_id}/sources/{source_asset_id}` | 可用 | 查询资料元数据和待解析任务 ID |
+| `GET` | `/projects/{project_id}/sources/{source_asset_id}/routing` | 可用 | 查询多标签分类建议、确认 route 和模型审计 |
+| `POST` | `/projects/{project_id}/sources/{source_asset_id}/routing/analyze` | 可用 | 运行确定性规则，必要时调用项目模型补充分类 |
+| `POST` | `/projects/{project_id}/sources/{source_asset_id}/routing/decision` | 可用 | 人工确认、修改或拒绝路由建议 |
 | `DELETE` | `/projects/{project_id}/sources/{source_asset_id}` | 可用 | 删除文件内容、阻止待运行任务并保留最小审计状态 |
 | `GET` | `/projects/{project_id}/sources/{source_asset_id}/processing` | 可用 | 查询 Collection Job、进度、错误与 Parsed Artifact |
 | `POST` | `/projects/{project_id}/sources/{source_asset_id}/processing` | 可用 | 在隔离工作区同步执行有界确定性解析；重复成功请求保持幂等 |
@@ -376,11 +381,11 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 148 passed
+pytest: 157 passed
 ruff: passed
-mypy: passed（128 个源文件）
-Alembic: 空数据库升级到 0008_competitor_a2a_foundation、降级到 0007 后再次升级通过
-真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针及官方产品专家完整网页链路冒烟测试通过
+mypy: passed（134 个源文件）
+Alembic: 空数据库升级到 0009_source_routing、降级到 0008 后再次升级通过
+真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
 ```
 

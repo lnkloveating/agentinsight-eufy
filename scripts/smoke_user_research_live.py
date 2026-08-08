@@ -151,9 +151,7 @@ async def probe_models(model_ids: list[str]) -> list[dict[str, Any]]:
                 ),
                 response_schema={
                     "type": "object",
-                    "properties": {
-                        "status": {"type": "string", "const": "ok"}
-                    },
+                    "properties": {"status": {"type": "string", "const": "ok"}},
                     "required": ["status"],
                     "additionalProperties": False,
                 },
@@ -251,6 +249,7 @@ def _process_page(
         evidence_ids.append(str(promoted.json()["evidence"]["evidence_id"]))
     return (
         {
+            "source_asset_id": source_asset_id,
             "requested_url": source_url,
             "final_url": processed["job"]["result"]["final_url"],
             "parser_id": processed["parsed_artifact"]["parser_id"],
@@ -305,9 +304,7 @@ def run_live_smoke(
                     pages.append(page)
                     evidence_ids.extend(promoted_ids)
                 research = _expect(
-                    client.post(
-                        f"/api/v1/projects/{project_id}/agents/user-research"
-                    ),
+                    client.post(f"/api/v1/projects/{project_id}/agents/user-research"),
                     200,
                     f"run user research with {model_id}",
                 )
@@ -326,15 +323,9 @@ def run_live_smoke(
                         "promoted_evidence_count": len(set(evidence_ids)),
                         "artifact_status": research["status"],
                         "artifact_evidence_count": len(research["evidence_ids"]),
-                        "pain_point_count": len(
-                            research["payload"]["pain_points"]
-                        ),
-                        "unmet_need_count": len(
-                            research["payload"]["unmet_needs"]
-                        ),
-                        "research_gap_count": len(
-                            research["payload"]["research_gaps"]
-                        ),
+                        "pain_point_count": len(research["payload"]["pain_points"]),
+                        "unmet_need_count": len(research["payload"]["unmet_needs"]),
+                        "research_gap_count": len(research["payload"]["research_gaps"]),
                         "quality_score": research["quality_score"],
                         "input_tokens": user_run["input_tokens"],
                         "output_tokens": user_run["output_tokens"],
