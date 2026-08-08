@@ -23,7 +23,7 @@ const STAGE_LABELS: Record<string, string> = {
   scenario_validation: '场景验证',
 };
 
-function getWorkflowStepStatus(step: number, progress: number, status: string): 'done' | 'current' | '' {
+function getWorkflowStepStatus(step: number, progress: number): 'done' | 'current' | '' {
   const thresholds = [0, 10, 25, 45, 60, 75, 100];
   if (progress >= thresholds[step]) return 'done';
   if (step > 0 && progress >= thresholds[step - 1] && progress < thresholds[step]) return 'current';
@@ -419,7 +419,7 @@ export function ProjectsPage() {
                     { step: 5, title: '场景验证', desc: '反事实测试' },
                     { step: 6, title: '形成产品定义', desc: '最终提案' },
                   ].map(({ step, title, desc }) => {
-                    const s = getWorkflowStepStatus(step, ws.project.progress, ws.project.status);
+                    const s = getWorkflowStepStatus(step, ws.project.progress);
                     return (
                       <div className={`demo-step${s ? ` ${s}` : ''}`} key={step}>
                         <div className="num">{step}</div>

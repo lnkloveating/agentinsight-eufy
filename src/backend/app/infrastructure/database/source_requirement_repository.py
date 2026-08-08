@@ -1,5 +1,7 @@
 """资料范围和准备度评估所需的项目隔离查询。"""
 
+from typing import cast
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +26,7 @@ class SourceRequirementRepository:
         statement = select(SourceRequirementScopeModel).where(
             SourceRequirementScopeModel.project_id == project_id
         )
-        return await self.session.scalar(statement)
+        return cast(SourceRequirementScopeModel | None, await self.session.scalar(statement))
 
     async def add_scope(self, scope: SourceRequirementScopeModel) -> None:
         self.session.add(scope)
