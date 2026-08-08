@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useProjectsQuery } from '../../shared/api/hooks';
+import { api } from '../../shared/api/client';
 
 export function AppShellLayout() {
   const navigate = useNavigate();
@@ -10,6 +12,9 @@ export function AppShellLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
   const [activeProject, setActiveProject] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ projectId: string; x: number; y: number } | null>(null);
+  const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
 
   const projectMatch = useMatch('/projects/:projectId');
   const reportMatch = useMatch('/projects/:projectId/report');
@@ -33,6 +38,25 @@ export function AppShellLayout() {
       if (params.get('page') === 'create') setActiveProject(null);
     }
   }, [location, currentProjectId]);
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    function close() { setContextMenu(null); }
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [contextMenu]);
+
+  async function handleDeleteProject(projectId: string) {
+    setDeleting(true);
+    try {
+      await api.deleteProject(projectId);
+      await queryClient.invalidateQueries({ queryKey: ['projects'] });
+      if (activeProject === projectId) navigate('/projects');
+    } finally {
+      setDeleting(false);
+      setContextMenu(null);
+    }
+  }
 
   const projectItems = useMemo(() => {
     const projects = projectsQuery.data ?? [];
@@ -97,15 +121,35 @@ export function AppShellLayout() {
                 </button>
               </div>
               <div className="app-shell__project-list">
-                {projectItems.map((item, i) => (
-                  <button
+                {projectItems.map((item) => (
+                  <div
                     className={`app-shell__project-item${activeProject === item.id ? ' active' : ''}`}
                     key={item.id}
-                    onClick={() => { setActiveProject(item.id); navigate(`/projects/${item.id}`); }}
-                    type="button"
                   >
-                    {item.name}
-                  </button>
+                    <button
+                      className="app-shell__project-item-name"
+                      onClick={() => { setActiveProject(item.id); navigate(`/projects/${item.id}`); }}
+                      type="button"
+                    >
+                      {item.name}
+                    </button>
+                    <button
+                      className="app-shell__project-item-more"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = (e.target as HTMLElement).getBoundingClientRect();
+                        setContextMenu({ projectId: item.id, x: rect.right, y: rect.bottom });
+                      }}
+                      type="button"
+                      aria-label="更多操作"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+                        <circle cx="4" cy="8" r="1.5" />
+                        <circle cx="8" cy="8" r="1.5" />
+                        <circle cx="12" cy="8" r="1.5" />
+                      </svg>
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -116,7 +160,7 @@ export function AppShellLayout() {
           <p className="app-shell__nav-section-title">场景验证</p>
 
           <button
-            className="app-shell__nav-row app-shell__nav-row--secondary"
+            className={`app-shell__nav-row app-shell__nav-row--secondary${scenariosMatch ? ' active' : ''}`}
             onClick={() => navigate(`${resolvedProjectId ? `/projects/${resolvedProjectId}/scenarios` : '/projects'}`)}
             type="button"
           >
@@ -133,8 +177,51 @@ export function AppShellLayout() {
 
           <p className="app-shell__nav-section-title">产品发现</p>
 
+          <div className="app-shell__nav-steps">
+            <button
+              className={`app-shell__nav-step done${location.search === '?page=brief' ? ' active' : ''}`}
+              onClick={() => navigate('/projects?page=brief')}
+              type="button"
+            >
+              <i className="app-shell__nav-step-dot" />
+              <span>项目简报</span>
+            </button>
+            <button
+              className={`app-shell__nav-step done${location.search === '?page=research' ? ' active' : ''}`}
+              onClick={() => navigate('/projects?page=research')}
+              type="button"
+            >
+              <i className="app-shell__nav-step-dot" />
+              <span>实时调研</span>
+            </button>
+            <button
+              className={`app-shell__nav-step done${location.search === '?page=evidence' ? ' active' : ''}`}
+              onClick={() => navigate('/projects?page=evidence')}
+              type="button"
+            >
+              <i className="app-shell__nav-step-dot" />
+              <span>证据中心</span>
+            </button>
+            <button
+              className={`app-shell__nav-step done${location.search === '?page=users' ? ' active' : ''}`}
+              onClick={() => navigate('/projects?page=users')}
+              type="button"
+            >
+              <i className="app-shell__nav-step-dot" />
+              <span>AI 用户替身</span>
+            </button>
+            <button
+              className={`app-shell__nav-step done${location.search === '?page=concepts' ? ' active' : ''}`}
+              onClick={() => navigate('/projects?page=concepts')}
+              type="button"
+            >
+              <i className="app-shell__nav-step-dot" />
+              <span>概念竞技场</span>
+            </button>
+          </div>
+
           <button
-            className="app-shell__nav-row app-shell__nav-row--secondary"
+            className={`app-shell__nav-row app-shell__nav-row--secondary${metricsMatch ? ' active' : ''}`}
             onClick={() => navigate(metricsHref)}
             type="button"
           >
@@ -147,7 +234,7 @@ export function AppShellLayout() {
           </button>
 
           <button
-            className="app-shell__nav-row app-shell__nav-row--secondary"
+            className={`app-shell__nav-row app-shell__nav-row--secondary${reportMatch ? ' active' : ''}`}
             onClick={() => navigate(reportHref)}
             type="button"
           >
@@ -162,6 +249,23 @@ export function AppShellLayout() {
       <div className="app-shell__content">
         <Outlet />
       </div>
+
+      {contextMenu ? (
+        <div
+          className="app-shell__context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="app-shell__context-menu-item"
+            disabled={deleting}
+            onClick={() => { void handleDeleteProject(contextMenu.projectId); }}
+            type="button"
+          >
+            删除
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

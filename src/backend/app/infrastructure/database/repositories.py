@@ -95,3 +95,9 @@ class ProjectRepository:
 
     async def rollback(self) -> None:
         await self.session.rollback()
+
+    async def delete_project(self, project_id: str) -> None:
+        project = await self.get_project(project_id)
+        if project is not None:
+            await self.session.delete(project)
+            await self.session.flush()

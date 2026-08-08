@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCreateProjectMutation, useProjectsQuery } from '../shared/api/hooks';
 import type { ProjectCreateInput } from '../shared/types/api';
+import { api } from '../shared/api/client';
 import { formatDateTime } from '../shared/lib/format';
 import { STATUS_LABELS } from '../shared/lib/project';
 
@@ -171,6 +172,15 @@ export function ProjectsPage() {
     };
 
     const project = await createProjectMutation.mutateAsync(input);
+    if (project.pending_decision) {
+      await api.submitDecision(project.project_id, {
+        decision_id: project.pending_decision.decision_id,
+        action: 'approve',
+        reason: '从新建流程自动通过 Brief 审批。',
+        actor: '用户',
+        selected_concept_ids: [],
+      });
+    }
     navigate(`/projects/${project.project_id}`);
   }
 

@@ -132,6 +132,10 @@ export const api = {
     }
   },
 
+  async deleteProject(project_id: string): Promise<void> {
+    await request(`/projects/${project_id}`, { method: 'DELETE' });
+  },
+
   listMockEvents(project_id: string): ProjectEvent[] {
     return mockApi.listEvents(project_id);
   },

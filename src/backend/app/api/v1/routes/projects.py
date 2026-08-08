@@ -108,3 +108,13 @@ async def submit_decision(
     service: ProjectServiceDependency,
 ) -> Project:
     return await service.submit_decision(project_id, payload)
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除研究项目",
+    description="删除指定项目及其关联数据。",
+)
+async def delete_project(project_id: str, service: ProjectServiceDependency) -> None:
+    await service.delete_project(project_id)

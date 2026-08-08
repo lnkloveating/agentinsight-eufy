@@ -126,6 +126,28 @@ class ProjectService:
     async def list_projects(self) -> list[Project]:
         return [self._to_project(model) for model in await self.repository.list_projects()]
 
+    async def delete_project(self, project_id: str) -> None:
+        project = await self._require_project(project_id)
+        now = datetime.now(UTC)
+        event = ProjectEventModel(
+            event_id=f"evt_{uuid4().hex[:16]}",
+            project_id=project_id,
+            sequence_number=0,
+            event_type="project_deleted",
+            data_json={"project_id": project_id, "status": project.status},
+            trace_id=self.trace_id,
+            created_at=now,
+        )
+        try:
+            await self.repository.add_event(event)
+            await self.repository.delete_project(project_id)
+            await self.repository.commit()
+        except Exception:
+            await self.repository.rollback()
+            raise
+
+        await self.event_broker.notify(project_id)
+
     async def get_project(self, project_id: str) -> Project:
         return self._to_project(await self._require_project(project_id))
 
