@@ -526,6 +526,19 @@ export const mockApi = {
     return nextProject;
   },
 
+  deleteProject(project_id: string): void {
+    const database = cloneDatabase();
+    database.projects = database.projects.filter((item) => item.project_id !== project_id);
+    delete database.agentRuns[project_id];
+    delete database.evidence[project_id];
+    delete database.claims[project_id];
+    delete database.concepts[project_id];
+    delete database.reports[project_id];
+    delete database.metrics[project_id];
+    delete database.events[project_id];
+    commitDatabase(database);
+  },
+
   getWorkspace(project_id: string): WorkspaceData {
     return {
       project: this.getProject(project_id),

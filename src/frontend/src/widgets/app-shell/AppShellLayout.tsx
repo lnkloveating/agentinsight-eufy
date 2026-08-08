@@ -15,6 +15,7 @@ export function AppShellLayout() {
   const [contextMenu, setContextMenu] = useState<{ projectId: string; x: number; y: number } | null>(null);
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
+  const [visitedSteps, setVisitedSteps] = useState<Set<string>>(new Set());
 
   const projectMatch = useMatch('/projects/:projectId');
   const reportMatch = useMatch('/projects/:projectId/report');
@@ -28,8 +29,6 @@ export function AppShellLayout() {
   }, [projectsQuery.data]);
 
   const resolvedProjectId = currentProjectId ?? latestProject?.project_id;
-  const metricsHref = resolvedProjectId ? `/projects/${resolvedProjectId}/metrics` : '/projects';
-  const reportHref = resolvedProjectId ? `/projects/${resolvedProjectId}/report` : '/projects';
 
   useEffect(() => {
     if (currentProjectId) setActiveProject(currentProjectId);
@@ -38,6 +37,17 @@ export function AppShellLayout() {
       if (params.get('page') === 'create') setActiveProject(null);
     }
   }, [location, currentProjectId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const page = params.get('page');
+    if (location.pathname === '/projects' && page) {
+      setVisitedSteps((prev) => {
+        if (prev.has(page)) return prev;
+        return new Set(prev).add(page);
+      });
+    }
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!contextMenu) return undefined;
@@ -178,71 +188,28 @@ export function AppShellLayout() {
           <p className="app-shell__nav-section-title">产品发现</p>
 
           <div className="app-shell__nav-steps">
-            <button
-              className={`app-shell__nav-step done${location.search === '?page=brief' ? ' active' : ''}`}
-              onClick={() => navigate('/projects?page=brief')}
-              type="button"
-            >
-              <i className="app-shell__nav-step-dot" />
-              <span>项目简报</span>
-            </button>
-            <button
-              className={`app-shell__nav-step done${location.search === '?page=research' ? ' active' : ''}`}
-              onClick={() => navigate('/projects?page=research')}
-              type="button"
-            >
-              <i className="app-shell__nav-step-dot" />
-              <span>实时调研</span>
-            </button>
-            <button
-              className={`app-shell__nav-step done${location.search === '?page=evidence' ? ' active' : ''}`}
-              onClick={() => navigate('/projects?page=evidence')}
-              type="button"
-            >
-              <i className="app-shell__nav-step-dot" />
-              <span>证据中心</span>
-            </button>
-            <button
-              className={`app-shell__nav-step done${location.search === '?page=users' ? ' active' : ''}`}
-              onClick={() => navigate('/projects?page=users')}
-              type="button"
-            >
-              <i className="app-shell__nav-step-dot" />
-              <span>AI 用户替身</span>
-            </button>
-            <button
-              className={`app-shell__nav-step done${location.search === '?page=concepts' ? ' active' : ''}`}
-              onClick={() => navigate('/projects?page=concepts')}
-              type="button"
-            >
-              <i className="app-shell__nav-step-dot" />
-              <span>概念竞技场</span>
-            </button>
+            {([
+              { page: 'brief', label: '项目简报' },
+              { page: 'research', label: '实时调研' },
+              { page: 'evidence', label: '证据中心' },
+              { page: 'users', label: '反方挑战' },
+              { page: 'concepts', label: '概念竞技场' },
+            ] as const).map(({ page, label }) => {
+              const isActive = location.search === `?page=${page}`;
+              const isDone = visitedSteps.has(page);
+              return (
+                <button
+                  className={`app-shell__nav-step${isDone ? ' done' : ''}${isActive ? ' active' : ''}`}
+                  key={page}
+                  onClick={() => navigate(`/projects?page=${page}`)}
+                  type="button"
+                >
+                  <i className="app-shell__nav-step-dot" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
-
-          <button
-            className={`app-shell__nav-row app-shell__nav-row--secondary${metricsMatch ? ' active' : ''}`}
-            onClick={() => navigate(metricsHref)}
-            type="button"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <rect x="3" y="13" width="4" height="8" rx="1" />
-              <rect x="10" y="8" width="4" height="13" rx="1" />
-              <rect x="17" y="3" width="4" height="18" rx="1" />
-            </svg>
-            <span>指标</span>
-          </button>
-
-          <button
-            className={`app-shell__nav-row app-shell__nav-row--secondary${reportMatch ? ' active' : ''}`}
-            onClick={() => navigate(reportHref)}
-            type="button"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M6 2h8l5 5v15H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V8h4.2L13 3.8Z" />
-            </svg>
-            <span>报告</span>
-          </button>
         </nav>
       </aside>
 
