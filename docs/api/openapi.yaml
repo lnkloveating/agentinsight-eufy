@@ -243,6 +243,75 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/source-discovery/searches:
+    get:
+      tags: [Evidence]
+      summary: 查询项目的搜索发现运行记录
+      description: |
+        返回当前项目的搜索发现记录。搜索命中只是待审核的来源候选，不是 Source Asset、
+        Evidence 或事实结论，不能直接进入任何业务 Agent。
+      operationId: listSearchDiscoveryRuns
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: 按创建时间倒序返回搜索发现记录。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchDiscoveryRunPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Evidence]
+      summary: 运行一次受控的公开来源搜索发现
+      description: |
+        调用显式注册的搜索 Provider，保存去重后的公开网页候选及失败状态。该接口不抓取
+        候选网页、不确认使用授权、不创建 Source Asset，也不把 Provider 摘要提升为 Evidence。
+      operationId: createSearchDiscoveryRun
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchDiscoveryCreate"
+      responses:
+        "201":
+          description: 已保存搜索发现运行；具体结果由 status、error_code 和 retryable 表示。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchDiscoveryRun"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-discovery/searches/{search_discovery_run_id}:
+    get:
+      tags: [Evidence]
+      summary: 查询单次搜索发现运行
+      operationId: getSearchDiscoveryRun
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: search_discovery_run_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        "200":
+          description: 当前项目内的搜索发现运行详情。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchDiscoveryRun"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/sources:
     get:
       tags: [Evidence]
@@ -1086,6 +1155,14 @@ components:
       type: string
       enum: [target, competitor]
 
+    SearchDiscoveryIntent:
+      type: string
+      enum: [competitor_candidate, official_product, price_channel, user_review, general]
+
+    SearchDiscoveryRunStatus:
+      type: string
+      enum: [succeeded, failed, blocked]
+
     SourceRouteTarget:
       type: string
       enum:
@@ -1812,6 +1889,125 @@ components:
           items: { type: string }
         input_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
         evaluated_at: { type: string, format: date-time }
+
+    SearchDiscoveryCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+        - intent
+        - provider_id
+        - max_results
+        - include_domains
+        - exclude_domains
+        - requested_by
+        - purpose
+      properties:
+        query: { type: string, minLength: 3, maxLength: 500 }
+        intent:
+          $ref: "#/components/schemas/SearchDiscoveryIntent"
+        provider_id: { type: string, minLength: 1, maxLength: 80, default: tavily }
+        max_results: { type: integer, minimum: 1, maximum: 20, default: 10 }
+        include_domains:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 253 }
+        exclude_domains:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 253 }
+        requested_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+
+    SearchDiscoveryCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        - candidate_id
+        - rank
+        - title
+        - source_url
+        - normalized_source_url
+        - source_domain
+        - snippet
+        - score
+        - evidence_status
+      properties:
+        candidate_id: { type: string, minLength: 1, maxLength: 40 }
+        rank: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        source_url: { type: string, format: uri }
+        normalized_source_url: { type: string, format: uri }
+        source_domain: { type: string, minLength: 1, maxLength: 253 }
+        snippet: { type: string, maxLength: 2000 }
+        score: { type: [number, "null"], minimum: 0, maximum: 1 }
+        evidence_status: { type: string, const: candidate_only }
+
+    SearchDiscoveryRun:
+      type: object
+      additionalProperties: false
+      required:
+        - search_discovery_run_id
+        - project_id
+        - provider_id
+        - status
+        - query
+        - intent
+        - max_results
+        - include_domains
+        - exclude_domains
+        - candidates
+        - result_count
+        - provider_request_id
+        - error_code
+        - error_message
+        - retryable
+        - requested_by
+        - purpose
+        - created_at
+        - completed_at
+      properties:
+        search_discovery_run_id: { type: string, minLength: 1, maxLength: 40 }
+        project_id: { type: string, minLength: 1, maxLength: 40 }
+        provider_id: { type: string, minLength: 1, maxLength: 80 }
+        status:
+          $ref: "#/components/schemas/SearchDiscoveryRunStatus"
+        query: { type: string, minLength: 3, maxLength: 500 }
+        intent:
+          $ref: "#/components/schemas/SearchDiscoveryIntent"
+        max_results: { type: integer, minimum: 1, maximum: 20 }
+        include_domains:
+          type: array
+          items: { type: string }
+        exclude_domains:
+          type: array
+          items: { type: string }
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchDiscoveryCandidate"
+        result_count: { type: integer, minimum: 0, maximum: 20 }
+        provider_request_id: { type: [string, "null"], maxLength: 160 }
+        error_code: { type: [string, "null"], maxLength: 80 }
+        error_message: { type: [string, "null"], maxLength: 1000 }
+        retryable: { type: boolean }
+        requested_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+
+    SearchDiscoveryRunPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchDiscoveryRun"
+        total: { type: integer, minimum: 0 }
 
     SourceRoutingSuggestion:
       type: object
