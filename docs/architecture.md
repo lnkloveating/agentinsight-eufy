@@ -117,6 +117,23 @@ flowchart LR
 
 当前已经实现 Runtime Core、真实 Model Gateway、受控 External CLI Runtime、竞品主管与三类专家的 A2A 并行运行底座，以及官方产品专家。价格渠道与用户评价专家及其业务 Prompt 仍需在后续分支分别实现；生产代码不会回退到测试 Runtime 或伪造研究结果。
 
+## Search Discovery Connector
+
+```mermaid
+flowchart LR
+    Gap["Source Requirements gap"] --> Search["Registered Search Provider"]
+    Search --> Candidate["Candidate URL records"]
+    Candidate --> Gate["Competitor discovery / human review"]
+    Gate --> Source["Authorized Source Asset"]
+    Source --> Processing["Processing and routing"]
+    Processing --> Evidence["Evidence Lake"]
+```
+
+搜索发现和证据采集严格分层。当前 Tavily Connector 只调用固定 Search API 并返回
+`candidate_only` URL；它不抓取网页正文，不调用业务模型，也不创建 Source Asset 或
+Evidence。密钥缺失、认证失败、限流、超时和 Provider 错误均保存为项目运行记录。候选
+必须经过后续竞品确认、授权资料接入和完整 Evidence 门禁，才能交给领域 Agent。
+
 ## Model Gateway
 
 ```mermaid

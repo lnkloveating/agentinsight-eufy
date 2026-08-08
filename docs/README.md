@@ -17,6 +17,7 @@
 3. `api/openapi.yaml` is the `/api/v2` target HTTP contract. The current runtime remains `/api/v1` until v2 implementation is complete.
 4. `acceptance-criteria.md` is the release authority for the MVP.
 5. `../tests/acceptance/features/end_to_end.feature` expresses the same release behavior as executable Chinese Gherkin scenarios.
+6. `search-discovery.md` defines the candidate-only search Provider boundary and onboarding prerequisites.
 
 ## Supporting documents
 

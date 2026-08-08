@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；自动竞品发现、价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；竞品候选判断与审批、价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -38,6 +38,7 @@ http://localhost:8000/api/v1
 | Source Processing | 文档/网页确定性解析；音视频容器探测、标准化音轨、关键帧、衍生产物 Hash；失败/重试/取消、媒体人工复核与受控 Evidence 入湖 | 可以展示网页和媒体处理状态、可回溯片段、保留音轨/帧及审核操作；未配置 ASR/视觉 Connector 时媒体语义阶段明确 blocked |
 | Source Routing | 可解释规则、必要时模型辅助、多标签 route、置信度、人工确认/拒绝、模型审计、项目事件 | 可以提供统一资料中心的“自动识别”，用户不再为每个 Agent 重复上传或必须理解 claim_type |
 | Source Requirements | 保存目标产品、竞品和研究维度；按确认 route、准确产品、地区和 Evidence 实时计算 `ready/partial/blocked`；返回补充动作 | 可以实现资料准备清单，区分“已检测资料”和“已满足 Evidence”，阻止只有 eufy 资料时误跑完整竞品分析 |
+| Search Discovery | 通过显式注册的 Tavily Search Provider 发现公开候选 URL；项目隔离运行、失败分类、安全去重和域名过滤；结果固定为 `candidate_only` | 可以实现“查找资料”动作和候选来源列表；不能把搜索摘要显示成证据或自动勾选为已满足 |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
@@ -66,7 +67,7 @@ http://localhost:8000/api/v1
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
 - 价格渠道、用户评价、产品技术、商业和红队等业务 Prompt；
-- 自动竞品候选发现、搜索来源 Connector 和候选审批 Gate；
+- 自动竞品候选判断、候选审批 Gate 和确认后的批量 Source Onboarding；
 - 把已验证 SourceFragment 提供给领域 Agent 和外部 Runtime 的语义分析接线；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 竞品能力矩阵与差异化综合；
@@ -89,6 +90,9 @@ http://localhost:8000/api/v1
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
 | `GET` | `/projects/{project_id}/source-requirements` | 可用 | 实时查询目标/竞品范围和各研究维度的资料准备度、缺口与补充动作 |
 | `PUT` | `/projects/{project_id}/source-requirements/scope` | 可用 | 保存目标产品、竞品、研究维度及 actor/reason，并立即重新评估 |
+| `POST` | `/projects/{project_id}/source-discovery/searches` | 可用 | 调用已注册搜索 Provider；返回候选线索或可审计的 blocked/failed 状态，不创建 Evidence |
+| `GET` | `/projects/{project_id}/source-discovery/searches` | 可用 | 查询项目内搜索发现历史和候选来源 |
+| `GET` | `/projects/{project_id}/source-discovery/searches/{search_discovery_run_id}` | 可用 | 查询单次搜索状态、错误分类和 `candidate_only` 结果 |
 | `POST` | `/projects/{project_id}/sources/files` | 可用 | 上传用户或企业授权的 PDF、文本、DOCX、CSV、JSON、图片、音频或视频 |
 | `POST` | `/projects/{project_id}/sources/links` | 可用 | 登记用户指定的公开 HTTP/HTTPS 链接；请求本身不会抓取网页 |
 | `GET` | `/projects/{project_id}/sources` | 可用 | 按类型和状态查询项目原始资料 |
@@ -386,18 +390,19 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 161 passed
+pytest: 175 passed
 ruff: passed
-mypy: passed（139 个源文件）
-Alembic: 空数据库升级到 0010_source_requirement_scope、降级到 0009 后再次升级通过
+mypy: passed（145 个源文件）
+Alembic: 空数据库升级到 0011_search_discovery、降级到 0010 后再次升级通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
+搜索 Provider：Tavily HTTP 契约、错误分类和安全边界由 MockTransport 验证；本机尚未配置 TAVILY_API_KEY，因此未声称真实联网搜索通过
 ```
 
 接下来的后端开发顺序应先补齐自动竞品发现，再继续剩余竞品专家和领域分析：
 
 ```text
-Search Discovery Connector
+Search Discovery Connector（已完成）
 → Competitor Discovery Agent & Candidate Gate
 → Competitor Source Onboarding
 → Source Requirements Re-evaluation

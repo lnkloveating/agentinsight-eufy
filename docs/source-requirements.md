@@ -89,8 +89,9 @@ Evidence 的资料，适合在资料中心显示“待关联/待审核”。
 - 不新增搜索 API、爬虫或外部 Runtime 调用；
 - 不使用测试数据填充生产结果；
 - 不把 Source Asset、搜索摘要或大模型知识当成 Evidence；
-- 下一步由 `evidence/search-discovery-connector` 和 `agent/competitor-discovery` 消费该范围与
-  缺口契约。
+- 已实现的 `evidence/search-discovery-connector` 可消费该范围与缺口并返回候选 URL，但本
+  模块不会自动触发联网请求；下一步由 `agent/competitor-discovery` 对候选竞品进行判断和
+  人工 Gate。
 
 ## 自动化验证
 
