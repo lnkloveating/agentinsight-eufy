@@ -81,6 +81,9 @@ class ProjectModel(Base):
     model_calls: Mapped[list["ModelCallModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    a2a_tasks: Mapped[list["A2ATaskModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class AgentRunModel(Base):
@@ -217,6 +220,53 @@ class AgentArtifactModel(Base):
 
     project: Mapped[ProjectModel] = relationship(back_populates="artifacts")
     agent_run: Mapped[AgentRunModel] = relationship(back_populates="artifacts")
+
+
+class A2ATaskModel(Base):
+    """竞品主管分派给一个 A2A 专家的独立、可恢复运行记录。"""
+
+    __tablename__ = "a2a_tasks"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "parent_task_id",
+            "specialist_type",
+            name="uq_a2a_task_identity",
+        ),
+        Index("ix_a2a_tasks_project_status", "project_id", "status"),
+    )
+
+    a2a_task_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    parent_agent_run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.agent_run_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    parent_task_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    specialist_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    adapter_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    output_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    trace_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="a2a_tasks")
 
 
 class ProjectEventModel(Base):
