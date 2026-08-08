@@ -1,5 +1,6 @@
 """可替换的搜索 Provider 契约与 Tavily 实现。"""
 
+import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -137,11 +138,22 @@ class TavilySearchDiscoveryConnector:
                 trust_env=False,
                 transport=self._transport,
             ) as client:
-                response = await client.post(
+                async with client.stream(
+                    "POST",
                     f"{self._base_url}/search",
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     json=payload,
-                )
+                ) as response:
+                    self._raise_for_status(response.status_code)
+                    response_content = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        response_content.extend(chunk)
+                        if len(response_content) > self._max_response_bytes:
+                            raise SearchDiscoveryProviderError(
+                                "SEARCH_RESPONSE_TOO_LARGE",
+                                "搜索 Provider 响应超过安全大小限制。",
+                                blocked=True,
+                            )
         except httpx.TimeoutException as exc:
             raise SearchDiscoveryProviderError(
                 "SEARCH_PROVIDER_TIMEOUT",
@@ -156,16 +168,9 @@ class TavilySearchDiscoveryConnector:
                 blocked=False,
                 retryable=True,
             ) from exc
-        if len(response.content) > self._max_response_bytes:
-            raise SearchDiscoveryProviderError(
-                "SEARCH_RESPONSE_TOO_LARGE",
-                "搜索 Provider 响应超过安全大小限制。",
-                blocked=True,
-            )
-        self._raise_for_status(response.status_code)
         try:
-            body = response.json()
-        except ValueError as exc:
+            body = json.loads(response_content)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise SearchDiscoveryProviderError(
                 "SEARCH_RESPONSE_INVALID",
                 "搜索 Provider 返回了无效 JSON。",
@@ -187,7 +192,7 @@ class TavilySearchDiscoveryConnector:
                 continue
             if not isinstance(source_url, str) or not source_url.strip():
                 continue
-            content = item.get("content")
+            snippet_value = item.get("content")
             score_value = item.get("score")
             score = (
                 float(score_value)
@@ -198,7 +203,9 @@ class TavilySearchDiscoveryConnector:
                 SearchDiscoveryProviderCandidate(
                     title=title.strip(),
                     source_url=source_url.strip(),
-                    snippet=content.strip() if isinstance(content, str) else "",
+                    snippet=(
+                        snippet_value.strip() if isinstance(snippet_value, str) else ""
+                    ),
                     score=score,
                 )
             )

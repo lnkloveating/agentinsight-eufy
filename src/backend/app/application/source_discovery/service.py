@@ -104,6 +104,17 @@ class SearchDiscoveryService:
             response = await connector.search(request)
         except SearchDiscoveryProviderError as exc:
             return await self._complete_with_error(project_id, run.search_discovery_run_id, exc)
+        except Exception:
+            return await self._complete_with_error(
+                project_id,
+                run.search_discovery_run_id,
+                SearchDiscoveryProviderError(
+                    "SEARCH_PROVIDER_INTERNAL_ERROR",
+                    "搜索 Provider 出现未分类错误，未生成任何候选结果。",
+                    blocked=False,
+                    retryable=False,
+                ),
+            )
 
         candidates = self._normalize_candidates(
             run.search_discovery_run_id,
@@ -125,7 +136,9 @@ class SearchDiscoveryService:
             saved.status = SearchDiscoveryRunStatus.SUCCEEDED
             saved.candidates_json = [item.model_dump(mode="json") for item in candidates]
             saved.result_count = len(candidates)
-            saved.provider_request_id = response.provider_request_id
+            saved.provider_request_id = (
+                response.provider_request_id[:160] if response.provider_request_id else None
+            )
             saved.completed_at = datetime.now(UTC)
             project_repository = ProjectRepository(session)
             await self._add_event(project_repository, saved)

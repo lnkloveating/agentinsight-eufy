@@ -118,10 +118,32 @@ def test_tavily_connector_requires_local_credential_without_exposing_it() -> Non
     assert error.value.blocked is True
 
 
+def test_tavily_connector_rejects_response_over_streaming_limit() -> None:
+    connector = TavilySearchDiscoveryConnector(
+        "tvly-secret",
+        max_response_bytes=32,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, content=b"x" * 33)
+        ),
+    )
+
+    with pytest.raises(SearchDiscoveryProviderError) as error:
+        asyncio.run(
+            connector.search(
+                SearchDiscoveryProviderRequest(query="smart doorbell", max_results=3)
+            )
+        )
+
+    assert error.value.code == "SEARCH_RESPONSE_TOO_LARGE"
+    assert error.value.blocked is True
+
+
 @pytest.mark.parametrize(
     "payload",
     [
         {"include_domains": ["https://eufy.com"]},
+        {"include_domains": ["127.0.0.1"]},
+        {"include_domains": ["bad host.com"]},
         {"include_domains": ["eufy.com", "EUFY.com"]},
         {"include_domains": ["eufy.com"], "exclude_domains": ["eufy.com"]},
     ],

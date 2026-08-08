@@ -1,5 +1,6 @@
 """公开来源搜索发现的 API 契约。"""
 
+import re
 from datetime import datetime
 from enum import StrEnum
 from urllib.parse import urlsplit
@@ -36,10 +37,15 @@ class SearchDiscoveryCreate(BaseModel):
     requested_by: str = Field(min_length=1, max_length=120)
     purpose: str = Field(min_length=1, max_length=500)
 
-    @field_validator("query", "provider_id", "requested_by", "purpose", mode="before")
+    @field_validator("query", "requested_by", "purpose", mode="before")
     @classmethod
     def strip_text(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("provider_id", mode="before")
+    @classmethod
+    def normalize_provider_id(cls, value: object) -> object:
+        return value.strip().casefold() if isinstance(value, str) else value
 
     @field_validator("include_domains", "exclude_domains")
     @classmethod
@@ -52,8 +58,12 @@ class SearchDiscoveryCreate(BaseModel):
                 not candidate
                 or parts.hostname != candidate
                 or parts.port is not None
-                or "." not in candidate
-                or any(not label or len(label) > 63 for label in candidate.split("."))
+                or re.fullmatch(
+                    r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+                    r"(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})",
+                    candidate,
+                )
+                is None
             ):
                 raise ValueError("search discovery domains must be plain public hostnames")
             normalized.append(candidate)
