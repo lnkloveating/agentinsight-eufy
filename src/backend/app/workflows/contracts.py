@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import operator
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, TypedDict
 
@@ -87,6 +88,40 @@ class ResearchArtifact(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class AgentEvidence(BaseModel):
+    """提供给 Agent 的证据投影；只包含可引用原文与必要来源元数据。"""
+
+    evidence_id: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=500)
+    original_excerpt: str = Field(min_length=1, max_length=10_000)
+    claim_type: str = Field(min_length=1, max_length=80)
+    status: str = Field(min_length=1, max_length=80)
+    source_type: str = Field(min_length=1, max_length=80)
+    source_url: str | None = Field(default=None, max_length=2000)
+    source_domain: str | None = Field(default=None, max_length=253)
+    source_asset_id: str | None = Field(default=None, max_length=80)
+    source_fragment_id: str | None = Field(default=None, max_length=80)
+    source_locator: dict[str, Any] | None = None
+    product: str | None = Field(default=None, max_length=160)
+    region: str | None = Field(default=None, max_length=120)
+    user_segment: str | None = Field(default=None, max_length=160)
+    published_at: datetime | None = None
+    confidence: float = Field(ge=0, le=1)
+    authority_score: float = Field(ge=0, le=1)
+    recency_score: float = Field(ge=0, le=1)
+    diversity_score: float = Field(ge=0, le=1)
+
+
+class AgentEvidenceContext(BaseModel):
+    """记录确定性筛选后的输入边界，供所有领域 Agent 复用。"""
+
+    items: list[AgentEvidence] = Field(default_factory=list)
+    available_evidence_count: int = Field(ge=0)
+    included_evidence_count: int = Field(ge=0)
+    omitted_evidence_count: int = Field(ge=0)
+    context_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class AgentContext(BaseModel):
     """传给单个 Agent 的最小必要上下文，不包含隐藏思维或完整网页。"""
 
@@ -96,6 +131,7 @@ class AgentContext(BaseModel):
     upstream_artifacts: dict[str, ResearchArtifact] = Field(default_factory=dict)
     selected_innovation_ids: list[str] = Field(default_factory=list)
     decision_history: list[StageDecision] = Field(default_factory=list)
+    evidence_context: AgentEvidenceContext | None = None
 
 
 class StageDecision(BaseModel):

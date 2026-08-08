@@ -12,6 +12,7 @@ tags:
   - name: Models
   - name: Runtimes
   - name: Projects
+  - name: Research
   - name: Evidence
   - name: Innovations
   - name: Demo
@@ -132,6 +133,45 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AgentRun"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/user-research:
+    post:
+      tags: [Research]
+      summary: 运行用户研究 Agent
+      description: |
+        只把同项目、已验证或部分验证的 Evidence 投影给已注册的真实 Runtime。
+        Agent 输出必须逐项引用输入 Evidence ID；证据不足时返回 partial，而不是补造结论。
+      operationId: runUserResearchAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 已由 Runtime 保存的版本化用户研究 Artifact。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResearchArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/user-research/artifacts:
+    get:
+      tags: [Research]
+      summary: 查询用户研究 Artifact 历史版本
+      operationId: listUserResearchArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 按版本升序返回持久化用户研究产物。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserResearchArtifact"
         default:
           $ref: "#/components/responses/Error"
 
@@ -383,6 +423,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SourceFragment"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/evidence:
+    post:
+      tags: [Evidence]
+      summary: 将已验证资料片段晋级为 Evidence
+      description: |
+        重新核验 SourceAsset、ParsedArtifact、Collection Job、原文 Hash 和定位信息后晋级。
+        derived、invalid、跨项目或来源链不完整的片段不得进入 Evidence Lake。
+      operationId: promoteSourceFragmentToEvidence
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+        - $ref: "#/components/parameters/SourceFragmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidenceFromSourceFragmentCreate"
+      responses:
+        "200":
+          description: 已存在的相同 Evidence。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceIngestResult"
+        "201":
+          description: 新建的可追溯 Evidence。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceIngestResult"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1100,6 +1174,213 @@ components:
         authority_score: { type: number, minimum: 0, maximum: 1 }
         recency_score: { type: number, minimum: 0, maximum: 1 }
         diversity_score: { type: number, minimum: 0, maximum: 1 }
+
+    EvidenceFromSourceFragmentCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - claim_type
+        - confidence
+        - authority_score
+        - recency_score
+        - diversity_score
+      properties:
+        claim_type:
+          type: string
+          enum: [fact, user_opinion, vendor_claim, agent_inference]
+        product: { type: [string, "null"], maxLength: 160 }
+        region: { type: [string, "null"], maxLength: 120 }
+        user_segment: { type: [string, "null"], maxLength: 160 }
+        published_at: { type: [string, "null"], format: date-time }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        authority_score: { type: number, minimum: 0, maximum: 1 }
+        recency_score: { type: number, minimum: 0, maximum: 1 }
+        diversity_score: { type: number, minimum: 0, maximum: 1 }
+
+    EvidenceIngestResult:
+      type: object
+      additionalProperties: false
+      required: [evidence, created]
+      properties:
+        evidence:
+          $ref: "#/components/schemas/Evidence"
+        created: { type: boolean }
+
+    UserResearchEventChain:
+      type: object
+      additionalProperties: false
+      required: [event, context, user_state, current_response, evidence_ids]
+      properties:
+        event: { type: string, minLength: 1 }
+        context: { type: string, minLength: 1 }
+        user_state: { type: string, minLength: 1 }
+        current_response: { type: string, minLength: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string }
+
+    UserPainPoint:
+      type: object
+      additionalProperties: false
+      required:
+        - pain_point_id
+        - user_expression
+        - trigger_event
+        - context
+        - severity
+        - frequency_basis
+        - current_workaround
+        - solution_gap
+        - confidence
+        - evidence_ids
+      properties:
+        pain_point_id: { type: string, minLength: 1, maxLength: 80 }
+        user_expression: { type: string, minLength: 1 }
+        trigger_event: { type: string, minLength: 1 }
+        context: { type: string, minLength: 1 }
+        severity: { type: string, enum: [low, medium, high] }
+        frequency_basis: { type: string, minLength: 1 }
+        current_workaround: { type: string, minLength: 1 }
+        solution_gap: { type: string, minLength: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string }
+
+    UserUnmetNeed:
+      type: object
+      additionalProperties: false
+      required: [need_id, statement, desired_outcome, confidence, evidence_ids]
+      properties:
+        need_id: { type: string, minLength: 1, maxLength: 80 }
+        statement: { type: string, minLength: 1 }
+        desired_outcome: { type: string, minLength: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string }
+
+    UserResearchGap:
+      type: object
+      additionalProperties: false
+      required: [question, reason, severity, recommended_source_types]
+      properties:
+        question: { type: string, minLength: 1 }
+        reason: { type: string, minLength: 1 }
+        severity: { type: string, enum: [low, medium, high] }
+        recommended_source_types:
+          type: array
+          items: { type: string }
+
+    UserResearchPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - summary
+        - summary_evidence_ids
+        - event_chains
+        - pain_points
+        - unmet_needs
+        - sample_biases
+        - research_gaps
+        - evidence_coverage
+      properties:
+        summary: { type: string, minLength: 1 }
+        summary_evidence_ids:
+          type: array
+          items: { type: string }
+        event_chains:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserResearchEventChain"
+        pain_points:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserPainPoint"
+        unmet_needs:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserUnmetNeed"
+        sample_biases:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [description, impact, evidence_ids]
+            properties:
+              description: { type: string, minLength: 1 }
+              impact: { type: string, minLength: 1 }
+              evidence_ids:
+                type: array
+                uniqueItems: true
+                items: { type: string }
+        research_gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserResearchGap"
+        evidence_coverage:
+          type: object
+          additionalProperties: false
+          required:
+            - available_evidence_count
+            - included_evidence_count
+            - cited_evidence_count
+            - independent_domain_count
+            - user_opinion_evidence_count
+            - context_hash
+          properties:
+            available_evidence_count: { type: integer, minimum: 0 }
+            included_evidence_count: { type: integer, minimum: 0 }
+            cited_evidence_count: { type: integer, minimum: 0 }
+            independent_domain_count: { type: integer, minimum: 0 }
+            user_opinion_evidence_count: { type: integer, minimum: 0 }
+            context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    UserResearchArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - task_id
+        - artifact_type
+        - schema_version
+        - status
+        - payload
+        - evidence_ids
+        - contradictions
+        - unknowns
+        - quality_score
+        - errors
+      properties:
+        artifact_id: { type: string }
+        task_id: { type: string }
+        artifact_type: { type: string, const: user_research }
+        schema_version: { type: string }
+        status:
+          type: string
+          enum: [completed, partial, blocked, needs_revision]
+        payload:
+          $ref: "#/components/schemas/UserResearchPayload"
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        contradictions:
+          type: array
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          items: { type: string }
 
     SourceFileUpload:
       type: object

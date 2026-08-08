@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     default_model_id: str | None = None
     model_max_retries: int = Field(default=2, ge=0, le=5)
     model_retry_base_seconds: float = Field(default=0.5, ge=0, le=30)
+    user_research_max_evidence_items: int = Field(default=30, ge=1, le=200)
+    user_research_max_excerpt_chars: int = Field(default=2_000, ge=200, le=10_000)
+    user_research_max_total_evidence_chars: int = Field(
+        default=40_000, ge=1_000, le=500_000
+    )
     source_storage_root: str = "./data/sources"
     source_processing_workspace_root: str = "./data/source-processing"
     source_processing_max_input_bytes: int = Field(

@@ -2,7 +2,7 @@
 
 from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.models import (
@@ -76,6 +76,49 @@ class EvidenceRepository:
         statement = select(EvidenceModel).where(EvidenceModel.evidence_id.in_(evidence_ids))
         result = await self.session.scalars(statement)
         return list(result)
+
+    async def list_eligible_agent_evidence(
+        self,
+        project_id: str,
+        *,
+        statuses: set[str],
+        limit: int,
+    ) -> tuple[list[EvidenceModel], int]:
+        """Return bounded, project-scoped evidence ranked without LLM reasoning."""
+
+        filters = [
+            EvidenceModel.project_id == project_id,
+            EvidenceModel.status.in_(statuses),
+        ]
+        total = int(
+            await self.session.scalar(
+                select(func.count(EvidenceModel.evidence_id)).where(*filters)
+            )
+            or 0
+        )
+        verified_first = case(
+            (EvidenceModel.status == "verified", 0),
+            else_=1,
+        )
+        quality = (
+            EvidenceModel.confidence
+            + EvidenceModel.authority_score
+            + EvidenceModel.recency_score
+            + EvidenceModel.diversity_score
+        )
+        models = list(
+            await self.session.scalars(
+                select(EvidenceModel)
+                .where(*filters)
+                .order_by(
+                    verified_first.asc(),
+                    quality.desc(),
+                    EvidenceModel.evidence_id.asc(),
+                )
+                .limit(limit)
+            )
+        )
+        return models, total
 
     async def add_claim(self, claim: ClaimModel) -> None:
         self.session.add(claim)
