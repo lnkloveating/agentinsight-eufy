@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useProjectsQuery } from '../shared/api/hooks';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCreateProjectMutation, useProjectsQuery } from '../shared/api/hooks';
+import type { ProjectCreateInput } from '../shared/types/api';
 import { formatDateTime } from '../shared/lib/format';
 import { STATUS_LABELS } from '../shared/lib/project';
 
@@ -99,7 +100,9 @@ function SelectField({
 export function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPage = (searchParams.get('page') as PageId) || 'projects';
+  const navigate = useNavigate();
   const projectsQuery = useProjectsQuery();
+  const createProjectMutation = useCreateProjectMutation();
   const projects = projectsQuery.data ?? [];
 
   const [activePage, setActivePage] = useState<PageId>(initialPage);
@@ -153,6 +156,23 @@ export function ProjectsPage() {
     if (rainProb < 70) return { text: '可监控', badge: '观望中', tone: 'purple' as const, msTime: '16:00', msg: '降雨概率中等，建议关注后续变化。' };
     return { text: '提醒', badge: '建议采取行动', tone: 'orange' as const, msTime: '16:00', msg: '预计下午 5 点左右开始下雨，你的包裹目前仍在门外。建议在天气变化前尽快取回。' };
   })();
+
+  async function handleStartResearch() {
+    const input: ProjectCreateInput = {
+      brief: {
+        question: question || 'eufy 产品机会研究',
+        category: generatedProjectName,
+        target_user: home || '未指定',
+        region: market || '未指定',
+        scenarios: [scope || '暂不限制'],
+        constraints: externalUrl ? externalUrl.split('\n').filter(Boolean) : [],
+        focus_dimensions: [direction || '暂不限制'],
+      },
+    };
+
+    const project = await createProjectMutation.mutateAsync(input);
+    navigate(`/projects/${project.project_id}`);
+  }
 
   function jumpTo(target: string) {
     if (target === 'brief') {
@@ -331,7 +351,9 @@ export function ProjectsPage() {
                 </div>
                 <div className="demo-actions">
                   <button className="demo-btn demo-btn--ghost" onClick={() => setCreateStep(2)}>修改研究范围</button>
-                  <button className="demo-btn demo-btn--accent" onClick={() => jumpTo('brief')}>开始 AI 调研</button>
+                  <button className="demo-btn demo-btn--accent" onClick={handleStartResearch} disabled={createProjectMutation.isPending}>
+                    {createProjectMutation.isPending ? '创建中...' : '开始 AI 调研'}
+                  </button>
                 </div>
               </div>
             )}

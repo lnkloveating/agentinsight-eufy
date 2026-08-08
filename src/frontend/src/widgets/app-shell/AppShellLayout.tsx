@@ -9,7 +9,7 @@ export function AppShellLayout() {
   const projectsQuery = useProjectsQuery();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
-  const [activeProject, setActiveProject] = useState<number | null>(0);
+  const [activeProject, setActiveProject] = useState<string | null>(null);
 
   const projectMatch = useMatch('/projects/:projectId');
   const reportMatch = useMatch('/projects/:projectId/report');
@@ -27,17 +27,19 @@ export function AppShellLayout() {
   const reportHref = resolvedProjectId ? `/projects/${resolvedProjectId}/report` : '/projects';
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const page = params.get('page');
-    if (page === 'brief') setActiveProject(0);
-    else if (page === 'research') setActiveProject(1);
-    else if (page === 'create') setActiveProject(null);
-  }, [location]);
+    if (currentProjectId) setActiveProject(currentProjectId);
+    else if (location.pathname === '/projects') {
+      const params = new URLSearchParams(location.search);
+      if (params.get('page') === 'create') setActiveProject(null);
+    }
+  }, [location, currentProjectId]);
 
-  const projectItems = [
-    { id: 'demo-eufy', name: 'eufy 情境感知家庭安防', page: 'brief' },
-    { id: latestProject?.project_id ?? 'demo-research', name: latestProject?.brief.category ?? '家庭安防', page: 'research' },
-  ];
+  const projectItems = useMemo(() => {
+    const projects = projectsQuery.data ?? [];
+    return [...projects]
+      .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+      .map((p) => ({ id: p.project_id, name: p.brief.category }));
+  }, [projectsQuery.data]);
 
   return (
     <div className={`app-shell${sidebarCollapsed ? ' app-shell--sidebar-collapsed' : ''}`}>
@@ -97,9 +99,9 @@ export function AppShellLayout() {
               <div className="app-shell__project-list">
                 {projectItems.map((item, i) => (
                   <button
-                    className={`app-shell__project-item${activeProject === i ? ' active' : ''}`}
+                    className={`app-shell__project-item${activeProject === item.id ? ' active' : ''}`}
                     key={item.id}
-                    onClick={() => { setActiveProject(i); navigate(`/projects?page=${item.page}`); }}
+                    onClick={() => { setActiveProject(item.id); navigate(`/projects/${item.id}`); }}
                     type="button"
                   >
                     {item.name}
@@ -110,6 +112,26 @@ export function AppShellLayout() {
           ) : null}
 
           <div className="app-shell__nav-divider" />
+
+          <p className="app-shell__nav-section-title">场景验证</p>
+
+          <button
+            className="app-shell__nav-row app-shell__nav-row--secondary"
+            onClick={() => navigate(`${resolvedProjectId ? `/projects/${resolvedProjectId}/scenarios` : '/projects'}`)}
+            type="button"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            <span>场景实验</span>
+          </button>
+
+          <div className="app-shell__nav-divider" />
+
+          <p className="app-shell__nav-section-title">产品发现</p>
 
           <button
             className="app-shell__nav-row app-shell__nav-row--secondary"
