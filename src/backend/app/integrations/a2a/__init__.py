@@ -13,6 +13,7 @@ from app.integrations.a2a.contracts import (
     EvidenceRequest,
     SpecialistTaskResult,
 )
+from app.integrations.a2a.gateway import CompetitorA2AGateway
 from app.integrations.a2a.registry import A2ASpecialistRegistry, SpecialistBinding
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "A2ASpecialistRegistry",
     "A2ATaskStatus",
     "CompetitorA2ABatchError",
+    "CompetitorA2AGateway",
     "CompetitorFinding",
     "CompetitorSpecialistArtifact",
     "CompetitorSpecialistType",
