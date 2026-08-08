@@ -69,6 +69,9 @@ class ProjectModel(Base):
     search_discovery_runs: Mapped[list["SearchDiscoveryRunModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    competitor_candidate_decisions: Mapped[list["CompetitorCandidateDecisionModel"]] = (
+        relationship(back_populates="project", cascade="all, delete-orphan")
+    )
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -514,6 +517,37 @@ class SearchDiscoveryRunModel(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project: Mapped[ProjectModel] = relationship(back_populates="search_discovery_runs")
+
+
+class CompetitorCandidateDecisionModel(Base):
+    """用户对一个版本化竞品候选 Artifact 的一次性 Gate 决定。"""
+
+    __tablename__ = "competitor_candidate_decisions"
+    __table_args__ = (
+        UniqueConstraint("artifact_id", name="uq_competitor_candidate_decision_artifact"),
+        Index("ix_competitor_candidate_decisions_project_created", "project_id", "created_at"),
+    )
+
+    decision_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_artifacts.artifact_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    selected_proposal_ids_json: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="competitor_candidate_decisions")
 
 
 class ParsedArtifactModel(Base):
