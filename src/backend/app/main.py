@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agents.user_research import UserResearchModelAgentAdapter
+from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
 from app.application.events import ProjectEventBroker
 from app.application.model_gateway import (
@@ -17,7 +19,9 @@ from app.application.model_gateway import (
     PromptRegistry,
     parse_openai_compatible_provider_configs,
 )
+from app.application.model_gateway.selection import ProjectModelSelectionResolver
 from app.application.runtime import (
+    AgentRegistry,
     ExternalCliProcessRunner,
     ExternalRuntimeCatalog,
     OpenCodeCliDriver,
@@ -27,6 +31,7 @@ from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
 from app.infrastructure.database import Database
 from app.sources.web_connector import SafeHttpWebConnector
+from app.workflows.contracts import ResearchAgentType
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -53,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         )
     prompt_registry = PromptRegistry()
+    register_user_research_prompt(prompt_registry)
     external_cli_process_runner = ExternalCliProcessRunner(
         max_output_bytes=resolved_settings.external_cli_max_output_bytes,
         probe_timeout_seconds=resolved_settings.external_cli_probe_timeout_seconds,
@@ -95,6 +101,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_retries=resolved_settings.model_max_retries,
             retry_base_seconds=resolved_settings.model_retry_base_seconds,
         )
+        agent_registry = AgentRegistry()
+        agent_registry.bind(
+            ResearchAgentType.USER_RESEARCH,
+            UserResearchModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+            ),
+        )
+        application.state.agent_registry = agent_registry
         if resolved_settings.auto_create_schema:
             await database.create_schema()
         try:

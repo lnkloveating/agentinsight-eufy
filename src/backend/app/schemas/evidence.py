@@ -129,6 +129,20 @@ class EvidenceFromSourceFragmentIngest(BaseModel):
     diversity_score: float = Field(ge=0, le=1)
 
 
+class EvidenceFromSourceFragmentCreate(BaseModel):
+    """Public payload; fragment identity is supplied by the trusted URL path."""
+
+    claim_type: EvidenceClaimType
+    product: str | None = Field(default=None, max_length=160)
+    region: str | None = Field(default=None, max_length=120)
+    user_segment: str | None = Field(default=None, max_length=160)
+    published_at: datetime | None = None
+    confidence: float = Field(ge=0, le=1)
+    authority_score: float = Field(ge=0, le=1)
+    recency_score: float = Field(ge=0, le=1)
+    diversity_score: float = Field(ge=0, le=1)
+
+
 class EvidenceIngestResult(BaseModel):
     evidence: Evidence
     created: bool

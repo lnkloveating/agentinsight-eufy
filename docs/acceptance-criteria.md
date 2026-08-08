@@ -1,5 +1,21 @@
 # MVP Acceptance Criteria
 
+## AC-03A 用户研究 Agent 证据链
+
+用户研究 Agent 只能读取当前项目中状态为 `verified` 或
+`partially_verified` 的 Evidence。模型输出中的每个 Evidence ID 必须属于本次受控
+Evidence Context；痛点和未满足需求必须至少引用一条 `user_opinion` Evidence。
+只有具备事件链、痛点、未满足需求、至少两个独立来源且没有高严重度补研缺口时，
+Artifact 才能标记为 `completed`。证据不足时必须返回 `partial` 或 `blocked`，不得把
+厂商声明改写成用户感受。
+
+自动化映射：
+
+- `tests/unit/test_user_research_contracts.py`
+- `tests/integration/test_user_research_context.py`
+- `tests/integration/test_user_research_agent.py`
+- `tests/integration/test_user_research_api.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

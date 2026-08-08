@@ -25,7 +25,12 @@ def _request() -> ProviderModelRequest:
         },
         timeout_seconds=1,
         max_output_tokens=128,
-        options={"structured_output_mode": "prompt", "temperature": 0},
+        options={
+            "structured_output_mode": "prompt",
+            "temperature": 0,
+            "thinking": {"type": "disabled"},
+            "reasoning_effort": "none",
+        },
     )
 
 
@@ -65,6 +70,8 @@ async def test_openai_compatible_provider_builds_safe_request_and_parses_usage()
     assert payload["model"] == "provider/model-a"
     assert payload["max_tokens"] == 128
     assert payload["temperature"] == 0
+    assert payload["thinking"] == {"type": "disabled"}
+    assert payload["reasoning_effort"] == "none"
     assert "JSON Schema" in payload["messages"][-1]["content"]
     assert result.output == '{"answer":"ok"}'
     assert result.usage.input_tokens == 11
@@ -109,3 +116,22 @@ def test_parse_openai_compatible_provider_configs() -> None:
     assert configs[0].base_url == "https://router.example.com"
     with pytest.raises(ValueError, match="OPENAI_COMPATIBLE_PROVIDERS_JSON"):
         parse_openai_compatible_provider_configs("not-json")
+
+
+@pytest.mark.asyncio
+async def test_empty_provider_content_is_retryable() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"id": "empty-request", "choices": [{"message": {"content": ""}}]},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = OpenAICompatibleProvider(
+            "test-router", "https://router.example.com", client=client
+        )
+        with pytest.raises(ModelProviderError) as error:
+            await provider.generate(_request())
+
+    assert error.value.code is ModelErrorCode.PROVIDER_FAILED
+    assert error.value.retryable is True
