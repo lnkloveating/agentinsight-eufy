@@ -33,6 +33,7 @@ class A2ATaskStatus(StrEnum):
 
 class A2AErrorCode(StrEnum):
     SPECIALIST_NOT_BOUND = "specialist_not_bound"
+    DEPENDENCY_MISSING = "dependency_missing"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
     ADAPTER_FAILED = "adapter_failed"
@@ -95,6 +96,7 @@ class CompetitorSpecialistArtifact(BaseModel):
     unknowns: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     quality_score: float = Field(ge=0, le=100)
+    structured_payload: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_terminal_artifact(self) -> CompetitorSpecialistArtifact:

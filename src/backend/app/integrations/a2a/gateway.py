@@ -12,7 +12,12 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from app.application.events import ProjectEventBroker
-from app.application.runtime import CancellationToken, RuntimeCancellationError
+from app.application.runtime import (
+    CancellationToken,
+    RuntimeCancellationError,
+    RuntimeErrorCode,
+    RuntimeGatewayError,
+)
 from app.infrastructure.database.a2a_repository import A2ATaskRepository
 from app.infrastructure.database.models import A2ATaskModel, ProjectEventModel
 from app.infrastructure.database.repositories import ProjectRepository
@@ -49,7 +54,7 @@ class CompetitorA2AGateway:
         registry: A2ASpecialistRegistry,
         event_broker: ProjectEventBroker,
         *,
-        specialist_timeout_seconds: float = 120,
+        specialist_timeout_seconds: float = 300,
     ) -> None:
         if specialist_timeout_seconds <= 0:
             raise ValueError("specialist_timeout_seconds must be positive")
@@ -94,8 +99,7 @@ class CompetitorA2AGateway:
         unexpected = [
             result
             for result in raw_results
-            if isinstance(result, BaseException)
-            and not isinstance(result, A2AGatewayError)
+            if isinstance(result, BaseException) and not isinstance(result, A2AGatewayError)
         ]
         if unexpected:
             raise RuntimeError("unexpected competitor A2A task failure") from unexpected[0]
@@ -190,6 +194,23 @@ class CompetitorA2AGateway:
             raise error from exc
         except A2AGatewayError:
             raise
+        except RuntimeGatewayError as exc:
+            code = {
+                RuntimeErrorCode.TIMEOUT: A2AErrorCode.TIMEOUT,
+                RuntimeErrorCode.CANCELLED: A2AErrorCode.CANCELLED,
+                RuntimeErrorCode.DEPENDENCY_MISSING: A2AErrorCode.DEPENDENCY_MISSING,
+                RuntimeErrorCode.SCHEMA_INVALID: A2AErrorCode.ARTIFACT_INVALID,
+                RuntimeErrorCode.ARTIFACT_INVALID: A2AErrorCode.ARTIFACT_INVALID,
+            }.get(exc.code, A2AErrorCode.ADAPTER_FAILED)
+            error = self._error(
+                code,
+                prepared.a2a_task_id,
+                request.specialist_type,
+                "Competitor specialist runtime failed.",
+                retryable=exc.retryable,
+            )
+            await self._fail_task(request.project_id, prepared.a2a_task_id, trace_id, error)
+            raise error from exc
         except Exception as exc:
             error = self._error(
                 A2AErrorCode.ADAPTER_FAILED,
@@ -239,9 +260,7 @@ class CompetitorA2AGateway:
                         A2ATaskStatus.BLOCKED,
                     }
                 ):
-                    artifact = CompetitorSpecialistArtifact.model_validate(
-                        existing.output_json
-                    )
+                    artifact = CompetitorSpecialistArtifact.model_validate(existing.output_json)
                     await projects.add_event(
                         self._event(
                             request.project_id,
@@ -266,14 +285,8 @@ class CompetitorA2AGateway:
 
                 now = datetime.now(UTC)
                 adapter_type = binding.adapter_type if binding is not None else "unbound"
-                status = (
-                    A2ATaskStatus.RUNNING
-                    if binding is not None
-                    else A2ATaskStatus.BLOCKED
-                )
-                event_type = (
-                    "a2a_task_started" if binding is not None else "a2a_task_blocked"
-                )
+                status = A2ATaskStatus.RUNNING if binding is not None else A2ATaskStatus.BLOCKED
+                event_type = "a2a_task_started" if binding is not None else "a2a_task_blocked"
                 if existing is None:
                     task = A2ATaskModel(
                         a2a_task_id=self._task_id(request),
@@ -290,9 +303,7 @@ class CompetitorA2AGateway:
                         evidence_ids_json=[],
                         trace_id=trace_id,
                         error_code=(
-                            None
-                            if binding is not None
-                            else A2AErrorCode.SPECIALIST_NOT_BOUND
+                            None if binding is not None else A2AErrorCode.SPECIALIST_NOT_BOUND
                         ),
                         error_message=(
                             None
@@ -471,8 +482,7 @@ class CompetitorA2AGateway:
         disallowed = sorted(
             evidence_id
             for evidence_id in artifact.evidence_ids
-            if available[evidence_id].claim_type
-            not in invocation.request.allowed_claim_types
+            if available[evidence_id].claim_type not in invocation.request.allowed_claim_types
         )
         if disallowed:
             raise ValueError(f"specialist artifact cites disallowed evidence: {disallowed}")

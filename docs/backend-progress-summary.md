@@ -1,6 +1,6 @@
 # 后端进度与前端适配说明
 
-> 更新时间：2026-08-07
+> 更新时间：2026-08-08
 >
 > 基线分支：`main`
 >
@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、原始资料接入、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent 与竞品 A2A 运行底座已经完成；其余领域 Agent 和三个真实竞品专家尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、原始资料接入、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -43,7 +43,8 @@ http://localhost:8000/api/v1
 | Model Gateway | 模型目录、项目默认模型、Agent 级覆盖、Prompt 版本、结构化输出、重试、Token/成本审计 | 可以实现模型选择器和 Agent 调用审计展示 |
 | 主办方模型路由 | 已接入 GLM 5.2 与 DeepSeek V4 Pro，并完成真实联网冒烟测试 | 前端只使用 `/models` 返回的 `model_id`，不接触 API Key |
 | 用户研究 Agent | 消费受控 Evidence Context，输出带 Evidence IDs 的事件链、痛点和未满足需求 | 可以启动真实用户研究并展示证据覆盖、未知项和模型审计 |
-| 竞品 A2A Foundation | 竞品主管、三类 EvidenceRequest、并行专家网关、A2A Task 审计、超时和定向恢复 | 可以按 SSE 事件展示三条专家泳道；真实专家未绑定时明确 blocked |
+| 竞品 A2A Foundation | 竞品主管、三类 EvidenceRequest、并行专家网关、A2A Task 审计、超时和定向恢复 | 可以按 SSE 事件展示三条专家泳道；尚未实现的专家会明确 blocked |
+| 竞品官方产品专家 | 从受控官方 Evidence 中提取产品身份、能力、规格、兼容性、限制和未知项；确定性校验范围与引用 | 可以展示官方专家的真实结构化结果和证据覆盖；不能把父级 partial 当成完整竞品结论 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
 
@@ -55,11 +56,12 @@ http://localhost:8000/api/v1
 4. `ExternalCliAgentAdapter` 能够通过 OpenCode 调用主办方模型，并返回结构化 `ResearchArtifact`。
 5. Source Processing 可以解析授权文件/网页，并真实解码音视频；媒体 Connector 输出会保持 `derived`，人工复核后才能通过受控服务进入 Evidence Lake。
 6. Evidence 和 Innovation 服务可以保存、校验和查询真实持久化记录。
+7. 竞品官方产品专家能够通过项目模型策略调用 GLM 5.2 或 DeepSeek V4 Pro，输出带 Evidence IDs 的结构化官方资料结果。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 三个竞品专家、产品技术、商业和红队等业务 Prompt；
+- 价格渠道、用户评价、产品技术、商业和红队等业务 Prompt；
 - 把已验证 SourceFragment 提供给领域 Agent 和外部 Runtime 的语义分析接线；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 竞品能力矩阵与差异化综合；
@@ -374,19 +376,18 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 143 passed
+pytest: 148 passed
 ruff: passed
-mypy: passed（123 个源文件）
+mypy: passed（128 个源文件）
 Alembic: 空数据库升级到 0008_competitor_a2a_foundation、降级到 0007 后再次升级通过
-真实模型：GLM 5.2 与 DeepSeek V4 Pro 冒烟测试通过
+真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针及官方产品专家完整网页链路冒烟测试通过
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
 ```
 
-接下来的后端开发顺序应从三个真实竞品专家和领域分析开始：
+接下来的后端开发顺序应从剩余竞品专家和领域分析开始：
 
 ```text
-Competitor Official Product Specialist
-→ Competitor Price & Channel Specialist
+Competitor Price & Channel Specialist
 → Competitor User Review Specialist
 → Competitor Synthesis & Evidence Audit
 → Product Technical Agent

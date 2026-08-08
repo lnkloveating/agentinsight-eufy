@@ -6,7 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.agents.competitor import CompetitorA2ASupervisorAdapter
+from app.agents.competitor import (
+    CompetitorA2ASupervisorAdapter,
+    OfficialProductModelSpecialistAdapter,
+    register_official_product_prompt,
+)
 from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
@@ -31,7 +35,11 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
 from app.infrastructure.database import Database
-from app.integrations.a2a import A2ASpecialistRegistry, CompetitorA2AGateway
+from app.integrations.a2a import (
+    A2ASpecialistRegistry,
+    CompetitorA2AGateway,
+    CompetitorSpecialistType,
+)
 from app.sources.web_connector import SafeHttpWebConnector
 from app.workflows.contracts import ResearchAgentType
 
@@ -40,9 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """创建供测试、开发和生产环境复用的 FastAPI 应用。"""
     resolved_settings = settings or get_settings()
     credential_resolver = (
-        EnvironmentCredentialResolver.from_dotenv(
-            resolved_settings.model_credentials_env_file
-        )
+        EnvironmentCredentialResolver.from_dotenv(resolved_settings.model_credentials_env_file)
         if resolved_settings.model_credentials_env_file is not None
         else EnvironmentCredentialResolver()
     )
@@ -55,12 +61,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resolved_settings.openai_compatible_providers_json
     ):
         model_provider_registry.register(
-            OpenAICompatibleProvider(
-                provider_config.provider_id, provider_config.base_url
-            )
+            OpenAICompatibleProvider(provider_config.provider_id, provider_config.base_url)
         )
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
+    register_official_product_prompt(prompt_registry)
     external_cli_process_runner = ExternalCliProcessRunner(
         max_output_bytes=resolved_settings.external_cli_max_output_bytes,
         probe_timeout_seconds=resolved_settings.external_cli_probe_timeout_seconds,
@@ -105,6 +110,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         agent_registry = AgentRegistry()
         a2a_specialist_registry = A2ASpecialistRegistry()
+        a2a_specialist_registry.bind(
+            CompetitorSpecialistType.OFFICIAL_PRODUCT,
+            OfficialProductModelSpecialistAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(resolved_settings.competitor_official_model_timeout_seconds),
+            ),
+        )
         application.state.a2a_specialist_registry = a2a_specialist_registry
         application.state.competitor_a2a_gateway = CompetitorA2AGateway(
             database,
@@ -124,9 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         agent_registry.bind(
             ResearchAgentType.COMPETITOR_RESEARCH,
-            CompetitorA2ASupervisorAdapter(
-                application.state.competitor_a2a_gateway
-            ),
+            CompetitorA2ASupervisorAdapter(application.state.competitor_a2a_gateway),
         )
         application.state.agent_registry = agent_registry
         if resolved_settings.auto_create_schema:
