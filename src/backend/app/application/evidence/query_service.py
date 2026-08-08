@@ -83,9 +83,7 @@ class EvidenceServiceMapper:
     @staticmethod
     def to_evidence(model: EvidenceModel) -> Evidence:
         values = {
-            name: getattr(model, name)
-            for name in Evidence.model_fields
-            if name != "source_locator"
+            name: getattr(model, name) for name in Evidence.model_fields if name != "source_locator"
         }
         values["source_locator"] = model.source_locator_json
         return Evidence.model_validate(values)

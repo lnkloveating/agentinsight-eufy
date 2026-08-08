@@ -78,8 +78,11 @@ def classify_source_file(
     normalized_declared = _MIME_ALIASES.get(normalized_declared, normalized_declared)
     if normalized_declared and normalized_declared != "application/octet-stream":
         declared_category = next(
-            (candidate_category for candidate_type, candidate_category in _FILE_TYPES.values()
-             if candidate_type == normalized_declared),
+            (
+                candidate_category
+                for candidate_type, candidate_category in _FILE_TYPES.values()
+                if candidate_type == normalized_declared
+            ),
             None,
         )
         if declared_category is not None and declared_category is not category:

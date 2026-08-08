@@ -102,24 +102,19 @@ class UserResearchOutputValidator:
         user_opinion_ids = {
             evidence_id
             for evidence_id in cited_ids
-            if evidence_by_id[evidence_id].claim_type
-            == EvidenceClaimType.USER_OPINION.value
+            if evidence_by_id[evidence_id].claim_type == EvidenceClaimType.USER_OPINION.value
         }
         high_severity_gap = any(
             gap.severity is FindingSeverity.HIGH for gap in output.research_gaps
         )
-        complete_sections = bool(
-            output.event_chains and output.pain_points and output.unmet_needs
-        )
+        complete_sections = bool(output.event_chains and output.pain_points and output.unmet_needs)
         completed = (
             complete_sections
             and bool(user_opinion_ids)
             and len(domains) >= task.evidence_rules.minimum_independent_domains
             and not high_severity_gap
         )
-        status = (
-            ResearchTaskStatus.COMPLETED if completed else ResearchTaskStatus.PARTIAL
-        )
+        status = ResearchTaskStatus.COMPLETED if completed else ResearchTaskStatus.PARTIAL
         coverage = self._coverage(evidence_context, cited_ids)
         coverage = coverage.model_copy(
             update={
@@ -141,9 +136,7 @@ class UserResearchOutputValidator:
             f"{item.statement} [Evidence: {', '.join(item.evidence_ids)}]"
             for item in output.contradictions
         ]
-        unknowns = self._unique(
-            [*output.unknowns, *(gap.question for gap in output.research_gaps)]
-        )
+        unknowns = self._unique([*output.unknowns, *(gap.question for gap in output.research_gaps)])
         return UserResearchArtifact(
             artifact_id="artifact_pending",
             task_id=task.task_id,
@@ -173,8 +166,7 @@ class UserResearchOutputValidator:
     ) -> None:
         if any(
             evidence_by_id.get(evidence_id) is not None
-            and evidence_by_id[evidence_id].claim_type
-            == EvidenceClaimType.USER_OPINION.value
+            and evidence_by_id[evidence_id].claim_type == EvidenceClaimType.USER_OPINION.value
             for evidence_id in evidence_ids
         ):
             return
@@ -222,10 +214,13 @@ class UserResearchOutputValidator:
         has_user_opinion: bool,
     ) -> float:
         score = 30.0  # All citations have passed the deterministic gate.
-        score += min(
-            domain_count / task.evidence_rules.minimum_independent_domains,
-            1.0,
-        ) * 20
+        score += (
+            min(
+                domain_count / task.evidence_rules.minimum_independent_domains,
+                1.0,
+            )
+            * 20
+        )
         score += 20 if has_user_opinion else 0
         score += 10 if output.event_chains else 0
         score += 10 if output.pain_points else 0

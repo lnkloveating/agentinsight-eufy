@@ -26,9 +26,7 @@ class ArtifactStore:
 
     async def list_versions(self, project_id: str, task_id: str) -> list[StoredArtifact]:
         async with self.database.session() as session:
-            models = await AgentRuntimeRepository(session).list_task_artifacts(
-                project_id, task_id
-            )
+            models = await AgentRuntimeRepository(session).list_task_artifacts(project_id, task_id)
         return [self._to_stored_artifact(model) for model in models]
 
     @staticmethod

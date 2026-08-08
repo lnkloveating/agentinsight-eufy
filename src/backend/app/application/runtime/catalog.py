@@ -41,9 +41,7 @@ class ExternalRuntimeCatalog:
                 executable_available=False,
                 reason=RuntimeUnavailableReason.DISABLED,
             )
-        probe = await self.process_runner.probe(
-            driver.executable, driver.version_arguments()
-        )
+        probe = await self.process_runner.probe(driver.executable, driver.version_arguments())
         if not probe.executable_available:
             return self._unavailable(
                 driver,

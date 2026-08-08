@@ -31,9 +31,7 @@ class ExternalCliProcessRunner:
         self.max_output_bytes = max_output_bytes
         self.probe_timeout_seconds = probe_timeout_seconds
 
-    async def probe(
-        self, executable: str, version_arguments: tuple[str, ...]
-    ) -> CliProbeResult:
+    async def probe(self, executable: str, version_arguments: tuple[str, ...]) -> CliProbeResult:
         resolved = self.resolve_executable(executable)
         if resolved is None:
             return CliProbeResult(executable_available=False, error="executable_missing")

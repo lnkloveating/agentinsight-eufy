@@ -79,9 +79,7 @@ class TextSourceParser:
 
     def parse(self, path: Path) -> DeterministicParseResult:
         text = _read_utf8(path)
-        fragments = tuple(
-            _chunk_text(text, SourceLocatorKind.TEXT, self.max_excerpt_chars)
-        )
+        fragments = tuple(_chunk_text(text, SourceLocatorKind.TEXT, self.max_excerpt_chars))
         return DeterministicParseResult(self.parser_id, self.parser_version, fragments)
 
     def verify(self, path: Path, fragments: Sequence[ParsedFragmentCandidate]) -> None:
@@ -124,9 +122,7 @@ class CsvSourceParser:
                 )
         except csv.Error as exc:
             raise SourceParserError("SOURCE_CSV_INVALID", "CSV content is invalid.") from exc
-        return DeterministicParseResult(
-            self.parser_id, self.parser_version, tuple(fragments)
-        )
+        return DeterministicParseResult(self.parser_id, self.parser_version, tuple(fragments))
 
     def verify(self, path: Path, fragments: Sequence[ParsedFragmentCandidate]) -> None:
         text = _read_utf8(path)
@@ -185,9 +181,7 @@ class PdfSourceParser:
                     page_number=page_number,
                 )
             )
-        return DeterministicParseResult(
-            self.parser_id, self.parser_version, tuple(fragments)
-        )
+        return DeterministicParseResult(self.parser_id, self.parser_version, tuple(fragments))
 
     def verify(self, path: Path, fragments: Sequence[ParsedFragmentCandidate]) -> None:
         pages = _extract_pdf_pages(path)
@@ -254,15 +248,11 @@ class _VisibleHtmlTextCollector(HTMLParser):
         self.stack: list[str] = []
         self.fragments: list[ParsedFragmentCandidate] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         del attrs
         self.stack.append(tag.lower())
 
-    def handle_startendtag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         del tag, attrs
 
     def handle_endtag(self, tag: str) -> None:
@@ -413,9 +403,7 @@ def _trim_span(text: str, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
-def _verify_character_fragments(
-    text: str, fragments: Sequence[ParsedFragmentCandidate]
-) -> None:
+def _verify_character_fragments(text: str, fragments: Sequence[ParsedFragmentCandidate]) -> None:
     for fragment in fragments:
         _verify_character_fragment(text, fragment)
 

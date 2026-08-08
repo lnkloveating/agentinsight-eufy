@@ -57,9 +57,7 @@ class SourceEvidencePromotionService:
                 status_code=404,
                 details={"project_id": project_id},
             )
-        fragment = await self.source_repository.get_fragment(
-            project_id, payload.source_fragment_id
-        )
+        fragment = await self.source_repository.get_fragment(project_id, payload.source_fragment_id)
         if fragment is None:
             raise AppError(
                 code="SOURCE_FRAGMENT_NOT_FOUND",
@@ -86,9 +84,7 @@ class SourceEvidencePromotionService:
                 message="未经确定性校验的资料片段不能进入 Evidence Lake。",
                 status_code=409,
             )
-        asset = await self.source_repository.get_by_project(
-            project_id, fragment.source_asset_id
-        )
+        asset = await self.source_repository.get_by_project(project_id, fragment.source_asset_id)
         artifact = await self.source_repository.get_parsed_artifact_by_id(
             project_id, fragment.parsed_artifact_id
         )
@@ -104,8 +100,7 @@ class SourceEvidencePromotionService:
         if asset.kind == SourceAssetKind.LINK:
             provenance_hash_matches = (
                 job is not None
-                and artifact.source_content_hash
-                == job.result_json.get("captured_content_hash")
+                and artifact.source_content_hash == job.result_json.get("captured_content_hash")
                 and asset.storage_key is not None
             )
         locator = SourceLocator.model_validate(fragment.locator_json)
@@ -138,13 +133,9 @@ class SourceEvidencePromotionService:
             )
 
         content_hash = build_content_hash(fragment.original_excerpt)
-        existing = await self.evidence_repository.get_evidence_by_hash(
-            project_id, content_hash
-        )
+        existing = await self.evidence_repository.get_evidence_by_hash(project_id, content_hash)
         if existing is not None:
-            return EvidenceIngestResult(
-                evidence=self._to_evidence(existing), created=False
-            )
+            return EvidenceIngestResult(evidence=self._to_evidence(existing), created=False)
 
         source_url: str | None = asset.source_url
         if asset.kind == SourceAssetKind.LINK and job is not None:
@@ -209,9 +200,7 @@ class SourceEvidencePromotionService:
             )
             if duplicate is None:
                 raise
-            return EvidenceIngestResult(
-                evidence=self._to_evidence(duplicate), created=False
-            )
+            return EvidenceIngestResult(evidence=self._to_evidence(duplicate), created=False)
         except Exception:
             await self.evidence_repository.rollback()
             raise

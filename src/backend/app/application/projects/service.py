@@ -73,9 +73,7 @@ class ProjectService:
             brief_json=payload.brief.model_dump(mode="json"),
             pending_decision_json=pending_decision.model_dump(mode="json"),
             model_selection_json=(
-                model_selection.model_dump(mode="json")
-                if model_selection is not None
-                else None
+                model_selection.model_dump(mode="json") if model_selection is not None else None
             ),
             created_at=now,
             updated_at=now,
@@ -102,9 +100,7 @@ class ProjectService:
                 "progress": 5,
                 "message": "研究项目已创建，等待确认 Brief。",
                 "model_selection": (
-                    model_selection.model_dump(mode="json")
-                    if model_selection is not None
-                    else None
+                    model_selection.model_dump(mode="json") if model_selection is not None else None
                 ),
             },
             trace_id=self.trace_id,
@@ -272,13 +268,9 @@ class ProjectService:
             )
         return project
 
-    def _resolve_model_selection(
-        self, selection: ModelSelection | None
-    ) -> ModelSelection | None:
+    def _resolve_model_selection(self, selection: ModelSelection | None) -> ModelSelection | None:
         if selection is None and self.model_catalog.default_model_id is not None:
-            selection = ModelSelection(
-                default_model_id=self.model_catalog.default_model_id
-            )
+            selection = ModelSelection(default_model_id=self.model_catalog.default_model_id)
         if selection is None:
             return None
 

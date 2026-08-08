@@ -302,9 +302,7 @@ class ModelGateway:
             await repository.commit()
 
     @staticmethod
-    def _validate_output(
-        response_model: type[BaseModel], result: ProviderModelResult
-    ) -> BaseModel:
+    def _validate_output(response_model: type[BaseModel], result: ProviderModelResult) -> BaseModel:
         payload = result.output
         if isinstance(payload, str):
             payload = json.loads(payload)

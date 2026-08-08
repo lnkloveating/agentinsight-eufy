@@ -46,9 +46,7 @@ class ModelDefinition(BaseModel):
 
     @field_validator("capabilities")
     @classmethod
-    def unique_capabilities(
-        cls, value: list[ModelCapability]
-    ) -> list[ModelCapability]:
+    def unique_capabilities(cls, value: list[ModelCapability]) -> list[ModelCapability]:
         return list(dict.fromkeys(value))
 
 
@@ -79,9 +77,7 @@ class EnvironmentCredentialResolver:
 
             environment = os.environ
         file_values = {
-            key: value
-            for key, value in dotenv_values(path).items()
-            if value is not None
+            key: value for key, value in dotenv_values(path).items() if value is not None
         }
         return cls({**file_values, **environment})
 

@@ -217,9 +217,7 @@ class ResearchWorkflow:
         tasks = parse_task_plan(artifact, state["project_id"])
         return {
             "task_plan": [item.model_dump(mode="json") for item in tasks],
-            "artifacts": {
-                ResearchAgentType.RESEARCH_MANAGER: artifact.model_dump(mode="json")
-            },
+            "artifacts": {ResearchAgentType.RESEARCH_MANAGER: artifact.model_dump(mode="json")},
             "current_stage": "parallel_research",
             "progress": 15,
             "node_history": [self._event("research_planner", task, "completed")],
@@ -384,10 +382,15 @@ class ResearchWorkflow:
     ) -> dict[str, Any]:
         task = self._task(state, agent_type)
         affected = state.get("affected_task_ids", [])
-        if affected and task.task_id not in affected and agent_type in {
-            ResearchAgentType.USER_RESEARCH,
-            ResearchAgentType.COMPETITOR_RESEARCH,
-        }:
+        if (
+            affected
+            and task.task_id not in affected
+            and agent_type
+            in {
+                ResearchAgentType.USER_RESEARCH,
+                ResearchAgentType.COMPETITOR_RESEARCH,
+            }
+        ):
             update: dict[str, Any] = {
                 "node_history": [self._event(stage, task, "skipped")],
             }
@@ -443,9 +446,7 @@ class ResearchWorkflow:
         stage: str,
         progress: int,
     ) -> dict[str, Any]:
-        request = build_gate_request(
-            state["project_id"], gate, state.get("iteration", 0), summary
-        )
+        request = build_gate_request(state["project_id"], gate, state.get("iteration", 0), summary)
         return {
             "pending_gate": request.model_dump(mode="json"),
             "outcome": WorkflowOutcome.AWAITING_DECISION.value,

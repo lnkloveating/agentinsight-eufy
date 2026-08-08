@@ -37,9 +37,7 @@ class UserResearchService:
 
     async def run(self, project_id: str) -> UserResearchArtifact:
         project = await self._require_runnable_project(project_id)
-        previous = await self.artifact_store.list_versions(
-            project_id, USER_RESEARCH_TASK_ID
-        )
+        previous = await self.artifact_store.list_versions(project_id, USER_RESEARCH_TASK_ID)
         evidence_context = await self.context_builder.build(project_id)
         task = ResearchTask(
             task_id=USER_RESEARCH_TASK_ID,
@@ -84,13 +82,8 @@ class UserResearchService:
 
     async def list_artifacts(self, project_id: str) -> list[UserResearchArtifact]:
         await self._require_project(project_id)
-        versions = await self.artifact_store.list_versions(
-            project_id, USER_RESEARCH_TASK_ID
-        )
-        return [
-            UserResearchArtifact.from_research_artifact(item.artifact)
-            for item in versions
-        ]
+        versions = await self.artifact_store.list_versions(project_id, USER_RESEARCH_TASK_ID)
+        return [UserResearchArtifact.from_research_artifact(item.artifact) for item in versions]
 
     async def _require_runnable_project(self, project_id: str) -> ProjectModel:
         project = await self._require_project(project_id)

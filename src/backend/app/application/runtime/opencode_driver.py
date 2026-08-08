@@ -91,9 +91,7 @@ class OpenCodeCliDriver:
                 }
             },
         }
-        config_path.write_text(
-            json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
         instruction = (
             "Read input/invocation.json. Complete only the requested research task. "
             "Return one JSON object matching the ResearchArtifact fields in that file's "

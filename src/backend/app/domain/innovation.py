@@ -59,8 +59,7 @@ class InnovationScorer:
             raise InnovationRuleError(issues)
         return round(
             sum(
-                component.score * component.weight
-                for component in payload.score_breakdown.values()
+                component.score * component.weight for component in payload.score_breakdown.values()
             ),
             2,
         )
@@ -114,9 +113,7 @@ class InnovationPortfolioGate:
     def evaluate(self, innovations: list[Innovation]) -> InnovationPortfolioGateResult:
         gaps: list[str] = []
         if len(innovations) < self.minimum_candidates:
-            gaps.append(
-                f"insufficient_candidates:{len(innovations)}/{self.minimum_candidates}"
-            )
+            gaps.append(f"insufficient_candidates:{len(innovations)}/{self.minimum_candidates}")
 
         resolved_statuses = {InnovationStatus.RECOMMENDED, InnovationStatus.REJECTED}
         unresolved = [

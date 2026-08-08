@@ -55,9 +55,7 @@ def build_agent_context(
         for key, value in state.get("artifacts", {}).items()
         if key in allowed
     }
-    decisions = [
-        StageDecision.model_validate(item) for item in state.get("decision_history", [])
-    ]
+    decisions = [StageDecision.model_validate(item) for item in state.get("decision_history", [])]
     return AgentContext(
         project_id=state["project_id"],
         brief=ResearchBrief.model_validate(state["brief"]),
