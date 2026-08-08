@@ -1251,7 +1251,7 @@ components:
         original_excerpt: { type: string }
         claim_type:
           type: string
-          enum: [fact, user_opinion, vendor_claim, agent_inference]
+          enum: [fact, user_opinion, vendor_claim, agent_inference, product_identity, capability, specification, compatibility, limitation, price_observation, channel_availability, seller_information, promotion, market_fact, technical_fact]
         product: { type: [string, "null"] }
         region: { type: [string, "null"] }
         user_segment: { type: [string, "null"] }
@@ -1277,7 +1277,7 @@ components:
       properties:
         claim_type:
           type: string
-          enum: [fact, user_opinion, vendor_claim, agent_inference]
+          enum: [fact, user_opinion, vendor_claim, agent_inference, product_identity, capability, specification, compatibility, limitation, price_observation, channel_availability, seller_information, promotion, market_fact, technical_fact]
         product: { type: [string, "null"], maxLength: 160 }
         region: { type: [string, "null"], maxLength: 120 }
         user_segment: { type: [string, "null"], maxLength: 160 }

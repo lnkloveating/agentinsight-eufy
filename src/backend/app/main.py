@@ -31,6 +31,7 @@ from app.application.runtime import (
     ExternalRuntimeCatalog,
     OpenCodeCliDriver,
 )
+from app.application.source_routing import register_source_routing_prompt
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
+    register_source_routing_prompt(prompt_registry)
     external_cli_process_runner = ExternalCliProcessRunner(
         max_output_bytes=resolved_settings.external_cli_max_output_bytes,
         probe_timeout_seconds=resolved_settings.external_cli_probe_timeout_seconds,

@@ -7,6 +7,7 @@ from app.api.dependencies import (
     SourceAssetServiceDependency,
     SourceEvidencePromotionServiceDependency,
     SourceProcessingServiceDependency,
+    SourceRoutingServiceDependency,
 )
 from app.schemas.evidence import (
     EvidenceFromSourceFragmentCreate,
@@ -28,6 +29,11 @@ from app.schemas.source_processing import (
     SourceFragment,
     SourceFragmentPage,
     SourceProcessingStatus,
+)
+from app.schemas.source_routing import (
+    SourceRouting,
+    SourceRoutingAnalyze,
+    SourceRoutingDecision,
 )
 
 router = APIRouter()
@@ -102,6 +108,44 @@ async def get_source_asset(
     return await service.get(project_id, source_asset_id)
 
 
+@router.get(
+    "/{project_id}/sources/{source_asset_id}/routing",
+    response_model=SourceRouting,
+)
+async def get_source_routing(
+    project_id: str,
+    source_asset_id: str,
+    service: SourceRoutingServiceDependency,
+) -> SourceRouting:
+    return await service.get(project_id, source_asset_id)
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/routing/analyze",
+    response_model=SourceRouting,
+)
+async def analyze_source_routing(
+    project_id: str,
+    source_asset_id: str,
+    payload: SourceRoutingAnalyze,
+    service: SourceRoutingServiceDependency,
+) -> SourceRouting:
+    return await service.analyze(project_id, source_asset_id, payload)
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/routing/decision",
+    response_model=SourceRouting,
+)
+async def decide_source_routing(
+    project_id: str,
+    source_asset_id: str,
+    payload: SourceRoutingDecision,
+    service: SourceRoutingServiceDependency,
+) -> SourceRouting:
+    return await service.decide(project_id, source_asset_id, payload)
+
+
 @router.delete("/{project_id}/sources/{source_asset_id}", response_model=SourceAsset)
 async def delete_source_asset(
     project_id: str,
@@ -169,9 +213,7 @@ async def list_source_fragments(
     service: SourceProcessingServiceDependency,
     cursor: str | None = None,
 ) -> SourceFragmentPage:
-    return await service.list_fragments(
-        project_id, source_asset_id, cursor=cursor
-    )
+    return await service.list_fragments(project_id, source_asset_id, cursor=cursor)
 
 
 @router.post(

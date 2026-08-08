@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     competitor_official_max_excerpt_chars: int = Field(default=3_000, ge=200, le=10_000)
     competitor_official_max_total_evidence_chars: int = Field(default=60_000, ge=1_000, le=500_000)
     competitor_official_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    source_routing_max_fragments: int = Field(default=40, ge=1, le=200)
+    source_routing_max_excerpt_chars: int = Field(default=1_500, ge=200, le=10_000)
+    source_routing_max_total_chars: int = Field(default=30_000, ge=1_000, le=200_000)
+    source_routing_auto_confirm_threshold: float = Field(default=0.92, ge=0.5, le=1)
+    source_routing_model_timeout_seconds: float = Field(default=120, ge=1, le=600)
     source_storage_root: str = "./data/sources"
     source_processing_workspace_root: str = "./data/source-processing"
     source_processing_max_input_bytes: int = Field(default=52_428_800, ge=1, le=536_870_912)
