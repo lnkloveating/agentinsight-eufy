@@ -36,6 +36,25 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_a2a_supervisor.py`
 - `tests/integration/test_runtime_langgraph_integration.py`
 
+## AC-03C 竞品官方产品专家
+
+官方产品专家只能读取当前项目中状态为 `verified` 或 `partially_verified`，且 Claim 类型为
+`vendor_claim` 或 `fact` 的受控 Evidence。模型输出中的摘要、产品身份和每项官方事实都
+必须引用本次 Evidence Context 中的 Evidence ID；产品范围必须与主管的
+`EvidenceRequest` 完全一致。
+
+系统必须把产品能力、规格、兼容性、限制和可用性输出为结构化记录，并保留矛盾、未知项
+和补研问题。“未在现有官方资料中找到”只能形成未知项，不能推断为“不支持”。引用越界、
+范围替换或 Schema 无效时任务失败；没有合格证据时任务 `blocked`；证据覆盖不足时任务
+`partial`。质量状态与证据覆盖由确定性代码计算，模型不得自行声明通过。
+
+自动化映射：
+
+- `tests/unit/test_official_product_agent_contracts.py`
+- `tests/integration/test_official_product_agent.py`
+- `tests/integration/test_competitor_a2a_gateway.py`
+- 可重复真实冒烟：`scripts/smoke_official_product_live.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

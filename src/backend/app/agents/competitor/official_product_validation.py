@@ -138,9 +138,7 @@ class OfficialProductOutputValidator:
             evidence_coverage=coverage,
         )
         findings = self._findings(output)
-        unknowns = self._unique(
-            [*output.unknowns, *(gap.question for gap in output.research_gaps)]
-        )
+        unknowns = self._unique([*output.unknowns, *(gap.question for gap in output.research_gaps)])
         return CompetitorSpecialistArtifact(
             a2a_task_id=a2a_task_id,
             request_id=request.request_id,
@@ -164,9 +162,7 @@ class OfficialProductOutputValidator:
         findings: list[CompetitorFinding] = []
         for product in output.products:
             model_suffix = (
-                f"，型号：{', '.join(product.model_numbers)}"
-                if product.model_numbers
-                else ""
+                f"，型号：{', '.join(product.model_numbers)}" if product.model_numbers else ""
             )
             findings.append(
                 CompetitorFinding(
@@ -180,9 +176,7 @@ class OfficialProductOutputValidator:
                         f"{model_suffix}。"
                     ),
                     evidence_ids=product.evidence_ids,
-                    confidence=min(
-                        [fact.confidence for fact in product.facts] or [0.8]
-                    ),
+                    confidence=min([fact.confidence for fact in product.facts] or [0.8]),
                 )
             )
             for fact in product.facts:

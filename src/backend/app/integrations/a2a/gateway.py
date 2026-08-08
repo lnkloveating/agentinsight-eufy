@@ -54,7 +54,7 @@ class CompetitorA2AGateway:
         registry: A2ASpecialistRegistry,
         event_broker: ProjectEventBroker,
         *,
-        specialist_timeout_seconds: float = 120,
+        specialist_timeout_seconds: float = 300,
     ) -> None:
         if specialist_timeout_seconds <= 0:
             raise ValueError("specialist_timeout_seconds must be positive")
@@ -99,8 +99,7 @@ class CompetitorA2AGateway:
         unexpected = [
             result
             for result in raw_results
-            if isinstance(result, BaseException)
-            and not isinstance(result, A2AGatewayError)
+            if isinstance(result, BaseException) and not isinstance(result, A2AGatewayError)
         ]
         if unexpected:
             raise RuntimeError("unexpected competitor A2A task failure") from unexpected[0]
@@ -261,9 +260,7 @@ class CompetitorA2AGateway:
                         A2ATaskStatus.BLOCKED,
                     }
                 ):
-                    artifact = CompetitorSpecialistArtifact.model_validate(
-                        existing.output_json
-                    )
+                    artifact = CompetitorSpecialistArtifact.model_validate(existing.output_json)
                     await projects.add_event(
                         self._event(
                             request.project_id,
@@ -288,14 +285,8 @@ class CompetitorA2AGateway:
 
                 now = datetime.now(UTC)
                 adapter_type = binding.adapter_type if binding is not None else "unbound"
-                status = (
-                    A2ATaskStatus.RUNNING
-                    if binding is not None
-                    else A2ATaskStatus.BLOCKED
-                )
-                event_type = (
-                    "a2a_task_started" if binding is not None else "a2a_task_blocked"
-                )
+                status = A2ATaskStatus.RUNNING if binding is not None else A2ATaskStatus.BLOCKED
+                event_type = "a2a_task_started" if binding is not None else "a2a_task_blocked"
                 if existing is None:
                     task = A2ATaskModel(
                         a2a_task_id=self._task_id(request),
@@ -312,9 +303,7 @@ class CompetitorA2AGateway:
                         evidence_ids_json=[],
                         trace_id=trace_id,
                         error_code=(
-                            None
-                            if binding is not None
-                            else A2AErrorCode.SPECIALIST_NOT_BOUND
+                            None if binding is not None else A2AErrorCode.SPECIALIST_NOT_BOUND
                         ),
                         error_message=(
                             None
@@ -493,8 +482,7 @@ class CompetitorA2AGateway:
         disallowed = sorted(
             evidence_id
             for evidence_id in artifact.evidence_ids
-            if available[evidence_id].claim_type
-            not in invocation.request.allowed_claim_types
+            if available[evidence_id].claim_type not in invocation.request.allowed_claim_types
         )
         if disallowed:
             raise ValueError(f"specialist artifact cites disallowed evidence: {disallowed}")

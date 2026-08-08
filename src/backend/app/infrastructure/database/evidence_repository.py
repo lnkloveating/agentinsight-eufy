@@ -94,9 +94,7 @@ class EvidenceRepository:
         if claim_types is not None:
             filters.append(EvidenceModel.claim_type.in_(claim_types))
         total = int(
-            await self.session.scalar(
-                select(func.count(EvidenceModel.evidence_id)).where(*filters)
-            )
+            await self.session.scalar(select(func.count(EvidenceModel.evidence_id)).where(*filters))
             or 0
         )
         verified_first = case(

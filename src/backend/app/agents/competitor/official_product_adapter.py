@@ -43,7 +43,7 @@ class OfficialProductModelSpecialistAdapter:
         prompt_registry: PromptRegistry,
         selection_resolver: ProjectModelSelectionResolver,
         *,
-        model_timeout_seconds: float = 90,
+        model_timeout_seconds: float = 180,
         validator: OfficialProductOutputValidator | None = None,
     ) -> None:
         if model_timeout_seconds <= 0:
@@ -203,4 +203,3 @@ class OfficialProductModelSpecialistAdapter:
             retryable=error.retryable,
             details={"model_error_code": error.code},
         )
-

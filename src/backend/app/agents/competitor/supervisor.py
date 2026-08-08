@@ -136,9 +136,7 @@ def _aggregate_results(
     blocked = [result for result in results if result.status is A2ATaskStatus.BLOCKED]
     if results and all(result.status is A2ATaskStatus.BLOCKED for result in results):
         status = ResearchTaskStatus.BLOCKED
-    elif blocked or any(
-        artifact.status is ResearchTaskStatus.PARTIAL for artifact in artifacts
-    ):
+    elif blocked or any(artifact.status is ResearchTaskStatus.PARTIAL for artifact in artifacts):
         status = ResearchTaskStatus.PARTIAL
     else:
         status = ResearchTaskStatus.COMPLETED
@@ -148,10 +146,7 @@ def _aggregate_results(
     )
     unknowns = _unique(
         [unknown for artifact in artifacts for unknown in artifact.unknowns]
-        + [
-            f"{result.request.specialist_type.value} specialist is not bound"
-            for result in blocked
-        ]
+        + [f"{result.request.specialist_type.value} specialist is not bound" for result in blocked]
     )
     errors = _unique(
         [error for artifact in artifacts for error in artifact.errors]
@@ -171,9 +166,7 @@ def _aggregate_results(
         payload={
             "schema_name": "competitor_a2a_foundation",
             "supervisor_mode": "deterministic_dispatch_and_aggregation",
-            "evidence_requests": [
-                result.request.model_dump(mode="json") for result in results
-            ],
+            "evidence_requests": [result.request.model_dump(mode="json") for result in results],
             "specialist_tasks": [
                 {
                     "a2a_task_id": result.a2a_task_id,
@@ -185,9 +178,7 @@ def _aggregate_results(
                 }
                 for result in results
             ],
-            "specialist_outputs": [
-                artifact.model_dump(mode="json") for artifact in artifacts
-            ],
+            "specialist_outputs": [artifact.model_dump(mode="json") for artifact in artifacts],
             "synthesis_status": "not_implemented_in_foundation",
         },
         evidence_ids=evidence_ids,

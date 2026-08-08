@@ -171,9 +171,7 @@ def _ingest_official_page(client: TestClient, project_id: str) -> list[str]:
     )
     assert registered.status_code == 201
     source_asset_id = registered.json()["source_asset"]["source_asset_id"]
-    processed = client.post(
-        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing"
-    )
+    processed = client.post(f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing")
     assert processed.status_code == 200
     assert processed.json()["job"]["status"] == "succeeded"
     fragments = client.get(
@@ -269,15 +267,14 @@ def test_authorized_webpage_flows_to_real_official_product_specialist_contract(
 
     a2a_tasks = list(raw_tasks)
     model_calls = list(raw_model_calls)
-    official_task = next(
-        task for task in a2a_tasks if task.specialist_type == "official_product"
-    )
+    official_task = next(task for task in a2a_tasks if task.specialist_type == "official_product")
     assert artifact.status == "partial"  # The other two specialists are intentionally unbound.
     assert official_task.status == "completed"
     assert official_task.output_json["evidence_ids"] == sorted(provider.evidence_ids)
-    assert official_task.output_json["structured_payload"]["products"][0][
-        "scope_label"
-    ] == "Target Doorbell"
+    assert (
+        official_task.output_json["structured_payload"]["products"][0]["scope_label"]
+        == "Target Doorbell"
+    )
     assert connector.calls == ["https://vendor.example/products/target-doorbell"]
     assert len(provider.requests) == 1
     assert all(

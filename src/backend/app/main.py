@@ -48,9 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """创建供测试、开发和生产环境复用的 FastAPI 应用。"""
     resolved_settings = settings or get_settings()
     credential_resolver = (
-        EnvironmentCredentialResolver.from_dotenv(
-            resolved_settings.model_credentials_env_file
-        )
+        EnvironmentCredentialResolver.from_dotenv(resolved_settings.model_credentials_env_file)
         if resolved_settings.model_credentials_env_file is not None
         else EnvironmentCredentialResolver()
     )
@@ -63,9 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resolved_settings.openai_compatible_providers_json
     ):
         model_provider_registry.register(
-            OpenAICompatibleProvider(
-                provider_config.provider_id, provider_config.base_url
-            )
+            OpenAICompatibleProvider(provider_config.provider_id, provider_config.base_url)
         )
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
@@ -120,9 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 application.state.model_gateway,
                 prompt_registry,
                 ProjectModelSelectionResolver(database),
-                model_timeout_seconds=(
-                    resolved_settings.competitor_official_model_timeout_seconds
-                ),
+                model_timeout_seconds=(resolved_settings.competitor_official_model_timeout_seconds),
             ),
         )
         application.state.a2a_specialist_registry = a2a_specialist_registry
@@ -144,9 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         agent_registry.bind(
             ResearchAgentType.COMPETITOR_RESEARCH,
-            CompetitorA2ASupervisorAdapter(
-                application.state.competitor_a2a_gateway
-            ),
+            CompetitorA2ASupervisorAdapter(application.state.competitor_a2a_gateway),
         )
         application.state.agent_registry = agent_registry
         if resolved_settings.auto_create_schema:

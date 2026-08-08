@@ -127,4 +127,3 @@ class OfficialProductPayload(StrictModel):
     contradictions: list[OfficialContradiction]
     research_gaps: list[OfficialResearchGap]
     evidence_coverage: OfficialProductEvidenceCoverage
-

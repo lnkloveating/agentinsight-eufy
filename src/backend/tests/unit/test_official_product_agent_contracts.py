@@ -113,9 +113,7 @@ def test_completed_official_output_becomes_cited_specialist_artifact() -> None:
     assert artifact.evidence_ids == ["ev_official"]
     assert len(artifact.findings) == 2
     assert all(finding.evidence_ids == ["ev_official"] for finding in artifact.findings)
-    assert artifact.structured_payload["schema_name"] == (
-        "official_product_intelligence"
-    )
+    assert artifact.structured_payload["schema_name"] == ("official_product_intelligence")
     assert artifact.structured_payload["evidence_coverage"] == {
         "requested_product_count": 1,
         "represented_product_count": 1,
@@ -131,25 +129,19 @@ def test_completed_official_output_becomes_cited_specialist_artifact() -> None:
 
 def test_official_validator_rejects_context_escape_and_scope_substitution() -> None:
     validator = OfficialProductOutputValidator()
-    with pytest.raises(
-        OfficialProductValidationError, match="未提供给模型"
-    ) as unsupported:
+    with pytest.raises(OfficialProductValidationError, match="未提供给模型") as unsupported:
         validator.validate(
             a2a_task_id="a2a_official",
             request=_request(),
             evidence_context=_evidence_context(),
             output=_output("ev_outside"),
         )
-    assert unsupported.value.details == {
-        "unsupported_evidence_ids": ["ev_outside"]
-    }
+    assert unsupported.value.details == {"unsupported_evidence_ids": ["ev_outside"]}
 
     substituted = _output().model_copy(
         update={
             "products": [
-                _output().products[0].model_copy(
-                    update={"scope_label": "Different Product"}
-                )
+                _output().products[0].model_copy(update={"scope_label": "Different Product"})
             ]
         }
     )
@@ -207,4 +199,3 @@ def test_model_contract_rejects_duplicate_product_and_fact_identifiers() -> None
             summary_evidence_ids=["ev_official"],
             products=[product, product],
         )
-

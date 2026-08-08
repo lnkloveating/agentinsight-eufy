@@ -40,4 +40,3 @@ def register_official_product_prompt(registry: PromptRegistry) -> None:
         ),
         activate=True,
     )
-

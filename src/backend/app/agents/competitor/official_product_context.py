@@ -125,4 +125,3 @@ class OfficialProductEvidenceContextBuilder:
             separators=(",", ":"),
         )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
