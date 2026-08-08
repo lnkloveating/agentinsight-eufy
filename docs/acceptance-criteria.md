@@ -16,6 +16,26 @@ Artifact 才能标记为 `completed`。证据不足时必须返回 `partial` 或
 - `tests/integration/test_user_research_agent.py`
 - `tests/integration/test_user_research_api.py`
 
+## AC-03B 竞品 A2A 运行底座
+
+竞品主管必须把同一竞品研究任务拆分为官方产品、价格渠道和用户评价三个独立
+`EvidenceRequest`，并并行交给显式绑定的专家 Adapter。每个专家任务保存独立的
+`A2A Task`、attempt、trace、状态、错误类别和 Evidence IDs。专家未绑定时必须返回
+`blocked`，不得生成占位竞品结论；专家产生的每个事实发现都必须引用本次受控
+Evidence Context 中允许类型的 Evidence ID。
+
+任一已绑定专家失败时，竞品主管本轮不得生成成功 Artifact。再次运行相同输入时，
+已完成专家结果必须复用，只重跑失败的专家；输入 Evidence Context 或任务范围发生变化
+时不得复用旧结果。该底座只做任务拆分、运行审计和确定性聚合，不包含真实专家 Prompt、
+竞品能力矩阵或差异化结论。
+
+自动化映射：
+
+- `tests/unit/test_competitor_a2a_contracts.py`
+- `tests/integration/test_competitor_a2a_gateway.py`
+- `tests/integration/test_competitor_a2a_supervisor.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

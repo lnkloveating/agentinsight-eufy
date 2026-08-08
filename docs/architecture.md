@@ -72,7 +72,7 @@ flowchart LR
 
 工作流节点只依赖统一的 Runtime 协议，不直接依赖模型 SDK、CLI 或 A2A 客户端。Gateway 为每次调用建立独立运行记录，校验输入 Artifact 的项目归属和输出 schema，并保存不可变的版本化 Artifact、Evidence IDs、未知项和输入血缘。超时、取消、未绑定、权限、schema 与 Adapter 错误使用稳定错误码记录；失败调用不生成研究 Artifact。
 
-当前只实现 Runtime Core 和显式 Adapter 注册边界。真实模型调用、外部 Agent Runtime 与竞品 A2A 将在后续分支实现对应 Adapter；生产代码不会回退到测试 Runtime 或伪造研究结果。
+当前已经实现 Runtime Core、真实 Model Gateway、受控 External CLI Runtime，以及竞品主管与三类专家的 A2A 并行运行底座。三个真实竞品专家及其业务 Prompt 仍需在后续分支分别实现；生产代码不会回退到测试 Runtime 或伪造研究结果。
 
 ## Model Gateway
 

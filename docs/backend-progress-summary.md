@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、原始资料接入、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway 与安全的 OpenCode CLI Runtime 已经完成；领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、原始资料接入、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent 与竞品 A2A 运行底座已经完成；其余领域 Agent 和三个真实竞品专家尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -42,6 +42,8 @@ http://localhost:8000/api/v1
 | External CLI Runtime | 固定 Driver 注册、CLI 健康探测、项目/运行隔离目录、输出限制、超时/取消、密钥脱敏、OpenCode Driver | 可以通过 `/runtimes` 展示外部 Agent 是否真实可用；不能把未声明的网站/视频能力标成可用 |
 | Model Gateway | 模型目录、项目默认模型、Agent 级覆盖、Prompt 版本、结构化输出、重试、Token/成本审计 | 可以实现模型选择器和 Agent 调用审计展示 |
 | 主办方模型路由 | 已接入 GLM 5.2 与 DeepSeek V4 Pro，并完成真实联网冒烟测试 | 前端只使用 `/models` 返回的 `model_id`，不接触 API Key |
+| 用户研究 Agent | 消费受控 Evidence Context，输出带 Evidence IDs 的事件链、痛点和未满足需求 | 可以启动真实用户研究并展示证据覆盖、未知项和模型审计 |
+| 竞品 A2A Foundation | 竞品主管、三类 EvidenceRequest、并行专家网关、A2A Task 审计、超时和定向恢复 | 可以按 SSE 事件展示三条专家泳道；真实专家未绑定时明确 blocked |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
 
@@ -57,10 +59,10 @@ http://localhost:8000/api/v1
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 用户研究、竞品、产品技术、商业和红队等业务 Prompt；
+- 三个竞品专家、产品技术、商业和红队等业务 Prompt；
 - 把已验证 SourceFragment 提供给领域 Agent 和外部 Runtime 的语义分析接线；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
-- 竞品 A2A Runtime；
+- 竞品能力矩阵与差异化综合；
 - 最终报告、Package Risk Demo 和飞书集成。
 
 生产环境没有注册业务 Prompt 或真实业务 Adapter 时会明确失败，不会用 Mock 结果冒充调研完成。
@@ -110,7 +112,7 @@ http://localhost:8000/api/v1
 - Package Risk Demo Result；
 - 最终报告和方法对照指标；
 - 飞书 Aily Skills、审批卡片和文档沉淀；
-- 外部 Runtime 任务启动/取消、竞品 A2A 和真实资料解析任务控制。
+- 外部 Runtime 任务启动/取消、A2A 子任务查询/控制和真实资料解析任务控制。
 
 ## 4. 前端需要立即对齐的数据契约
 
@@ -372,20 +374,21 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 104 passed
+pytest: 143 passed
 ruff: passed
-mypy: passed（107 个源文件）
-Alembic: 空数据库升级到 0007_source_processing_pipeline 并降级回 0006_source_ingestion 通过
+mypy: passed（123 个源文件）
+Alembic: 空数据库升级到 0008_competitor_a2a_foundation、降级到 0007 后再次升级通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 冒烟测试通过
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
 ```
 
-接下来的后端开发顺序应从多 Runtime 执行端和领域分析开始：
+接下来的后端开发顺序应从三个真实竞品专家和领域分析开始：
 
 ```text
-External Runtime Drivers（Codex / Claude Code，按真实安装和凭据启用）
-→ User Research Agent（消费已验证 SourceFragment）
-→ Competitor A2A
+Competitor Official Product Specialist
+→ Competitor Price & Channel Specialist
+→ Competitor User Review Specialist
+→ Competitor Synthesis & Evidence Audit
 → Product Technical Agent
 → Commercial Agent
 → Red Team Revision

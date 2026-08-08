@@ -16,6 +16,7 @@ htmlcov/
 .codex-venv/
 .venv313/
 .python-packages/
+.test-tmp/
 
 # Node
 node_modules/

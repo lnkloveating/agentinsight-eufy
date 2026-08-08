@@ -428,3 +428,78 @@ async def test_specialist_timeout_is_retryable_and_audited() -> None:
         assert tasks[0].error_code == A2AErrorCode.TIMEOUT
     finally:
         await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_pre_cancelled_batch_marks_bound_specialist_cancelled() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    await _seed(database)
+    try:
+        registry = A2ASpecialistRegistry()
+        registry.bind(
+            CompetitorSpecialistType.OFFICIAL_PRODUCT,
+            RecordingAdapter({}),
+        )
+        gateway = CompetitorA2AGateway(database, registry, ProjectEventBroker())
+        token = CancellationToken()
+        token.cancel()
+
+        with pytest.raises(CompetitorA2ABatchError) as failure:
+            await gateway.execute_all(
+                parent_agent_run_id="run_competitor",
+                trace_id="trace_cancelled",
+                requests=[_requests()[0]],
+                context=_context(),
+                cancellation_token=token,
+            )
+
+        assert failure.value.failures[0].code is A2AErrorCode.CANCELLED
+        async with database.session() as session:
+            tasks = await A2ATaskRepository(session).list_for_parent(
+                "project_a2a", "task_competitor_research"
+            )
+        assert tasks[0].status == A2ATaskStatus.CANCELLED
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_changed_evidence_context_invalidates_all_reusable_results() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    await _seed(database)
+    try:
+        calls: dict[CompetitorSpecialistType, int] = {}
+        registry = A2ASpecialistRegistry()
+        for specialist_type in CompetitorSpecialistType:
+            registry.bind(specialist_type, RecordingAdapter(calls))
+        gateway = CompetitorA2AGateway(database, registry, ProjectEventBroker())
+        original_context = _context()
+
+        first = await gateway.execute_all(
+            parent_agent_run_id="run_competitor",
+            trace_id="trace_original_context",
+            requests=_requests(),
+            context=original_context,
+            cancellation_token=CancellationToken(),
+        )
+        changed_context = original_context.model_copy(
+            update={
+                "evidence_context": original_context.evidence_context.model_copy(
+                    update={"context_hash": "a" * 64}
+                )
+                if original_context.evidence_context is not None
+                else None
+            }
+        )
+        second = await gateway.execute_all(
+            parent_agent_run_id="run_competitor",
+            trace_id="trace_changed_context",
+            requests=_requests(),
+            context=changed_context,
+            cancellation_token=CancellationToken(),
+        )
+
+        assert all(not result.reused for result in first + second)
+        assert set(calls.values()) == {2}
+    finally:
+        await database.dispose()
