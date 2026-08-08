@@ -21,6 +21,7 @@ from app.application.model_gateway.selection import ProjectModelSelectionResolve
 from app.application.projects import ProjectService
 from app.application.research import UserResearchService
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
+from app.application.source_requirements import SourceRequirementService
 from app.application.source_routing import SourceRoutingService
 from app.application.sources import SourceAssetService, SourceProcessingService
 from app.core.config import Settings
@@ -159,6 +160,21 @@ def get_source_routing_service(request: Request) -> SourceRoutingService:
 
 SourceRoutingServiceDependency = Annotated[
     SourceRoutingService, Depends(get_source_routing_service)
+]
+
+
+def get_source_requirement_service(request: Request) -> SourceRequirementService:
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return SourceRequirementService(
+        database,
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+
+
+SourceRequirementServiceDependency = Annotated[
+    SourceRequirementService, Depends(get_source_requirement_service)
 ]
 
 
