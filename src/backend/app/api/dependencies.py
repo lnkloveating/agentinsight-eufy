@@ -262,7 +262,7 @@ def get_competitor_discovery_service(request: Request) -> CompetitorDiscoverySer
         cast(AgentRegistry, request.app.state.competitor_discovery_registry),
         cast(ProjectEventBroker, request.app.state.event_broker),
         trace_id,
-        max_timeout_seconds=settings.competitor_discovery_model_timeout_seconds,
+        max_timeout_seconds=settings.competitor_discovery_runtime_timeout_seconds,
     )
     return CompetitorDiscoveryService(
         database,
@@ -271,7 +271,7 @@ def get_competitor_discovery_service(request: Request) -> CompetitorDiscoverySer
         trace_id,
         max_input_candidates=settings.competitor_discovery_max_input_candidates,
         max_snippet_chars=settings.competitor_discovery_max_snippet_chars,
-        deadline_seconds=int(settings.competitor_discovery_model_timeout_seconds),
+        deadline_seconds=int(settings.competitor_discovery_runtime_timeout_seconds),
     )
 
 

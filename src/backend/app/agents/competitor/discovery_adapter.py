@@ -25,6 +25,7 @@ from app.application.model_gateway.selection import (
     ProjectModelSelectionResolver,
 )
 from app.application.runtime import AgentInvocation, RuntimeErrorCode, RuntimeGatewayError
+from app.workflows.contracts import ResearchAgentType
 
 
 class CompetitorDiscoveryModelAgentAdapter:
@@ -51,8 +52,8 @@ class CompetitorDiscoveryModelAgentAdapter:
             context = CompetitorDiscoveryInputContext.model_validate(
                 invocation.task.scope["discovery_context"]
             )
-            model_id = await self.selection_resolver.resolve_for_key(
-                invocation.task.project_id, "competitor_discovery"
+            model_id = await self.selection_resolver.resolve(
+                invocation.task.project_id, ResearchAgentType.COMPETITOR_RESEARCH
             )
             prompt = self.prompt_registry.resolve(COMPETITOR_DISCOVERY_PROMPT_KEY)
             rendered = prompt.render(

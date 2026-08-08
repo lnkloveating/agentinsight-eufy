@@ -92,7 +92,7 @@ async def test_competitor_discovery_adapter_uses_model_gateway_and_persists_audi
                 model_selection_json={
                     "default_model_id": "test:default",
                     "agent_overrides": {
-                        "competitor_discovery": "test:competitor-discovery"
+                        "competitor_research": "test:competitor-discovery"
                     },
                 },
                 created_at=now,
