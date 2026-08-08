@@ -46,12 +46,8 @@ class ClaimGate:
         by_id = {candidate.evidence_id: candidate for candidate in candidates}
         rejected: dict[str, str] = {}
 
-        supporting = self._eligible_ids(
-            project_id, requested_supporting_ids, by_id, rejected
-        )
-        contradicting = self._eligible_ids(
-            project_id, requested_contradicting_ids, by_id, rejected
-        )
+        supporting = self._eligible_ids(project_id, requested_supporting_ids, by_id, rejected)
+        contradicting = self._eligible_ids(project_id, requested_contradicting_ids, by_id, rejected)
 
         if contradicting:
             status = ClaimStatus.DISPUTED

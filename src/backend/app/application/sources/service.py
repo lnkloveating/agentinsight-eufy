@@ -127,9 +127,7 @@ class SourceAssetService:
         await self._require_project(project_id)
         normalized_url = normalize_public_url(str(payload.source_url))
         content_hash = source_url_hash(normalized_url)
-        existing = await self.repository.get_by_hash(
-            project_id, SourceAssetKind.LINK, content_hash
-        )
+        existing = await self.repository.get_by_hash(project_id, SourceAssetKind.LINK, content_hash)
         if existing is not None and existing.status == SourceAssetStatus.READY:
             return SourceAssetIngestResult(
                 source_asset=self._to_source_asset(existing), created=False
@@ -344,9 +342,7 @@ class SourceAssetService:
         normalized_url: str,
         now: datetime,
     ) -> None:
-        await self._replace_collection_job(
-            model, SourceMediaCategory.WEBPAGE, normalized_url, now
-        )
+        await self._replace_collection_job(model, SourceMediaCategory.WEBPAGE, normalized_url, now)
         model.status = SourceAssetStatus.READY
         model.display_name = payload.display_name
         model.source_url = str(payload.source_url)
@@ -401,9 +397,7 @@ class SourceAssetService:
             updated_at=now,
         )
 
-    async def _add_event(
-        self, model: SourceAssetModel, event_type: str, now: datetime
-    ) -> None:
+    async def _add_event(self, model: SourceAssetModel, event_type: str, now: datetime) -> None:
         await self.project_repository.add_event(
             ProjectEventModel(
                 event_id=f"evt_{uuid4().hex[:16]}",

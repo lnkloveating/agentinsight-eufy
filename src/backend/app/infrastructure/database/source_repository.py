@@ -30,18 +30,14 @@ class SourceAssetRepository:
         self.session.add(asset)
         await self.session.flush()
 
-    async def get_collection_job(
-        self, collection_job_id: str
-    ) -> CollectionJobModel | None:
+    async def get_collection_job(self, collection_job_id: str) -> CollectionJobModel | None:
         return await self.session.get(CollectionJobModel, collection_job_id)
 
     async def add_parsed_artifact(self, artifact: ParsedArtifactModel) -> None:
         self.session.add(artifact)
         await self.session.flush()
 
-    async def add_source_fragments(
-        self, fragments: list[SourceFragmentModel]
-    ) -> None:
+    async def add_source_fragments(self, fragments: list[SourceFragmentModel]) -> None:
         self.session.add_all(fragments)
         await self.session.flush()
 
@@ -107,9 +103,7 @@ class SourceAssetRepository:
         next_cursor = str(items[-1].ordinal) if has_more and items else None
         return items, next_cursor, total
 
-    async def delete_processing_for_source(
-        self, project_id: str, source_asset_id: str
-    ) -> None:
+    async def delete_processing_for_source(self, project_id: str, source_asset_id: str) -> None:
         await self.session.execute(
             delete(EvidenceModel).where(
                 EvidenceModel.project_id == project_id,

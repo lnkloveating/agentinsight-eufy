@@ -49,6 +49,17 @@ class EvidenceClaimType(StrEnum):
     USER_OPINION = "user_opinion"
     VENDOR_CLAIM = "vendor_claim"
     AGENT_INFERENCE = "agent_inference"
+    PRODUCT_IDENTITY = "product_identity"
+    CAPABILITY = "capability"
+    SPECIFICATION = "specification"
+    COMPATIBILITY = "compatibility"
+    LIMITATION = "limitation"
+    PRICE_OBSERVATION = "price_observation"
+    CHANNEL_AVAILABILITY = "channel_availability"
+    SELLER_INFORMATION = "seller_information"
+    PROMOTION = "promotion"
+    MARKET_FACT = "market_fact"
+    TECHNICAL_FACT = "technical_fact"
 
 
 class ClaimType(StrEnum):

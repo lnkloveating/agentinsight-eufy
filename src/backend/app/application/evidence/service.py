@@ -38,12 +38,8 @@ class EvidenceService:
                 details={"project_id": project_id},
             )
 
-        normalized = normalize_evidence_source(
-            str(payload.source_url), payload.original_excerpt
-        )
-        existing = await self.repository.get_evidence_by_hash(
-            project_id, normalized.content_hash
-        )
+        normalized = normalize_evidence_source(str(payload.source_url), payload.original_excerpt)
+        existing = await self.repository.get_evidence_by_hash(project_id, normalized.content_hash)
         if existing is not None:
             return EvidenceIngestResult(evidence=self._to_evidence(existing), created=False)
 

@@ -88,9 +88,7 @@ class ModelCatalog:
             for item in enabled
         ]
         available_ids = {item.model_id for item in items if item.credential_available}
-        default_model_id = (
-            self.default_model_id if self.default_model_id in available_ids else None
-        )
+        default_model_id = self.default_model_id if self.default_model_id in available_ids else None
         return ModelPage(items=items, default_model_id=default_model_id)
 
     def definitions(self) -> tuple[ModelDefinition, ...]:

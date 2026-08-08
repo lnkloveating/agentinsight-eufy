@@ -83,9 +83,7 @@ class UserResearchModelOutput(StrictModel):
     unmet_needs: list[UserUnmetNeed] = Field(default_factory=list, max_length=20)
     sample_biases: list[SampleBias] = Field(default_factory=list, max_length=20)
     research_gaps: list[ResearchGap] = Field(default_factory=list, max_length=20)
-    contradictions: list[EvidenceContradiction] = Field(
-        default_factory=list, max_length=20
-    )
+    contradictions: list[EvidenceContradiction] = Field(default_factory=list, max_length=20)
     unknowns: list[str] = Field(default_factory=list, max_length=30)
 
     @field_validator("summary_evidence_ids")

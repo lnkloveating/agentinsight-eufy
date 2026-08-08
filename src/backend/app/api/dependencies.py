@@ -11,10 +11,17 @@ from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
 from app.application.innovations import InnovationService
-from app.application.model_gateway import CredentialResolver, ModelCatalog
+from app.application.model_gateway import (
+    CredentialResolver,
+    ModelCatalog,
+    ModelGateway,
+    PromptRegistry,
+)
+from app.application.model_gateway.selection import ProjectModelSelectionResolver
 from app.application.projects import ProjectService
 from app.application.research import UserResearchService
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
+from app.application.source_routing import SourceRoutingService
 from app.application.sources import SourceAssetService, SourceProcessingService
 from app.core.config import Settings
 from app.infrastructure.database import Database
@@ -72,9 +79,7 @@ EvidenceQueryServiceDependency = Annotated[
 ]
 
 
-def get_source_asset_service(
-    request: Request, session: SessionDependency
-) -> SourceAssetService:
+def get_source_asset_service(request: Request, session: SessionDependency) -> SourceAssetService:
     settings: Settings = request.app.state.settings
     trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
     return SourceAssetService(
@@ -89,9 +94,7 @@ def get_source_asset_service(
     )
 
 
-SourceAssetServiceDependency = Annotated[
-    SourceAssetService, Depends(get_source_asset_service)
-]
+SourceAssetServiceDependency = Annotated[SourceAssetService, Depends(get_source_asset_service)]
 
 
 def get_source_processing_service(
@@ -106,9 +109,7 @@ def get_source_processing_service(
             Path(settings.source_storage_root),
             settings.source_max_upload_bytes,
         ),
-        SourceProcessingWorkspaceManager(
-            Path(settings.source_processing_workspace_root)
-        ),
+        SourceProcessingWorkspaceManager(Path(settings.source_processing_workspace_root)),
         default_source_parser_registry(settings.source_processing_max_excerpt_chars),
         web_connector=cast(WebConnector | None, request.app.state.web_connector),
         media_processor=PyAvMediaProcessor(
@@ -117,9 +118,7 @@ def get_source_processing_service(
             frame_interval_seconds=settings.media_processing_frame_interval_seconds,
             max_frames=settings.media_processing_max_frames,
             max_frame_dimension=settings.media_processing_max_frame_dimension,
-            max_decoded_video_frames=(
-                settings.media_processing_max_decoded_video_frames
-            ),
+            max_decoded_video_frames=(settings.media_processing_max_decoded_video_frames),
             audio_sample_rate=settings.media_processing_audio_sample_rate,
             max_audio_bytes=settings.media_processing_max_audio_bytes,
         ),
@@ -136,6 +135,30 @@ def get_source_processing_service(
 
 SourceProcessingServiceDependency = Annotated[
     SourceProcessingService, Depends(get_source_processing_service)
+]
+
+
+def get_source_routing_service(request: Request) -> SourceRoutingService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return SourceRoutingService(
+        database,
+        cast(ModelGateway, request.app.state.model_gateway),
+        cast(PromptRegistry, request.app.state.prompt_registry),
+        ProjectModelSelectionResolver(database),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+        max_fragments=settings.source_routing_max_fragments,
+        max_excerpt_chars=settings.source_routing_max_excerpt_chars,
+        max_total_chars=settings.source_routing_max_total_chars,
+        auto_confirm_threshold=settings.source_routing_auto_confirm_threshold,
+        model_timeout_seconds=settings.source_routing_model_timeout_seconds,
+    )
+
+
+SourceRoutingServiceDependency = Annotated[
+    SourceRoutingService, Depends(get_source_routing_service)
 ]
 
 
@@ -183,9 +206,7 @@ def get_model_credentials(request: Request) -> CredentialResolver:
     return cast(CredentialResolver, request.app.state.model_credentials)
 
 
-ModelCredentialDependency = Annotated[
-    CredentialResolver, Depends(get_model_credentials)
-]
+ModelCredentialDependency = Annotated[CredentialResolver, Depends(get_model_credentials)]
 
 
 def get_external_runtime_catalog(request: Request) -> ExternalRuntimeCatalog:
@@ -216,6 +237,4 @@ def get_user_research_service(request: Request) -> UserResearchService:
     return UserResearchService(database, runtime, context_builder)
 
 
-UserResearchServiceDependency = Annotated[
-    UserResearchService, Depends(get_user_research_service)
-]
+UserResearchServiceDependency = Annotated[UserResearchService, Depends(get_user_research_service)]

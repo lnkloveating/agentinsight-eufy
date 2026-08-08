@@ -23,7 +23,5 @@ async def list_evidence(
 
 
 @router.get("/{project_id}/claims", response_model=list[Claim])
-async def list_claims(
-    project_id: str, service: EvidenceQueryServiceDependency
-) -> list[Claim]:
+async def list_claims(project_id: str, service: EvidenceQueryServiceDependency) -> list[Claim]:
     return await service.list_claims(project_id)

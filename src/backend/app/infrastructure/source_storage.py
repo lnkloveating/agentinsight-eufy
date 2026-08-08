@@ -139,9 +139,7 @@ class LocalSourceStorage:
         directory.mkdir(parents=True, exist_ok=True)
         storage_key = f"{directory_key}/{artifact_id}{suffix}"
         final_path = self._resolve_key(storage_key)
-        temporary_path = self._resolve_key(
-            f"{directory_key}/.{artifact_id}.capturing"
-        )
+        temporary_path = self._resolve_key(f"{directory_key}/.{artifact_id}.capturing")
         try:
             temporary_path.write_bytes(content)
             temporary_path.replace(final_path)
@@ -178,9 +176,7 @@ class LocalSourceStorage:
                 message="The derived media artifact type is invalid.",
                 status_code=422,
             )
-        storage_key = (
-            f"{project_id}/{source_asset_id}.media/{artifact_id}{suffix}"
-        )
+        storage_key = f"{project_id}/{source_asset_id}.media/{artifact_id}{suffix}"
         path = self._resolve_key(storage_key)
         if not path.is_file():
             raise AppError(

@@ -125,9 +125,7 @@ class AgentRunModel(Base):
     prompt_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    estimated_cost_microusd: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
+    estimated_cost_microusd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     project: Mapped[ProjectModel] = relationship(back_populates="agent_runs")
     artifacts: Mapped[list["AgentArtifactModel"]] = relationship(back_populates="agent_run")
@@ -162,9 +160,7 @@ class ModelCallModel(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    estimated_cost_microusd: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
+    estimated_cost_microusd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     provider_request_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
@@ -321,9 +317,7 @@ class CollectionJobModel(Base):
     """一次外部资料采集尝试，包括失败和降级结果。"""
 
     __tablename__ = "collection_jobs"
-    __table_args__ = (
-        Index("ix_collection_jobs_project_status", "project_id", "status"),
-    )
+    __table_args__ = (Index("ix_collection_jobs_project_status", "project_id", "status"),)
 
     collection_job_id: Mapped[str] = mapped_column(String(40), primary_key=True)
     project_id: Mapped[str] = mapped_column(
@@ -347,9 +341,7 @@ class CollectionJobModel(Base):
     )
 
     project: Mapped[ProjectModel] = relationship(back_populates="collection_jobs")
-    evidence_records: Mapped[list["EvidenceModel"]] = relationship(
-        back_populates="collection_job"
-    )
+    evidence_records: Mapped[list["EvidenceModel"]] = relationship(back_populates="collection_job")
     source_asset: Mapped["SourceAssetModel | None"] = relationship(
         back_populates="collection_job", uselist=False
     )
@@ -409,6 +401,44 @@ class SourceAssetModel(Base):
     collection_job: Mapped[CollectionJobModel] = relationship(back_populates="source_asset")
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="source_asset", cascade="all, delete-orphan"
+    )
+
+
+class SourceRoutingModel(Base):
+    """一份资料的可审计多标签分发建议与人工确认结果。"""
+
+    __tablename__ = "source_routings"
+    __table_args__ = (
+        UniqueConstraint("source_asset_id", name="uq_source_routing_source_asset"),
+        Index("ix_source_routings_project_status", "project_id", "status"),
+    )
+
+    source_routing_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    method: Mapped[str] = mapped_column(String(30), nullable=False)
+    suggestions_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    confirmed_routes_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    confirmed_claim_types_json: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    rule_signals_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    model_call_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
     )
 
 
@@ -628,9 +658,7 @@ class InnovationModel(Base):
     )
     red_team_review_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    score_breakdown_json: Mapped[dict[str, Any]] = mapped_column(
-        JSON, nullable=False, default=dict
-    )
+    score_breakdown_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     base_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     final_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     gate_issues_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)

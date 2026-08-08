@@ -16,9 +16,10 @@ class ProjectModelSelectionResolver:
     def __init__(self, database: Database) -> None:
         self.database = database
 
-    async def resolve(
-        self, project_id: str, agent_type: ResearchAgentType
-    ) -> str:
+    async def resolve(self, project_id: str, agent_type: ResearchAgentType) -> str:
+        return await self.resolve_for_key(project_id, agent_type.value)
+
+    async def resolve_for_key(self, project_id: str, agent_key: str) -> str:
         async with self.database.session() as session:
             project = await session.get(ProjectModel, project_id)
         if project is None:
@@ -30,6 +31,4 @@ class ProjectModelSelectionResolver:
                 "MODEL_SELECTION_MISSING", "project has no model selection"
             )
         selection = ModelSelection.model_validate(project.model_selection_json)
-        return selection.agent_overrides.get(
-            agent_type.value, selection.default_model_id
-        )
+        return selection.agent_overrides.get(agent_key, selection.default_model_id)

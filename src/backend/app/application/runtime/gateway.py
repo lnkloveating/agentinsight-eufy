@@ -94,12 +94,7 @@ class AgentRuntimeGateway:
 
         binding = self.registry.resolve(task.agent_type)
         input_artifact_ids = tuple(
-            sorted(
-                {
-                    artifact.artifact_id
-                    for artifact in context.upstream_artifacts.values()
-                }
-            )
+            sorted({artifact.artifact_id for artifact in context.upstream_artifacts.values()})
         )
         timeout_seconds = self._timeout_seconds(task)
         run = await self._create_run(

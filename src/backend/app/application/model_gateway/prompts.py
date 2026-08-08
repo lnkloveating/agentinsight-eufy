@@ -23,9 +23,7 @@ class PromptDefinition:
         self._variables(self.user_template)
 
     def render(self, variables: dict[str, Any]) -> "RenderedPrompt":
-        required = self._variables(self.system_template) | self._variables(
-            self.user_template
-        )
+        required = self._variables(self.system_template) | self._variables(self.user_template)
         missing = sorted(required - set(variables))
         if missing:
             raise PromptRegistryError(f"missing prompt variables: {', '.join(missing)}")
@@ -74,9 +72,7 @@ class PromptRegistry:
         if activate or definition.prompt_key not in self._active_versions:
             self._active_versions[definition.prompt_key] = definition.version
 
-    def resolve(
-        self, prompt_key: str, version: str | None = None
-    ) -> PromptDefinition:
+    def resolve(self, prompt_key: str, version: str | None = None) -> PromptDefinition:
         resolved_version = version or self._active_versions.get(prompt_key)
         if resolved_version is None:
             raise PromptRegistryError(f"prompt is not registered: {prompt_key}")
@@ -89,7 +85,5 @@ class PromptRegistry:
 
     def activate(self, prompt_key: str, version: str) -> None:
         if (prompt_key, version) not in self._definitions:
-            raise PromptRegistryError(
-                f"prompt version is not registered: {prompt_key}:{version}"
-            )
+            raise PromptRegistryError(f"prompt version is not registered: {prompt_key}:{version}")
         self._active_versions[prompt_key] = version

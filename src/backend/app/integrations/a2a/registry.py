@@ -42,4 +42,3 @@ class A2ASpecialistRegistry:
 
     def bindings(self) -> tuple[SpecialistBinding, ...]:
         return tuple(self._bindings.values())
-

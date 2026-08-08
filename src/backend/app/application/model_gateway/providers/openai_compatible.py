@@ -64,9 +64,7 @@ class OpenAICompatibleProvider:
         *,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        config = OpenAICompatibleProviderConfig(
-            provider_id=provider_id, base_url=base_url
-        )
+        config = OpenAICompatibleProviderConfig(provider_id=provider_id, base_url=base_url)
         self._provider_id = config.provider_id
         self.base_url = config.base_url
         self._client = client
@@ -171,12 +169,9 @@ class OpenAICompatibleProvider:
     @staticmethod
     def _payload(request: ProviderModelRequest) -> dict[str, Any]:
         messages = [
-            {"role": message.role, "content": message.content}
-            for message in request.messages
+            {"role": message.role, "content": message.content} for message in request.messages
         ]
-        structured_output_mode = str(
-            request.options.get("structured_output_mode", "json_schema")
-        )
+        structured_output_mode = str(request.options.get("structured_output_mode", "json_schema"))
         payload: dict[str, Any] = {
             "model": request.provider_model,
             "messages": messages,
@@ -204,9 +199,7 @@ class OpenAICompatibleProvider:
                     "role": "system",
                     "content": (
                         "Return only one JSON object matching this JSON Schema: "
-                        + json.dumps(
-                            request.response_schema, ensure_ascii=False, sort_keys=True
-                        )
+                        + json.dumps(request.response_schema, ensure_ascii=False, sort_keys=True)
                     ),
                 },
             ]

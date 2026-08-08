@@ -270,9 +270,7 @@ class InnovationService:
                 details={"project_id": project_id},
             )
 
-    async def _require_innovation(
-        self, project_id: str, innovation_id: str
-    ) -> InnovationModel:
+    async def _require_innovation(self, project_id: str, innovation_id: str) -> InnovationModel:
         model = await self.repository.get(project_id, innovation_id)
         if model is None:
             raise AppError(

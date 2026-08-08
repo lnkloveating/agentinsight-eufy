@@ -26,6 +26,4 @@ class UnboundAgentRuntime:
         context: AgentContext,
     ) -> ResearchArtifact:
         del context
-        raise AgentRuntimeNotBoundError(
-            f"AGENT_RUNTIME_NOT_BOUND:{task.agent_type}:{task.task_id}"
-        )
+        raise AgentRuntimeNotBoundError(f"AGENT_RUNTIME_NOT_BOUND:{task.agent_type}:{task.task_id}")

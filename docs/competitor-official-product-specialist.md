@@ -26,6 +26,7 @@ GLM 5.2 或 DeepSeek V4 Pro；API Key 只从后端环境读取，不会进入 Pr
 ## 输入证据规则
 
 - 只读取当前项目内 `verified` 或 `partially_verified` 的 Evidence；
+- Evidence 所属 Source Asset 必须具有已确认的 `official_product` route；
 - 只接受 `vendor_claim` 和 `fact` Claim 类型；
 - 每次模型调用使用有上限的 Evidence Context；
 - Prompt 中保留 Evidence ID、原文、来源和产品范围；

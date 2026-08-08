@@ -79,18 +79,14 @@ class SourceProcessingService:
         self.trace_id = trace_id
         self.event_broker = event_broker
 
-    async def get_status(
-        self, project_id: str, source_asset_id: str
-    ) -> SourceProcessingStatus:
+    async def get_status(self, project_id: str, source_asset_id: str) -> SourceProcessingStatus:
         asset, job = await self._require_asset_and_job(project_id, source_asset_id)
         artifact = await self.repository.get_parsed_artifact(
             project_id, source_asset_id, job.collection_job_id
         )
         return self._to_status(asset, job, artifact)
 
-    async def process(
-        self, project_id: str, source_asset_id: str
-    ) -> SourceProcessingStatus:
+    async def process(self, project_id: str, source_asset_id: str) -> SourceProcessingStatus:
         asset, job = await self._require_asset_and_job(project_id, source_asset_id)
         if job.status == CollectionJobStatus.SUCCEEDED:
             return await self.get_status(project_id, source_asset_id)
@@ -253,9 +249,7 @@ class SourceProcessingService:
                     ordinal=ordinal,
                     locator_json=candidate.locator.model_dump(mode="json"),
                     original_excerpt=candidate.original_excerpt,
-                    excerpt_hash=sha256(
-                        candidate.original_excerpt.encode("utf-8")
-                    ).hexdigest(),
+                    excerpt_hash=sha256(candidate.original_excerpt.encode("utf-8")).hexdigest(),
                     verification_status=verification_status,
                     created_at=completed_at,
                 )
@@ -271,26 +265,21 @@ class SourceProcessingService:
                 "progress": 100,
                 "verification": (
                     "human_review_required"
-                    if verification_status
-                    is SourceFragmentVerificationStatus.DERIVED
+                    if verification_status is SourceFragmentVerificationStatus.DERIVED
                     else "deterministic"
                 ),
                 **processing_result,
             }
             job.completed_at = completed_at
             job.updated_at = completed_at
-            await self._add_event(
-                asset, job, "source_processing_succeeded", completed_at
-            )
+            await self._add_event(asset, job, "source_processing_succeeded", completed_at)
             await self.repository.commit()
             await self.event_broker.notify(project_id)
             return self._to_status(asset, job, artifact)
         except MediaProcessingError as exc:
             await self.repository.rollback()
             self.storage.delete(captured_storage_key)
-            current_asset = await self.repository.get_by_project(
-                project_id, source_asset_id
-            )
+            current_asset = await self.repository.get_by_project(project_id, source_asset_id)
             current_job = await self.repository.get_collection_job(collection_job_id)
             if current_asset is None or current_job is None:
                 raise
@@ -305,9 +294,7 @@ class SourceProcessingService:
         except WebConnectorError as exc:
             await self.repository.rollback()
             self.storage.delete(captured_storage_key)
-            current_asset = await self.repository.get_by_project(
-                project_id, source_asset_id
-            )
+            current_asset = await self.repository.get_by_project(project_id, source_asset_id)
             current_job = await self.repository.get_collection_job(collection_job_id)
             if current_asset is None or current_job is None:
                 raise
@@ -321,9 +308,7 @@ class SourceProcessingService:
         except SourceParserError as exc:
             await self.repository.rollback()
             self.storage.delete(captured_storage_key)
-            current_asset = await self.repository.get_by_project(
-                project_id, source_asset_id
-            )
+            current_asset = await self.repository.get_by_project(project_id, source_asset_id)
             current_job = await self.repository.get_collection_job(collection_job_id)
             if current_asset is None or current_job is None:
                 raise
@@ -337,9 +322,7 @@ class SourceProcessingService:
         except AppError as exc:
             await self.repository.rollback()
             self.storage.delete(captured_storage_key)
-            current_asset = await self.repository.get_by_project(
-                project_id, source_asset_id
-            )
+            current_asset = await self.repository.get_by_project(project_id, source_asset_id)
             current_job = await self.repository.get_collection_job(collection_job_id)
             if current_asset is None or current_job is None:
                 raise
@@ -353,9 +336,7 @@ class SourceProcessingService:
         except Exception:
             await self.repository.rollback()
             self.storage.delete(captured_storage_key)
-            current_asset = await self.repository.get_by_project(
-                project_id, source_asset_id
-            )
+            current_asset = await self.repository.get_by_project(project_id, source_asset_id)
             current_job = await self.repository.get_collection_job(collection_job_id)
             if current_asset is None or current_job is None:
                 raise
@@ -369,9 +350,7 @@ class SourceProcessingService:
         finally:
             self.workspaces.cleanup(workspace)
 
-    async def retry(
-        self, project_id: str, source_asset_id: str
-    ) -> SourceProcessingStatus:
+    async def retry(self, project_id: str, source_asset_id: str) -> SourceProcessingStatus:
         asset, job = await self._require_asset_and_job(project_id, source_asset_id)
         if job.status == CollectionJobStatus.SUCCEEDED:
             return await self.get_status(project_id, source_asset_id)
@@ -401,9 +380,7 @@ class SourceProcessingService:
         await self.repository.commit()
         return await self.process(project_id, source_asset_id)
 
-    async def cancel(
-        self, project_id: str, source_asset_id: str
-    ) -> SourceProcessingStatus:
+    async def cancel(self, project_id: str, source_asset_id: str) -> SourceProcessingStatus:
         asset, job = await self._require_asset_and_job(project_id, source_asset_id)
         if job.status != CollectionJobStatus.QUEUED:
             if job.status == CollectionJobStatus.RUNNING:
@@ -494,9 +471,7 @@ class SourceProcessingService:
                 message="The media fragment does not reference a retained artifact.",
                 status_code=409,
             )
-        retained_path, _ = self._resolve_media_artifact(
-            asset, job, locator.media_artifact_id
-        )
+        retained_path, _ = self._resolve_media_artifact(asset, job, locator.media_artifact_id)
         if locator.media_artifact_hash != sha256(retained_path.read_bytes()).hexdigest():
             raise AppError(
                 code="MEDIA_ARTIFACT_HASH_MISMATCH",
@@ -551,9 +526,7 @@ class SourceProcessingService:
         extra_result: dict[str, object] | None = None,
     ) -> SourceProcessingStatus:
         now = datetime.now(UTC)
-        job.status = (
-            CollectionJobStatus.BLOCKED if blocked else CollectionJobStatus.FAILED
-        )
+        job.status = CollectionJobStatus.BLOCKED if blocked else CollectionJobStatus.FAILED
         job.result_json = {
             "source_asset_id": asset.source_asset_id,
             "progress": 100,
@@ -586,9 +559,7 @@ class SourceProcessingService:
         prepared = self.media_processor.prepare(source_path, output_directory)
         try:
             for media_artifact in prepared.artifacts:
-                suffix = (
-                    ".wav" if media_artifact.media_type == "audio/wav" else ".png"
-                )
+                suffix = ".wav" if media_artifact.media_type == "audio/wav" else ".png"
                 stored = self.storage.save_derived_bytes(
                     project_id=project_id,
                     source_asset_id=source_asset_id,
@@ -706,8 +677,7 @@ class SourceProcessingService:
             (
                 candidate
                 for candidate in artifacts
-                if isinstance(candidate, dict)
-                and candidate.get("artifact_id") == media_artifact_id
+                if isinstance(candidate, dict) and candidate.get("artifact_id") == media_artifact_id
             ),
             None,
         )

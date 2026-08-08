@@ -85,9 +85,7 @@ class InternalModelAgentAdapter:
             "task_id": invocation.task.task_id,
             "agent_type": invocation.task.agent_type.value,
             "goal": invocation.task.goal,
-            "scope_json": json.dumps(
-                invocation.task.scope, ensure_ascii=False, sort_keys=True
-            ),
+            "scope_json": json.dumps(invocation.task.scope, ensure_ascii=False, sort_keys=True),
             "brief_json": invocation.context.brief.model_dump_json(),
             "upstream_artifacts_json": json.dumps(
                 {

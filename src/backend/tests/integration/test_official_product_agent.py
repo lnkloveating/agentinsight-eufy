@@ -157,7 +157,12 @@ def _approve_project(client: TestClient) -> str:
     return str(project["project_id"])
 
 
-def _ingest_official_page(client: TestClient, project_id: str) -> list[str]:
+def _ingest_official_page(
+    client: TestClient,
+    project_id: str,
+    *,
+    confirm_routing: bool = True,
+) -> list[str]:
     registered = client.post(
         f"/api/v1/projects/{project_id}/sources/links",
         json={
@@ -174,6 +179,40 @@ def _ingest_official_page(client: TestClient, project_id: str) -> list[str]:
     processed = client.post(f"/api/v1/projects/{project_id}/sources/{source_asset_id}/processing")
     assert processed.status_code == 200
     assert processed.json()["job"]["status"] == "succeeded"
+    routing = client.post(
+        f"/api/v1/projects/{project_id}/sources/{source_asset_id}/routing/analyze",
+        json={"use_model": False},
+    )
+    assert routing.status_code == 200
+    if confirm_routing:
+        confirmed = client.post(
+            f"/api/v1/projects/{project_id}/sources/{source_asset_id}/routing/decision",
+            json={
+                "action": "confirm",
+                "selections": [
+                    {
+                        "route": "official_product",
+                        "claim_types": ["vendor_claim"],
+                    }
+                ],
+                "actor": "research-lead",
+                "reason": "The supplied page is an authorized official product source.",
+            },
+        )
+        assert confirmed.status_code == 200
+        assert confirmed.json()["confirmed_routes"] == ["official_product"]
+    else:
+        rejected = client.post(
+            f"/api/v1/projects/{project_id}/sources/{source_asset_id}/routing/decision",
+            json={
+                "action": "reject",
+                "selections": [],
+                "actor": "research-lead",
+                "reason": "Reject this route to verify downstream isolation.",
+            },
+        )
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "rejected"
     fragments = client.get(
         f"/api/v1/projects/{project_id}/sources/{source_asset_id}/fragments"
     ).json()["items"]
@@ -200,6 +239,29 @@ def _ingest_official_page(client: TestClient, project_id: str) -> list[str]:
         assert evidence["original_excerpt"] == fragment["original_excerpt"]
         evidence_ids.append(str(evidence["evidence_id"]))
     return evidence_ids
+
+
+def test_official_context_excludes_evidence_from_rejected_route(
+    tmp_path: Path,
+) -> None:
+    application = create_app(_settings(tmp_path))
+    application.state.web_connector = OfficialPageConnector()
+
+    with TestClient(application) as client:
+        project_id = _approve_project(client)
+        evidence_ids = _ingest_official_page(client, project_id, confirm_routing=False)
+        context = asyncio.run(
+            OfficialProductEvidenceContextBuilder(
+                application.state.database,
+                max_items=20,
+                max_excerpt_chars=3_000,
+                max_total_chars=20_000,
+            ).build(project_id)
+        )
+
+    assert evidence_ids
+    assert context.items == []
+    assert context.available_evidence_count == 0
 
 
 def test_authorized_webpage_flows_to_real_official_product_specialist_contract(

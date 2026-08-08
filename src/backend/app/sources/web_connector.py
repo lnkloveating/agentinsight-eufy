@@ -16,10 +16,8 @@ from app.sources.validation import normalize_public_url
 
 _HTML_MEDIA_TYPES = {"text/html", "application/xhtml+xml"}
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
-_CHARSET_PATTERN = re.compile(br"charset\s*=\s*[\"']?([a-zA-Z0-9._-]+)", re.I)
-_PASSWORD_INPUT_PATTERN = re.compile(
-    r"<input\b[^>]*\btype\s*=\s*['\"]?password\b", re.I
-)
+_CHARSET_PATTERN = re.compile(rb"charset\s*=\s*[\"']?([a-zA-Z0-9._-]+)", re.I)
+_PASSWORD_INPUT_PATTERN = re.compile(r"<input\b[^>]*\btype\s*=\s*['\"]?password\b", re.I)
 
 
 class WebConnectorError(Exception):
@@ -113,9 +111,7 @@ class SafeHttpWebConnector:
         self.max_redirects = max_redirects
         self.respect_robots_txt = respect_robots_txt
         self.allowed_domains = tuple(
-            domain.strip().rstrip(".").lower()
-            for domain in allowed_domains
-            if domain.strip()
+            domain.strip().rstrip(".").lower() for domain in allowed_domains if domain.strip()
         )
         self.resolver = resolver or SystemHostResolver()
         self.transport = transport
@@ -138,9 +134,7 @@ class SafeHttpWebConnector:
                     if self.respect_robots_txt and origin not in checked_robot_origins:
                         await self._check_robots(client, current_url)
                         checked_robot_origins.add(origin)
-                    snapshot = await self._get_bounded(
-                        client, current_url, self.max_response_bytes
-                    )
+                    snapshot = await self._get_bounded(client, current_url, self.max_response_bytes)
                     if snapshot.status_code in _REDIRECT_STATUSES:
                         if redirect_count >= self.max_redirects:
                             raise WebConnectorError(
@@ -155,9 +149,7 @@ class SafeHttpWebConnector:
                                 "The webpage returned a redirect without a location.",
                                 blocked=True,
                             )
-                        current_url = self._normalize_url(
-                            urljoin(current_url, location)
-                        )
+                        current_url = self._normalize_url(urljoin(current_url, location))
                         continue
                     self._validate_status(snapshot.status_code)
                     media_type = self._media_type(snapshot.headers)
@@ -255,8 +247,7 @@ class SafeHttpWebConnector:
                 blocked=True,
             )
         if self.allowed_domains and not any(
-            hostname == domain or hostname.endswith(f".{domain}")
-            for domain in self.allowed_domains
+            hostname == domain or hostname.endswith(f".{domain}") for domain in self.allowed_domains
         ):
             raise WebConnectorError(
                 "WEB_DOMAIN_NOT_ALLOWED",

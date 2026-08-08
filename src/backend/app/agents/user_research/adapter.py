@@ -61,9 +61,7 @@ class UserResearchModelAgentAdapter:
             model_id = await self.selection_resolver.resolve(
                 invocation.task.project_id, invocation.task.agent_type
             )
-            prompt = self.prompt_registry.resolve(
-                f"agent:{invocation.task.agent_type.value}"
-            )
+            prompt = self.prompt_registry.resolve(f"agent:{invocation.task.agent_type.value}")
             rendered = prompt.render(
                 {
                     "project_id": invocation.task.project_id,

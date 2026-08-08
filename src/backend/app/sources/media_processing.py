@@ -93,9 +93,7 @@ class PreparedMedia:
 
     @property
     def frame_artifacts(self) -> tuple[PreparedMediaArtifact, ...]:
-        return tuple(
-            artifact for artifact in self.artifacts if artifact.role == "video_frame"
-        )
+        return tuple(artifact for artifact in self.artifacts if artifact.role == "video_frame")
 
     def public_manifest(self) -> dict[str, object]:
         return {
@@ -188,9 +186,7 @@ def validate_media_understanding(
         artifact = artifacts.get(observation.media_artifact_id)
         if artifact is None or artifact.role != "video_frame":
             _invalid_understanding("A frame observation referenced an unknown frame artifact.")
-        _validate_text_and_confidence(
-            observation.text, observation.confidence, max_text_chars
-        )
+        _validate_text_and_confidence(observation.text, observation.confidence, max_text_chars)
         if artifact.timestamp_ms is None:
             _invalid_understanding("A frame observation referenced a frame without a timestamp.")
         fragments.append(
@@ -216,9 +212,7 @@ def validate_media_understanding(
     return tuple(fragments)
 
 
-def _validate_text_and_confidence(
-    text: str, confidence: float, max_text_chars: int
-) -> None:
+def _validate_text_and_confidence(text: str, confidence: float, max_text_chars: int) -> None:
     if not text or text != text.strip() or len(text) > max_text_chars:
         _invalid_understanding("A media-derived text fragment was empty or invalid.")
     if not 0 <= confidence <= 1:
@@ -266,9 +260,7 @@ class PyAvMediaProcessor:
                 "The uploaded media container is invalid or unsupported.",
             ) from exc
 
-        if not streams or not any(
-            stream.stream_type in {"audio", "video"} for stream in streams
-        ):
+        if not streams or not any(stream.stream_type in {"audio", "video"} for stream in streams):
             raise MediaProcessingError(
                 "MEDIA_STREAM_MISSING",
                 "The media file does not contain a usable audio or video stream.",
@@ -313,9 +305,7 @@ class PyAvMediaProcessor:
             artifacts=tuple(artifacts),
         )
 
-    def _extract_audio(
-        self, source_path: Path, output_directory: Path
-    ) -> PreparedMediaArtifact:
+    def _extract_audio(self, source_path: Path, output_directory: Path) -> PreparedMediaArtifact:
         destination = output_directory / "audio_track.wav"
         written_pcm_bytes = 0
         try:
@@ -323,9 +313,7 @@ class PyAvMediaProcessor:
                 audio_stream = next(
                     stream for stream in container.streams if stream.type == "audio"
                 )
-                resampler = AudioResampler(
-                    format="s16", layout="mono", rate=self.audio_sample_rate
-                )
+                resampler = AudioResampler(format="s16", layout="mono", rate=self.audio_sample_rate)
                 with wave.open(str(destination), "wb") as output:
                     output.setnchannels(1)
                     output.setsampwidth(2)
@@ -466,9 +454,7 @@ class PyAvMediaProcessor:
     ) -> int:
         if container.duration is not None:
             return max(0, int(container.duration / 1000))
-        durations = [
-            stream.duration_ms for stream in streams if stream.duration_ms is not None
-        ]
+        durations = [stream.duration_ms for stream in streams if stream.duration_ms is not None]
         return max(durations, default=0)
 
     @staticmethod

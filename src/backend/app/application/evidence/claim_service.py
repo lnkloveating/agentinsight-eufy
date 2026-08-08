@@ -37,9 +37,7 @@ class ClaimService:
         self.event_broker = event_broker
         self.gate = gate or ClaimGate()
 
-    async def create_and_evaluate(
-        self, project_id: str, payload: ClaimCreate
-    ) -> ClaimGateResult:
+    async def create_and_evaluate(self, project_id: str, payload: ClaimCreate) -> ClaimGateResult:
         if not await self.repository.project_exists(project_id):
             raise AppError(
                 code="PROJECT_NOT_FOUND",
@@ -108,9 +106,7 @@ class ClaimService:
                         "status": claim_model.status,
                         "eligible_for_factual_use": decision.eligible_for_factual_use,
                         "evidence_ids": list(decision.supporting_evidence_ids),
-                        "contradicting_evidence_ids": list(
-                            decision.contradicting_evidence_ids
-                        ),
+                        "contradicting_evidence_ids": list(decision.contradicting_evidence_ids),
                         "rejected_evidence_ids": decision.rejected_evidence_ids,
                     },
                     trace_id=self.trace_id,
