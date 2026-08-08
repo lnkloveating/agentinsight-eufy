@@ -197,6 +197,52 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/source-requirements:
+    get:
+      tags: [Evidence]
+      summary: 评估项目当前资料准备度
+      description: |
+        基于已保存的产品范围、已确认资料路由和可用于 Agent 的 Evidence 进行确定性评估。
+        该接口不会调用模型、抓取网页或生成事实；资料不足时返回具体补充动作。
+      operationId: getSourceRequirements
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 当前项目的资料准备度和逐项缺口。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRequirementAssessment"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-requirements/scope:
+    put:
+      tags: [Evidence]
+      summary: 保存资料准备度评估使用的产品范围
+      description: |
+        保存目标产品、待比较竞品和研究维度。允许先保存只有品牌、尚无准确型号的范围，
+        但在型号补齐前准备度保持 blocked。每次修改记录 actor、reason 和项目事件。
+      operationId: updateSourceRequirementScope
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRequirementScopeUpdate"
+      responses:
+        "200":
+          description: 保存范围后重新计算的资料准备度。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRequirementAssessment"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/sources:
     get:
       tags: [Evidence]
@@ -1020,6 +1066,26 @@ components:
       type: string
       enum: [user_owned, enterprise_authorized, publicly_available]
 
+    CompetitorResearchDimension:
+      type: string
+      enum: [official_product, price_channel, user_review]
+
+    SourceReadinessStatus:
+      type: string
+      enum: [ready, partial, blocked]
+
+    SourceRequirementStatus:
+      type: string
+      enum: [satisfied, partial, missing, blocked]
+
+    SourceRequirementSeverity:
+      type: string
+      enum: [required, recommended]
+
+    ProductRole:
+      type: string
+      enum: [target, competitor]
+
     SourceRouteTarget:
       type: string
       enum:
@@ -1568,6 +1634,184 @@ components:
             $ref: "#/components/schemas/SourceAsset"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
+    ProductReference:
+      type: object
+      additionalProperties: false
+      required: [brand, model, variant]
+      properties:
+        brand: { type: string, minLength: 1, maxLength: 120 }
+        model: { type: [string, "null"], minLength: 1, maxLength: 160 }
+        variant: { type: [string, "null"], minLength: 1, maxLength: 160 }
+
+    SourceRequirementScopeUpdate:
+      type: object
+      additionalProperties: false
+      required: [target_products, competitors, dimensions, actor, reason]
+      properties:
+        target_products:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ProductReference"
+        competitors:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ProductReference"
+        dimensions:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/CompetitorResearchDimension"
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    SourceRequirementScope:
+      type: object
+      additionalProperties: false
+      required:
+        - target_products
+        - competitors
+        - dimensions
+        - updated_by
+        - update_reason
+        - updated_at
+      properties:
+        target_products:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ProductReference"
+        competitors:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ProductReference"
+        dimensions:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/CompetitorResearchDimension"
+        updated_by: { type: string }
+        update_reason: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    SourceRequirementItem:
+      type: object
+      additionalProperties: false
+      required:
+        - requirement_id
+        - requirement_key
+        - title
+        - severity
+        - status
+        - product_role
+        - product
+        - dimension
+        - accepted_routes
+        - accepted_claim_types
+        - minimum_independent_sources
+        - detected_source_asset_ids
+        - matched_source_asset_ids
+        - matched_evidence_ids
+        - reason
+        - recommended_actions
+      properties:
+        requirement_id: { type: string }
+        requirement_key: { type: string }
+        title: { type: string }
+        severity:
+          $ref: "#/components/schemas/SourceRequirementSeverity"
+        status:
+          $ref: "#/components/schemas/SourceRequirementStatus"
+        product_role:
+          oneOf:
+            - $ref: "#/components/schemas/ProductRole"
+            - type: "null"
+        product:
+          oneOf:
+            - $ref: "#/components/schemas/ProductReference"
+            - type: "null"
+        dimension:
+          oneOf:
+            - $ref: "#/components/schemas/CompetitorResearchDimension"
+            - type: "null"
+        accepted_routes:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SourceRouteTarget"
+        accepted_claim_types:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EvidenceClaimType"
+        minimum_independent_sources: { type: integer, minimum: 0 }
+        detected_source_asset_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        matched_source_asset_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        matched_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        reason: { type: string }
+        recommended_actions:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    SourceRequirementAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        - project_id
+        - status
+        - region
+        - scope
+        - requirements
+        - required_count
+        - satisfied_required_count
+        - missing_required_count
+        - unassigned_source_asset_ids
+        - missing_actions
+        - input_hash
+        - evaluated_at
+      properties:
+        project_id: { type: string }
+        status:
+          $ref: "#/components/schemas/SourceReadinessStatus"
+        region: { type: string }
+        scope:
+          oneOf:
+            - $ref: "#/components/schemas/SourceRequirementScope"
+            - type: "null"
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRequirementItem"
+        required_count: { type: integer, minimum: 0 }
+        satisfied_required_count: { type: integer, minimum: 0 }
+        missing_required_count: { type: integer, minimum: 0 }
+        unassigned_source_asset_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        missing_actions:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        input_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        evaluated_at: { type: string, format: date-time }
 
     SourceRoutingSuggestion:
       type: object
