@@ -1,5 +1,16 @@
 """竞品研究主管及其 A2A 专家边界。"""
 
+from app.agents.competitor.discovery_adapter import CompetitorDiscoveryModelAgentAdapter
+from app.agents.competitor.discovery_contracts import (
+    CompetitorCandidateDecision,
+    CompetitorCandidateDecisionAction,
+    CompetitorCandidateDecisionCreate,
+    CompetitorCandidateDecisionResult,
+    CompetitorCandidateGateStatus,
+    CompetitorDiscoveryArtifact,
+    CompetitorDiscoveryRunCreate,
+)
+from app.agents.competitor.discovery_prompt import register_competitor_discovery_prompt
 from app.agents.competitor.official_product_adapter import (
     OfficialProductModelSpecialistAdapter,
 )
@@ -25,6 +36,14 @@ from app.agents.competitor.supervisor import (
 )
 
 __all__ = [
+    "CompetitorCandidateDecision",
+    "CompetitorCandidateDecisionAction",
+    "CompetitorCandidateDecisionCreate",
+    "CompetitorCandidateDecisionResult",
+    "CompetitorCandidateGateStatus",
+    "CompetitorDiscoveryArtifact",
+    "CompetitorDiscoveryModelAgentAdapter",
+    "CompetitorDiscoveryRunCreate",
     "CompetitorA2ASupervisorAdapter",
     "GapSeverity",
     "OfficialFactType",
@@ -37,5 +56,6 @@ __all__ = [
     "OfficialProductRecord",
     "OfficialResearchGap",
     "build_competitor_evidence_requests",
+    "register_competitor_discovery_prompt",
     "register_official_product_prompt",
 ]

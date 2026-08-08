@@ -175,6 +175,82 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/agents/competitor-discovery:
+    post:
+      tags: [Research]
+      summary: 运行竞品候选发现 Agent
+      description: |
+        从当前项目已完成的 competitor_candidate 搜索运行构建受控候选上下文，调用项目
+        选择的模型生成候选竞品 Artifact。模型只能引用输入 candidate_id；搜索候选不是
+        Evidence，运行结果在人工 Candidate Gate 确认前不会修改正式竞品范围。
+      operationId: runCompetitorDiscoveryAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetitorDiscoveryRunCreate"
+      responses:
+        "200":
+          description: 已保存的版本化竞品候选 Artifact。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorDiscoveryArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/competitor-discovery/artifacts:
+    get:
+      tags: [Research]
+      summary: 查询竞品候选 Artifact 历史版本
+      operationId: listCompetitorDiscoveryArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 按版本升序返回 Artifact 及其 Candidate Gate 状态。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompetitorDiscoveryArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/competitor-discovery/artifacts/{artifact_id}/decision:
+    post:
+      tags: [Research]
+      summary: 提交竞品候选人工 Gate 决定
+      description: |
+        confirm 只能选择当前 Artifact 中的 proposal_id，并将对应准确型号合并到正式竞品
+        范围；reject 和 request_revision 不修改范围。每个 Artifact 只能提交一次决定。
+      operationId: decideCompetitorDiscoveryCandidates
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: artifact_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 80 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetitorCandidateDecisionCreate"
+      responses:
+        "200":
+          description: 已保存 Gate 决定及重新计算的资料准备度。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorCandidateDecisionResult"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/events:
     get:
       tags: [Projects]
@@ -1155,6 +1231,18 @@ components:
       type: string
       enum: [target, competitor]
 
+    CompetitorCandidateGateStatus:
+      type: string
+      enum: [pending, confirmed, rejected, revision_requested]
+
+    CompetitorCandidateDecisionAction:
+      type: string
+      enum: [confirm, reject, request_revision]
+
+    CompetitorComparisonDimension:
+      type: string
+      enum: [category_fit, user_segment, use_case, form_factor, feature_set, price_tier, channel_overlap]
+
     SearchDiscoveryIntent:
       type: string
       enum: [competitor_candidate, official_product, price_channel, user_review, general]
@@ -1611,6 +1699,232 @@ components:
           type: array
           items: { type: string }
         quality_score: { type: number, minimum: 0, maximum: 100 }
+
+    CompetitorDiscoveryRunCreate:
+      type: object
+      additionalProperties: false
+      required: [search_discovery_run_ids, minimum_candidates]
+      properties:
+        search_discovery_run_ids:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        minimum_candidates: { type: integer, minimum: 1, maximum: 10, default: 3 }
+
+    CompetitorDiscoveryCandidateReference:
+      type: object
+      additionalProperties: false
+      required:
+        - candidate_id
+        - search_discovery_run_id
+        - title
+        - source_url
+        - source_domain
+        - snippet
+        - search_score
+      properties:
+        candidate_id: { type: string, minLength: 1, maxLength: 40 }
+        search_discovery_run_id: { type: string, minLength: 1, maxLength: 40 }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        source_url: { type: string, format: uri }
+        source_domain: { type: string, minLength: 1, maxLength: 253 }
+        snippet: { type: string, maxLength: 1000 }
+        search_score: { type: [number, "null"], minimum: 0, maximum: 1 }
+
+    CompetitorDiscoveryProposal:
+      type: object
+      additionalProperties: false
+      required:
+        - proposal_id
+        - brand
+        - model
+        - variant
+        - category
+        - candidate_ids
+        - comparison_dimensions
+        - reason
+        - confidence
+        - uncertainties
+      properties:
+        proposal_id: { type: string, minLength: 1, maxLength: 40 }
+        brand: { type: string, minLength: 1, maxLength: 120 }
+        model: { type: string, minLength: 1, maxLength: 160 }
+        variant: { type: [string, "null"], minLength: 1, maxLength: 160 }
+        category: { type: string, minLength: 1, maxLength: 160 }
+        candidate_ids:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+        comparison_dimensions:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/CompetitorComparisonDimension"
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        uncertainties:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 500 }
+
+    CompetitorDiscoveryExcludedCandidate:
+      type: object
+      additionalProperties: false
+      required: [candidate_ids, reason]
+      properties:
+        candidate_ids:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    CompetitorDiscoveryGap:
+      type: object
+      additionalProperties: false
+      required: [question, reason, recommended_query]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 1000 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+        recommended_query: { type: string, minLength: 1, maxLength: 500 }
+
+    CompetitorDiscoveryCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - input_candidate_count
+        - accounted_candidate_count
+        - proposal_count
+        - exact_model_count
+        - minimum_candidates
+        - context_hash
+      properties:
+        input_candidate_count: { type: integer, minimum: 0 }
+        accounted_candidate_count: { type: integer, minimum: 0 }
+        proposal_count: { type: integer, minimum: 0 }
+        exact_model_count: { type: integer, minimum: 0 }
+        minimum_candidates: { type: integer, minimum: 1, maximum: 10 }
+        context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    CompetitorCandidateDecisionCreate:
+      type: object
+      additionalProperties: false
+      required: [action, selected_proposal_ids, actor, reason]
+      properties:
+        action:
+          $ref: "#/components/schemas/CompetitorCandidateDecisionAction"
+        selected_proposal_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    CompetitorCandidateDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - decision_id
+        - project_id
+        - artifact_id
+        - action
+        - selected_proposal_ids
+        - actor
+        - reason
+        - created_at
+      properties:
+        decision_id: { type: string, minLength: 1, maxLength: 40 }
+        project_id: { type: string, minLength: 1, maxLength: 40 }
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        action:
+          $ref: "#/components/schemas/CompetitorCandidateDecisionAction"
+        selected_proposal_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        created_at: { type: string, format: date-time }
+
+    CompetitorDiscoveryArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - agent_run_id
+        - version
+        - status
+        - schema_version
+        - summary
+        - target_products
+        - input_candidates
+        - proposals
+        - excluded_candidates
+        - research_gaps
+        - unknowns
+        - quality_score
+        - coverage
+        - gate_status
+        - decision
+      properties:
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        agent_run_id: { type: string, minLength: 1, maxLength: 80 }
+        version: { type: integer, minimum: 1 }
+        status:
+          $ref: "#/components/schemas/AgentRunStatus"
+        schema_version: { type: string, const: "1.0" }
+        summary: { type: string, minLength: 1, maxLength: 4000 }
+        target_products:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ProductReference"
+        input_candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorDiscoveryCandidateReference"
+        proposals:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorDiscoveryProposal"
+        excluded_candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorDiscoveryExcludedCandidate"
+        research_gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorDiscoveryGap"
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        coverage:
+          $ref: "#/components/schemas/CompetitorDiscoveryCoverage"
+        gate_status:
+          $ref: "#/components/schemas/CompetitorCandidateGateStatus"
+        decision:
+          oneOf:
+            - $ref: "#/components/schemas/CompetitorCandidateDecision"
+            - type: "null"
+
+    CompetitorCandidateDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [artifact, source_requirements]
+      properties:
+        artifact:
+          $ref: "#/components/schemas/CompetitorDiscoveryArtifact"
+        source_requirements:
+          $ref: "#/components/schemas/SourceRequirementAssessment"
         errors:
           type: array
           items: { type: string }

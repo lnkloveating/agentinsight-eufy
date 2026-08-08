@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
+from app.application.competitor_discovery import CompetitorDiscoveryService
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
 from app.application.innovations import InnovationService
@@ -249,6 +250,33 @@ def get_external_runtime_catalog(request: Request) -> ExternalRuntimeCatalog:
 
 ExternalRuntimeCatalogDependency = Annotated[
     ExternalRuntimeCatalog, Depends(get_external_runtime_catalog)
+]
+
+
+def get_competitor_discovery_service(request: Request) -> CompetitorDiscoveryService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.competitor_discovery_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+        max_timeout_seconds=settings.competitor_discovery_runtime_timeout_seconds,
+    )
+    return CompetitorDiscoveryService(
+        database,
+        runtime,
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+        max_input_candidates=settings.competitor_discovery_max_input_candidates,
+        max_snippet_chars=settings.competitor_discovery_max_snippet_chars,
+        deadline_seconds=int(settings.competitor_discovery_runtime_timeout_seconds),
+    )
+
+
+CompetitorDiscoveryServiceDependency = Annotated[
+    CompetitorDiscoveryService, Depends(get_competitor_discovery_service)
 ]
 
 

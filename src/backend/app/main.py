@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
+    CompetitorDiscoveryModelAgentAdapter,
     OfficialProductModelSpecialistAdapter,
+    register_competitor_discovery_prompt,
     register_official_product_prompt,
 )
 from app.agents.user_research import UserResearchModelAgentAdapter
@@ -70,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
+    register_competitor_discovery_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
     register_source_routing_prompt(prompt_registry)
     external_cli_process_runner = ExternalCliProcessRunner(
@@ -127,6 +130,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             retry_base_seconds=resolved_settings.model_retry_base_seconds,
         )
         agent_registry = AgentRegistry()
+        competitor_discovery_registry = AgentRegistry()
+        competitor_discovery_registry.bind(
+            ResearchAgentType.COMPETITOR_RESEARCH,
+            CompetitorDiscoveryModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.competitor_discovery_model_timeout_seconds
+                ),
+            ),
+        )
+        application.state.competitor_discovery_registry = competitor_discovery_registry
         a2a_specialist_registry = A2ASpecialistRegistry()
         a2a_specialist_registry.bind(
             CompetitorSpecialistType.OFFICIAL_PRODUCT,

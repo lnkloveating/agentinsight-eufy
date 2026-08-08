@@ -115,7 +115,10 @@ flowchart LR
 
 工作流节点只依赖统一的 Runtime 协议，不直接依赖模型 SDK、CLI 或 A2A 客户端。Gateway 为每次调用建立独立运行记录，校验输入 Artifact 的项目归属和输出 schema，并保存不可变的版本化 Artifact、Evidence IDs、未知项和输入血缘。超时、取消、未绑定、权限、schema 与 Adapter 错误使用稳定错误码记录；失败调用不生成研究 Artifact。
 
-当前已经实现 Runtime Core、真实 Model Gateway、受控 External CLI Runtime、竞品主管与三类专家的 A2A 并行运行底座，以及官方产品专家。价格渠道与用户评价专家及其业务 Prompt 仍需在后续分支分别实现；生产代码不会回退到测试 Runtime 或伪造研究结果。
+当前已经实现 Runtime Core、真实 Model Gateway、受控 External CLI Runtime、竞品候选发现
+与人工 Gate、竞品主管与三类专家的 A2A 并行运行底座，以及官方产品专家。价格渠道与用户
+评价专家及其业务 Prompt 仍需在后续分支分别实现；生产代码不会回退到测试 Runtime 或伪造
+研究结果。
 
 ## Search Discovery Connector
 
@@ -123,8 +126,10 @@ flowchart LR
 flowchart LR
     Gap["Source Requirements gap"] --> Search["Registered Search Provider"]
     Search --> Candidate["Candidate URL records"]
-    Candidate --> Gate["Competitor discovery / human review"]
-    Gate --> Source["Authorized Source Asset"]
+    Candidate --> Agent["Competitor discovery Agent"]
+    Agent --> Gate["Candidate Gate"]
+    Gate --> Scope["Confirmed competitor scope"]
+    Scope --> Source["Authorized Source Asset"]
     Source --> Processing["Processing and routing"]
     Processing --> Evidence["Evidence Lake"]
 ```
@@ -132,7 +137,9 @@ flowchart LR
 搜索发现和证据采集严格分层。当前 Tavily Connector 只调用固定 Search API 并返回
 `candidate_only` URL；它不抓取网页正文，不调用业务模型，也不创建 Source Asset 或
 Evidence。密钥缺失、认证失败、限流、超时和 Provider 错误均保存为项目运行记录。候选
-必须经过后续竞品确认、授权资料接入和完整 Evidence 门禁，才能交给领域 Agent。
+必须经过竞品候选 Agent 的确定性输出校验和人工 Candidate Gate，才能写入正式竞品范围；
+随后仍需授权资料接入和完整 Evidence 门禁，才能交给领域 Agent。候选 Agent 使用独立
+Runtime Registry，但继承项目的 `competitor_research` 模型选择，不改变竞品 A2A 主管的绑定。
 
 ## Model Gateway
 
