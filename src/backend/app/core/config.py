@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     competitor_official_max_total_evidence_chars: int = Field(
         default=60_000, ge=1_000, le=500_000
     )
+    competitor_official_model_timeout_seconds: float = Field(
+        default=90, ge=1, le=600
+    )
     source_storage_root: str = "./data/sources"
     source_processing_workspace_root: str = "./data/source-processing"
     source_processing_max_input_bytes: int = Field(

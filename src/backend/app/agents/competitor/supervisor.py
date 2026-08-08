@@ -80,6 +80,7 @@ def build_competitor_evidence_requests(
             ],
             ["official_product_page", "official_document"],
             ["vendor_claim", "fact"],
+            1,
         ),
         (
             CompetitorSpecialistType.PRICE_CHANNEL,
@@ -90,6 +91,7 @@ def build_competitor_evidence_requests(
             ],
             ["official_store_page", "authorized_channel_page"],
             ["vendor_claim", "fact"],
+            task.evidence_rules.minimum_independent_domains,
         ),
         (
             CompetitorSpecialistType.USER_REVIEW,
@@ -99,6 +101,7 @@ def build_competitor_evidence_requests(
             ],
             ["authorized_user_review", "authorized_research_file"],
             ["user_opinion"],
+            task.evidence_rules.minimum_independent_domains,
         ),
     )
     return [
@@ -112,12 +115,16 @@ def build_competitor_evidence_requests(
             region=brief.region,
             evidence_types=evidence_types,
             allowed_claim_types=claim_types,
-            minimum_independent_domains=(
-                task.evidence_rules.minimum_independent_domains
-            ),
+            minimum_independent_domains=minimum_independent_domains,
             max_evidence_items=min(task.budget.max_pages or 30, 200),
         )
-        for specialist_type, questions, evidence_types, claim_types in definitions
+        for (
+            specialist_type,
+            questions,
+            evidence_types,
+            claim_types,
+            minimum_independent_domains,
+        ) in definitions
     ]
 
 
@@ -127,7 +134,7 @@ def _aggregate_results(
 ) -> ResearchArtifact:
     artifacts = [result.artifact for result in results if result.artifact is not None]
     blocked = [result for result in results if result.status is A2ATaskStatus.BLOCKED]
-    if blocked and not artifacts:
+    if results and all(result.status is A2ATaskStatus.BLOCKED for result in results):
         status = ResearchTaskStatus.BLOCKED
     elif blocked or any(
         artifact.status is ResearchTaskStatus.PARTIAL for artifact in artifacts

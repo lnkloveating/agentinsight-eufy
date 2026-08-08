@@ -33,6 +33,7 @@ class A2ATaskStatus(StrEnum):
 
 class A2AErrorCode(StrEnum):
     SPECIALIST_NOT_BOUND = "specialist_not_bound"
+    DEPENDENCY_MISSING = "dependency_missing"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
     ADAPTER_FAILED = "adapter_failed"

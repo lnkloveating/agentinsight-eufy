@@ -12,7 +12,12 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from app.application.events import ProjectEventBroker
-from app.application.runtime import CancellationToken, RuntimeCancellationError
+from app.application.runtime import (
+    CancellationToken,
+    RuntimeCancellationError,
+    RuntimeErrorCode,
+    RuntimeGatewayError,
+)
 from app.infrastructure.database.a2a_repository import A2ATaskRepository
 from app.infrastructure.database.models import A2ATaskModel, ProjectEventModel
 from app.infrastructure.database.repositories import ProjectRepository
@@ -190,6 +195,23 @@ class CompetitorA2AGateway:
             raise error from exc
         except A2AGatewayError:
             raise
+        except RuntimeGatewayError as exc:
+            code = {
+                RuntimeErrorCode.TIMEOUT: A2AErrorCode.TIMEOUT,
+                RuntimeErrorCode.CANCELLED: A2AErrorCode.CANCELLED,
+                RuntimeErrorCode.DEPENDENCY_MISSING: A2AErrorCode.DEPENDENCY_MISSING,
+                RuntimeErrorCode.SCHEMA_INVALID: A2AErrorCode.ARTIFACT_INVALID,
+                RuntimeErrorCode.ARTIFACT_INVALID: A2AErrorCode.ARTIFACT_INVALID,
+            }.get(exc.code, A2AErrorCode.ADAPTER_FAILED)
+            error = self._error(
+                code,
+                prepared.a2a_task_id,
+                request.specialist_type,
+                "Competitor specialist runtime failed.",
+                retryable=exc.retryable,
+            )
+            await self._fail_task(request.project_id, prepared.a2a_task_id, trace_id, error)
+            raise error from exc
         except Exception as exc:
             error = self._error(
                 A2AErrorCode.ADAPTER_FAILED,
