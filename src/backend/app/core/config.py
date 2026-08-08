@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     user_research_max_total_evidence_chars: int = Field(
         default=40_000, ge=1_000, le=500_000
     )
+    competitor_a2a_specialist_timeout_seconds: float = Field(
+        default=120, ge=0.1, le=3_600
+    )
     source_storage_root: str = "./data/sources"
     source_processing_workspace_root: str = "./data/source-processing"
     source_processing_max_input_bytes: int = Field(

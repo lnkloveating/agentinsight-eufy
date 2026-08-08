@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agents.competitor import CompetitorA2ASupervisorAdapter
 from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
@@ -30,6 +31,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.middleware import TraceIdMiddleware
 from app.infrastructure.database import Database
+from app.integrations.a2a import A2ASpecialistRegistry, CompetitorA2AGateway
 from app.sources.web_connector import SafeHttpWebConnector
 from app.workflows.contracts import ResearchAgentType
 
@@ -102,12 +104,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             retry_base_seconds=resolved_settings.model_retry_base_seconds,
         )
         agent_registry = AgentRegistry()
+        a2a_specialist_registry = A2ASpecialistRegistry()
+        application.state.a2a_specialist_registry = a2a_specialist_registry
+        application.state.competitor_a2a_gateway = CompetitorA2AGateway(
+            database,
+            a2a_specialist_registry,
+            application.state.event_broker,
+            specialist_timeout_seconds=(
+                resolved_settings.competitor_a2a_specialist_timeout_seconds
+            ),
+        )
         agent_registry.bind(
             ResearchAgentType.USER_RESEARCH,
             UserResearchModelAgentAdapter(
                 application.state.model_gateway,
                 prompt_registry,
                 ProjectModelSelectionResolver(database),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.COMPETITOR_RESEARCH,
+            CompetitorA2ASupervisorAdapter(
+                application.state.competitor_a2a_gateway
             ),
         )
         application.state.agent_registry = agent_registry
