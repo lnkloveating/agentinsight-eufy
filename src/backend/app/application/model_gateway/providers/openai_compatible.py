@@ -23,6 +23,8 @@ _FORWARDED_OPTIONS = {
     "presence_penalty",
     "seed",
     "stop",
+    "thinking",
+    "reasoning_effort",
 }
 
 
@@ -157,7 +159,7 @@ class OpenAICompatibleProvider:
             raise ModelProviderError(
                 ModelErrorCode.PROVIDER_FAILED,
                 "OpenAI-compatible response content is empty",
-                retryable=False,
+                retryable=True,
                 provider_request_id=provider_request_id,
             )
         return ProviderModelResult(

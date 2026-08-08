@@ -103,7 +103,13 @@ class UserResearchModelAgentAdapter:
                     response_model=UserResearchModelOutput,
                     timeout_seconds=float(invocation.task.budget.deadline_seconds),
                     max_output_tokens=6_000,
-                    provider_options={"temperature": 0.1},
+                    # Both organizer models default to deep thinking. This bounded,
+                    # evidence-grounded extraction task needs predictable latency and
+                    # a final JSON answer, not a long reasoning trace.
+                    provider_options={
+                        "temperature": 0.1,
+                        "thinking": {"type": "disabled"},
+                    },
                 )
             )
         except ModelGatewayError as exc:

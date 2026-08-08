@@ -20,7 +20,13 @@ from app.application.model_gateway import (
     ProviderModelResult,
 )
 from app.application.research import UserResearchService
-from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ArtifactStore
+from app.application.runtime import (
+    AgentRegistry,
+    AgentRuntimeGateway,
+    ArtifactStore,
+    RuntimeErrorCode,
+    RuntimeGatewayError,
+)
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.model_call_repository import ModelCallRepository
@@ -29,6 +35,26 @@ from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.evidence import EvidenceClaimType, EvidenceIngest, EvidenceStatus
 from app.schemas.project import ProjectStatus, ResearchBrief
 from app.workflows.contracts import ResearchAgentType
+
+
+def test_user_research_runtime_error_is_exposed_as_safe_api_error() -> None:
+    mapped = UserResearchService._public_runtime_error(
+        RuntimeGatewayError(
+            RuntimeErrorCode.TIMEOUT,
+            "raw provider detail must stay private",
+            agent_run_id="run_timeout",
+            retryable=True,
+        )
+    )
+
+    assert mapped.status_code == 504
+    assert mapped.code == "USER_RESEARCH_TIMEOUT"
+    assert mapped.details == {
+        "agent_run_id": "run_timeout",
+        "runtime_error_code": RuntimeErrorCode.TIMEOUT,
+        "retryable": True,
+    }
+    assert "raw provider detail" not in mapped.message
 
 
 class UserResearchProvider:

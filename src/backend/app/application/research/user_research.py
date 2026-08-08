@@ -2,7 +2,12 @@
 
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.agents.user_research.contracts import UserResearchArtifact
-from app.application.runtime import AgentRuntimeGateway, ArtifactStore
+from app.application.runtime import (
+    AgentRuntimeGateway,
+    ArtifactStore,
+    RuntimeErrorCode,
+    RuntimeGatewayError,
+)
 from app.core.errors import AppError
 from app.infrastructure.database.models import ProjectModel
 from app.infrastructure.database.session import Database
@@ -71,7 +76,10 @@ class UserResearchService:
             iteration=len(previous),
             evidence_context=evidence_context,
         )
-        artifact = await self.runtime.execute(task, context)
+        try:
+            artifact = await self.runtime.execute(task, context)
+        except RuntimeGatewayError as exc:
+            raise self._public_runtime_error(exc) from exc
         return UserResearchArtifact.from_research_artifact(artifact)
 
     async def list_artifacts(self, project_id: str) -> list[UserResearchArtifact]:
@@ -110,3 +118,39 @@ class UserResearchService:
                 details={"project_id": project_id},
             )
         return project
+
+    @staticmethod
+    def _public_runtime_error(error: RuntimeGatewayError) -> AppError:
+        if error.code is RuntimeErrorCode.TIMEOUT:
+            status_code = 504
+            code = "USER_RESEARCH_TIMEOUT"
+            message = "用户研究 Agent 执行超时，请缩小证据范围后重试。"
+        elif error.code is RuntimeErrorCode.CANCELLED:
+            status_code = 409
+            code = "USER_RESEARCH_CANCELLED"
+            message = "用户研究 Agent 已取消。"
+        elif error.code is RuntimeErrorCode.PERMISSION_DENIED:
+            status_code = 403
+            code = "USER_RESEARCH_PERMISSION_DENIED"
+            message = "用户研究 Agent 无权使用当前资源。"
+        elif error.code in {
+            RuntimeErrorCode.DEPENDENCY_MISSING,
+            RuntimeErrorCode.RUNTIME_NOT_BOUND,
+        }:
+            status_code = 503
+            code = "USER_RESEARCH_DEPENDENCY_UNAVAILABLE"
+            message = "用户研究 Agent 的模型或 Runtime 尚不可用。"
+        else:
+            status_code = 502
+            code = "USER_RESEARCH_RUNTIME_FAILED"
+            message = "用户研究 Agent 未能生成通过校验的研究产物。"
+        return AppError(
+            code=code,
+            message=message,
+            status_code=status_code,
+            details={
+                "agent_run_id": error.agent_run_id,
+                "runtime_error_code": error.code,
+                "retryable": error.retryable,
+            },
+        )
