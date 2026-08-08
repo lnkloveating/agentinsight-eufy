@@ -1,5 +1,7 @@
 """A2A 专家子任务的持久化访问。"""
 
+from typing import cast
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +30,7 @@ class A2ATaskRepository:
             A2ATaskModel.parent_task_id == parent_task_id,
             A2ATaskModel.specialist_type == specialist_type,
         )
-        return await self.session.scalar(statement)
+        return cast(A2ATaskModel | None, await self.session.scalar(statement))
 
     async def list_for_parent(
         self,
@@ -50,4 +52,3 @@ class A2ATaskRepository:
 
     async def rollback(self) -> None:
         await self.session.rollback()
-
