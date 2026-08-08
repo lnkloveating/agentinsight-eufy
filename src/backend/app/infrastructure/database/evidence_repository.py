@@ -82,6 +82,7 @@ class EvidenceRepository:
         project_id: str,
         *,
         statuses: set[str],
+        claim_types: set[str] | None = None,
         limit: int,
     ) -> tuple[list[EvidenceModel], int]:
         """Return bounded, project-scoped evidence ranked without LLM reasoning."""
@@ -90,6 +91,8 @@ class EvidenceRepository:
             EvidenceModel.project_id == project_id,
             EvidenceModel.status.in_(statuses),
         ]
+        if claim_types is not None:
+            filters.append(EvidenceModel.claim_type.in_(claim_types))
         total = int(
             await self.session.scalar(
                 select(func.count(EvidenceModel.evidence_id)).where(*filters)

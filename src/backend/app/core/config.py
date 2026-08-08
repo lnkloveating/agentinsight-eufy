@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     competitor_a2a_specialist_timeout_seconds: float = Field(
         default=120, ge=0.1, le=3_600
     )
+    competitor_official_max_evidence_items: int = Field(default=40, ge=1, le=200)
+    competitor_official_max_excerpt_chars: int = Field(
+        default=3_000, ge=200, le=10_000
+    )
+    competitor_official_max_total_evidence_chars: int = Field(
+        default=60_000, ge=1_000, le=500_000
+    )
     source_storage_root: str = "./data/sources"
     source_processing_workspace_root: str = "./data/source-processing"
     source_processing_max_input_bytes: int = Field(
