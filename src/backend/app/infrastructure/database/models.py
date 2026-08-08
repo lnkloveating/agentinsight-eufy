@@ -63,6 +63,9 @@ class ProjectModel(Base):
     source_assets: Mapped[list["SourceAssetModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    source_requirement_scope: Mapped["SourceRequirementScopeModel | None"] = relationship(
+        back_populates="project", cascade="all, delete-orphan", uselist=False
+    )
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -440,6 +443,35 @@ class SourceRoutingModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
     )
+
+
+class SourceRequirementScopeModel(Base):
+    """用户确认的目标产品、竞品与资料准备度研究维度。"""
+
+    __tablename__ = "source_requirement_scopes"
+    __table_args__ = (UniqueConstraint("project_id", name="uq_source_requirement_scope_project"),)
+
+    source_requirement_scope_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_products_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    competitors_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    dimensions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    updated_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    update_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="source_requirement_scope")
 
 
 class ParsedArtifactModel(Base):

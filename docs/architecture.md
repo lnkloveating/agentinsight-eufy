@@ -45,6 +45,28 @@ content. A route can be auto-confirmed only from high-confidence deterministic s
 agreement. Evidence promotion remains a separate gate, and downstream factual output still requires
 Evidence IDs.
 
+## Source requirement readiness
+
+```mermaid
+flowchart LR
+    Brief["Research Brief"] --> Scope["Confirmed target and competitor scope"]
+    Scope --> Requirements["Deterministic requirement catalog"]
+    Routes["Confirmed source routes"] --> Assessment["Live readiness assessment"]
+    Lake["Eligible Evidence with product and region"] --> Assessment
+    Requirements --> Assessment
+    Assessment --> Blocked["blocked: scope is incomplete"]
+    Assessment --> Partial["partial: material or review is missing"]
+    Assessment --> Ready["ready: minimum evidence is available"]
+    Blocked --> Actions["Concrete user supplementation actions"]
+    Partial --> Actions
+```
+
+The requirement layer does not discover competitors, fetch URLs, promote fragments or call a model.
+It stores only the user-confirmed product scope and recomputes readiness from current source routing,
+processing and Evidence state. A routed source can be shown as detected, but only eligible Evidence
+explicitly associated with the exact product can satisfy a requirement. Price evidence is additionally
+isolated by the Brief region.
+
 ## Runtime boundaries
 
 - `frontend`: user interaction and visualization only;

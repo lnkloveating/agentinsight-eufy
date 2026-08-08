@@ -74,6 +74,23 @@ route 的领域 Evidence Context。模型失败必须保留审计并回退到规
 - `tests/integration/test_official_product_agent.py`
 - 可重复真实冒烟：`scripts/smoke_source_routing_live.py`
 
+## AC-04B 资料范围与准备度
+
+系统必须允许用户确认目标产品、待比较竞品和研究维度，并保存修改人、原因、时间与项目
+事件。只有品牌而没有准确型号时，范围不得标记为就绪；同一产品不得同时作为目标产品和
+竞品。准备度评估必须由确定性代码根据当前项目的确认 route 和可用 Evidence 实时计算，
+不得调用模型或用模型常识补齐缺失资料。
+
+只有状态为 `verified` 或 `partially_verified`、属于已确认 route、显式关联到准确产品，且
+Claim 类型符合研究维度的 Evidence 才能满足资料要求。价格 Evidence 还必须匹配 Brief 的
+目标地区。只有 eufy 资料、竞品未确认、资料尚未审核、地区错误或处理失败时，接口必须
+分别返回 `blocked` 或 `partial` 以及可执行补充动作；不得把 Source Asset 本身当成 Evidence。
+
+自动化映射：
+
+- `tests/unit/test_source_requirement_contracts.py`
+- `tests/integration/test_source_requirements_api.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口
