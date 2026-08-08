@@ -91,6 +91,24 @@ Claim 类型符合研究维度的 Evidence 才能满足资料要求。价格 Evi
 - `tests/unit/test_source_requirement_contracts.py`
 - `tests/integration/test_source_requirements_api.py`
 
+## AC-04C 公开来源搜索发现
+
+系统必须把搜索发现保存为项目隔离、可审计的运行记录，并将每个搜索命中明确标记为
+`candidate_only`。搜索标题、摘要、相关性分数和 URL 不得直接创建 Source Asset、
+Evidence、Claim、Model Call 或业务 Agent Artifact，也不得满足资料准备度；候选只有经过
+授权确认、Source Processing、Source Routing、片段审核和 Evidence 晋级后才能供 Agent
+使用。
+
+搜索 Provider 必须显式注册，凭据只从本地受控环境读取。未注册、功能关闭、缺少凭据、
+认证失败、限流、超时、异常响应和未分类错误必须明确区分并保存失败状态，不得回退到
+Mock 结果。候选 URL 必须经过公开地址校验、规范化、去重、域名过滤和数量限制；Provider
+响应必须有超时与流式字节上限，任何错误都不得把凭据或原始错误正文写入审计记录。
+
+自动化映射：
+
+- `tests/unit/test_search_discovery_connector.py`
+- `tests/integration/test_search_discovery_api.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口
