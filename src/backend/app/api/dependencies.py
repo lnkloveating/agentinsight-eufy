@@ -21,6 +21,7 @@ from app.application.model_gateway.selection import ProjectModelSelectionResolve
 from app.application.projects import ProjectService
 from app.application.research import UserResearchService
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
+from app.application.source_discovery import SearchDiscoveryService
 from app.application.source_requirements import SourceRequirementService
 from app.application.source_routing import SourceRoutingService
 from app.application.sources import SourceAssetService, SourceProcessingService
@@ -37,6 +38,7 @@ from app.sources.media_processing import (
     PyAvMediaProcessor,
 )
 from app.sources.parsers import default_source_parser_registry
+from app.sources.search_discovery import SearchDiscoveryRegistry
 from app.sources.web_connector import WebConnector
 
 
@@ -175,6 +177,22 @@ def get_source_requirement_service(request: Request) -> SourceRequirementService
 
 SourceRequirementServiceDependency = Annotated[
     SourceRequirementService, Depends(get_source_requirement_service)
+]
+
+
+def get_search_discovery_service(request: Request) -> SearchDiscoveryService:
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return SearchDiscoveryService(
+        database,
+        cast(SearchDiscoveryRegistry, request.app.state.search_discovery_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+
+
+SearchDiscoveryServiceDependency = Annotated[
+    SearchDiscoveryService, Depends(get_search_discovery_service)
 ]
 
 

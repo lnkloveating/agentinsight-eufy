@@ -41,6 +41,10 @@ from app.integrations.a2a import (
     CompetitorA2AGateway,
     CompetitorSpecialistType,
 )
+from app.sources.search_discovery import (
+    SearchDiscoveryRegistry,
+    TavilySearchDiscoveryConnector,
+)
 from app.sources.web_connector import SafeHttpWebConnector
 from app.workflows.contracts import ResearchAgentType
 
@@ -83,6 +87,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     external_runtime_catalog = ExternalRuntimeCatalog(
         (opencode_driver,), credential_resolver, external_cli_process_runner
+    )
+    search_discovery_registry = SearchDiscoveryRegistry(
+        (
+            TavilySearchDiscoveryConnector(
+                credential_resolver.resolve(
+                    resolved_settings.search_discovery_tavily_credential_env
+                ),
+                enabled=resolved_settings.search_discovery_enabled,
+                timeout_seconds=resolved_settings.search_discovery_timeout_seconds,
+                max_response_bytes=resolved_settings.search_discovery_max_response_bytes,
+            ),
+        )
     )
     web_connector = (
         SafeHttpWebConnector(
@@ -166,6 +182,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.prompt_registry = prompt_registry
     application.state.external_cli_process_runner = external_cli_process_runner
     application.state.external_runtime_catalog = external_runtime_catalog
+    application.state.search_discovery_registry = search_discovery_registry
     application.state.opencode_driver = opencode_driver
     application.state.web_connector = web_connector
     # A production ASR/vision connector must be registered explicitly. The two
