@@ -7,12 +7,14 @@ from typing import Annotated, cast
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.events import EventService, ProjectEventBroker
-from app.application.evidence import EvidenceQueryService
+from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
 from app.application.innovations import InnovationService
 from app.application.model_gateway import CredentialResolver, ModelCatalog
 from app.application.projects import ProjectService
-from app.application.runtime import ExternalRuntimeCatalog
+from app.application.research import UserResearchService
+from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
 from app.application.sources import SourceAssetService, SourceProcessingService
 from app.core.config import Settings
 from app.infrastructure.database import Database
@@ -137,6 +139,25 @@ SourceProcessingServiceDependency = Annotated[
 ]
 
 
+def get_source_evidence_promotion_service(
+    request: Request, session: SessionDependency
+) -> SourceEvidencePromotionService:
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return SourceEvidencePromotionService(
+        SourceAssetRepository(session),
+        EvidenceRepository(session),
+        ProjectRepository(session),
+        trace_id,
+        request.app.state.event_broker,
+    )
+
+
+SourceEvidencePromotionServiceDependency = Annotated[
+    SourceEvidencePromotionService,
+    Depends(get_source_evidence_promotion_service),
+]
+
+
 def get_innovation_service(request: Request, session: SessionDependency) -> InnovationService:
     trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
     return InnovationService(
@@ -173,4 +194,28 @@ def get_external_runtime_catalog(request: Request) -> ExternalRuntimeCatalog:
 
 ExternalRuntimeCatalogDependency = Annotated[
     ExternalRuntimeCatalog, Depends(get_external_runtime_catalog)
+]
+
+
+def get_user_research_service(request: Request) -> UserResearchService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+    context_builder = UserResearchEvidenceContextBuilder(
+        database,
+        max_items=settings.user_research_max_evidence_items,
+        max_excerpt_chars=settings.user_research_max_excerpt_chars,
+        max_total_chars=settings.user_research_max_total_evidence_chars,
+    )
+    return UserResearchService(database, runtime, context_builder)
+
+
+UserResearchServiceDependency = Annotated[
+    UserResearchService, Depends(get_user_research_service)
 ]

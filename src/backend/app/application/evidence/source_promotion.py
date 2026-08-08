@@ -44,7 +44,11 @@ class SourceEvidencePromotionService:
         self.event_broker = event_broker
 
     async def promote(
-        self, project_id: str, payload: EvidenceFromSourceFragmentIngest
+        self,
+        project_id: str,
+        payload: EvidenceFromSourceFragmentIngest,
+        *,
+        expected_source_asset_id: str | None = None,
     ) -> EvidenceIngestResult:
         if not await self.source_repository.project_exists(project_id):
             raise AppError(
@@ -62,6 +66,19 @@ class SourceEvidencePromotionService:
                 message="资料片段不存在。",
                 status_code=404,
                 details={"source_fragment_id": payload.source_fragment_id},
+            )
+        if (
+            expected_source_asset_id is not None
+            and fragment.source_asset_id != expected_source_asset_id
+        ):
+            raise AppError(
+                code="SOURCE_FRAGMENT_ASSET_MISMATCH",
+                message="资料片段不属于 URL 中指定的资料资产。",
+                status_code=409,
+                details={
+                    "source_fragment_id": payload.source_fragment_id,
+                    "expected_source_asset_id": expected_source_asset_id,
+                },
             )
         if fragment.verification_status != SourceFragmentVerificationStatus.VERIFIED:
             raise AppError(

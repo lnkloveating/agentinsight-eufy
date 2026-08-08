@@ -1,3 +1,4 @@
+from app.agents.user_research.adapter import UserResearchModelAgentAdapter
 from app.agents.user_research.contracts import (
     EvidenceContradiction,
     FindingSeverity,
@@ -24,4 +25,5 @@ __all__ = [
     "UserResearchModelOutput",
     "UserResearchPayload",
     "UserUnmetNeed",
+    "UserResearchModelAgentAdapter",
 ]

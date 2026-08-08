@@ -1,11 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, File, Form, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import (
     SourceAssetServiceDependency,
+    SourceEvidencePromotionServiceDependency,
     SourceProcessingServiceDependency,
+)
+from app.schemas.evidence import (
+    EvidenceFromSourceFragmentCreate,
+    EvidenceFromSourceFragmentIngest,
+    EvidenceIngestResult,
 )
 from app.schemas.source import (
     SourceAsset,
@@ -166,6 +172,32 @@ async def list_source_fragments(
     return await service.list_fragments(
         project_id, source_asset_id, cursor=cursor
     )
+
+
+@router.post(
+    "/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/evidence",
+    response_model=EvidenceIngestResult,
+    status_code=status.HTTP_201_CREATED,
+)
+async def promote_source_fragment_to_evidence(
+    project_id: str,
+    source_asset_id: str,
+    source_fragment_id: str,
+    payload: EvidenceFromSourceFragmentCreate,
+    response: Response,
+    service: SourceEvidencePromotionServiceDependency,
+) -> EvidenceIngestResult:
+    result = await service.promote(
+        project_id,
+        EvidenceFromSourceFragmentIngest(
+            source_fragment_id=source_fragment_id,
+            **payload.model_dump(),
+        ),
+        expected_source_asset_id=source_asset_id,
+    )
+    if not result.created:
+        response.status_code = status.HTTP_200_OK
+    return result
 
 
 @router.post(
