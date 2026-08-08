@@ -109,6 +109,25 @@ Mock 结果。候选 URL 必须经过公开地址校验、规范化、去重、�
 - `tests/unit/test_search_discovery_connector.py`
 - `tests/integration/test_search_discovery_api.py`
 
+## AC-04D 竞品候选发现与 Candidate Gate
+
+竞品候选发现 Agent 只能消费当前项目中状态为 `succeeded`、intent 为
+`competitor_candidate` 的 Search Discovery Run。模型必须引用受控输入中的 candidate ID，
+每个输入 ID 必须恰好被提名或排除一次；品牌、型号和变体必须在对应候选文本中明确出现。
+目标产品自身、重复产品、编造 ID、遗漏候选或 Schema 无效时不得保存成功 Artifact。
+
+候选 Artifact 必须保持 `candidate_only` 边界，`evidence_ids` 为空，并在人工 Candidate Gate
+前不得修改正式竞品范围或满足任何资料要求。确认、拒绝或要求返工必须保存 actor、reason、
+时间和事件；只有确认动作选择的准确产品可以原子合并到 Source Requirement Scope。搜索
+不足时任务返回 `partial` 或 `blocked`，不得用训练知识或 Mock 凑够竞品数量。
+
+自动化映射：
+
+- `tests/unit/test_competitor_discovery_contracts.py`
+- `tests/integration/test_competitor_discovery_agent.py`
+- `tests/integration/test_competitor_discovery_api.py`
+- 可重复真实冒烟：`scripts/smoke_competitor_discovery_live.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口
