@@ -17,6 +17,7 @@ from app.infrastructure.database.models import (
     ProjectModel,
     SourceAssetModel,
     SourceFragmentModel,
+    SourceRoutingModel,
 )
 from app.infrastructure.database.session import Database
 
@@ -38,4 +39,5 @@ __all__ = [
     "ProjectModel",
     "SourceAssetModel",
     "SourceFragmentModel",
+    "SourceRoutingModel",
 ]

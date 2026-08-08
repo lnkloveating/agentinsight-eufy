@@ -289,6 +289,75 @@ paths:
                 $ref: "#/components/schemas/SourceAsset"
         default:
           $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/routing:
+    get:
+      tags: [Evidence]
+      summary: 查询资料的多标签路由分析与确认结果
+      operationId: getSourceRouting
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      responses:
+        "200":
+          description: 返回规则/模型建议、确认路由和模型审计字段，不返回 Prompt 或密钥。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRouting"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/routing/analyze:
+    post:
+      tags: [Evidence]
+      summary: 分析一份已解析资料应分发给哪些研究 Agent
+      description: |
+        先运行确定性规则；规则不足时可调用项目选择的模型进行受控多标签分类。
+        该操作只决定资料路由，不创建事实 Claim，也不绕过 Evidence 审核。
+      operationId: analyzeSourceRouting
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRoutingAnalyze"
+      responses:
+        "200":
+          description: 返回幂等复用或重新分析后的路由结果。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRouting"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/sources/{source_asset_id}/routing/decision:
+    post:
+      tags: [Evidence]
+      summary: 确认、修改或拒绝资料路由建议
+      operationId: decideSourceRouting
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceAssetId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRoutingDecision"
+      responses:
+        "200":
+          description: 保存可审计的人工路由决策。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRouting"
+        default:
+          $ref: "#/components/responses/Error"
     delete:
       tags: [Evidence]
       summary: 删除原始资料内容并保留最小审计记录
@@ -951,6 +1020,27 @@ components:
       type: string
       enum: [user_owned, enterprise_authorized, publicly_available]
 
+    SourceRouteTarget:
+      type: string
+      enum:
+        - official_product
+        - price_channel
+        - user_review
+        - user_research
+        - market_research
+        - technical_document
+        - commercial_data
+        - enterprise_internal
+        - media_review
+
+    SourceRoutingStatus:
+      type: string
+      enum: [needs_review, confirmed, rejected]
+
+    SourceRoutingMethod:
+      type: string
+      enum: [deterministic, model, hybrid, manual]
+
     SourceProcessingJobStatus:
       type: string
       enum: [queued, running, succeeded, partial, blocked, failed, cancelled]
@@ -1478,6 +1568,144 @@ components:
             $ref: "#/components/schemas/SourceAsset"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
+    SourceRoutingSuggestion:
+      type: object
+      additionalProperties: false
+      required: [route, claim_types, confidence, reason, signals, suggested_by]
+      properties:
+        route:
+          $ref: "#/components/schemas/SourceRouteTarget"
+        claim_types:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - fact
+              - user_opinion
+              - vendor_claim
+              - product_identity
+              - capability
+              - specification
+              - compatibility
+              - limitation
+              - price_observation
+              - channel_availability
+              - seller_information
+              - promotion
+              - market_fact
+              - technical_fact
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        reason: { type: string, minLength: 1 }
+        signals:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        suggested_by:
+          type: string
+          enum: [rule, model, hybrid, user]
+
+    SourceRoutingAnalyze:
+      type: object
+      additionalProperties: false
+      properties:
+        use_model: { type: boolean, default: true }
+        force: { type: boolean, default: false }
+
+    SourceRoutingSelection:
+      type: object
+      additionalProperties: false
+      required: [route, claim_types]
+      properties:
+        route:
+          $ref: "#/components/schemas/SourceRouteTarget"
+        claim_types:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - fact
+              - user_opinion
+              - vendor_claim
+              - product_identity
+              - capability
+              - specification
+              - compatibility
+              - limitation
+              - price_observation
+              - channel_availability
+              - seller_information
+              - promotion
+              - market_fact
+              - technical_fact
+
+    SourceRoutingDecision:
+      type: object
+      additionalProperties: false
+      required: [action, selections, actor, reason]
+      properties:
+        action:
+          type: string
+          enum: [confirm, reject]
+        selections:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SourceRoutingSelection"
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    SourceRouting:
+      type: object
+      additionalProperties: false
+      required:
+        - source_routing_id
+        - project_id
+        - source_asset_id
+        - status
+        - method
+        - suggestions
+        - confirmed_routes
+        - confirmed_claim_types
+        - input_hash
+        - analyzed_at
+        - updated_at
+      properties:
+        source_routing_id: { type: string }
+        project_id: { type: string }
+        source_asset_id: { type: string }
+        status:
+          $ref: "#/components/schemas/SourceRoutingStatus"
+        method:
+          $ref: "#/components/schemas/SourceRoutingMethod"
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRoutingSuggestion"
+        confirmed_routes:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SourceRouteTarget"
+        confirmed_claim_types:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        rule_signals:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        input_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        model_id: { type: [string, "null"] }
+        model_call_id: { type: [string, "null"] }
+        analyzed_at: { type: string, format: date-time }
+        decided_at: { type: [string, "null"], format: date-time }
+        decided_by: { type: [string, "null"] }
+        decision_reason: { type: [string, "null"] }
+        updated_at: { type: string, format: date-time }
 
     SourceProcessingJob:
       type: object
