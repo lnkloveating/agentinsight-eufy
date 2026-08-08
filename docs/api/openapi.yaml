@@ -1161,7 +1161,7 @@ components:
 
     SearchDiscoveryRunStatus:
       type: string
-      enum: [succeeded, failed, blocked]
+      enum: [running, succeeded, failed, blocked]
 
     SourceRouteTarget:
       type: string
@@ -1996,7 +1996,7 @@ components:
         requested_by: { type: string, minLength: 1, maxLength: 120 }
         purpose: { type: string, minLength: 1, maxLength: 500 }
         created_at: { type: string, format: date-time }
-        completed_at: { type: string, format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
 
     SearchDiscoveryRunPage:
       type: object

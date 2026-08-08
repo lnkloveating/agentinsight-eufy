@@ -66,6 +66,9 @@ class ProjectModel(Base):
     source_requirement_scope: Mapped["SourceRequirementScopeModel | None"] = relationship(
         back_populates="project", cascade="all, delete-orphan", uselist=False
     )
+    search_discovery_runs: Mapped[list["SearchDiscoveryRunModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -472,6 +475,45 @@ class SourceRequirementScopeModel(Base):
     )
 
     project: Mapped[ProjectModel] = relationship(back_populates="source_requirement_scope")
+
+
+class SearchDiscoveryRunModel(Base):
+    """一次搜索来源发现运行；候选结果明确不属于 Evidence。"""
+
+    __tablename__ = "search_discovery_runs"
+    __table_args__ = (
+        Index("ix_search_discovery_runs_project_created", "project_id", "created_at"),
+        Index("ix_search_discovery_runs_project_status", "project_id", "status"),
+    )
+
+    search_discovery_run_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    query: Mapped[str] = mapped_column(String(500), nullable=False)
+    intent: Mapped[str] = mapped_column(String(40), nullable=False)
+    max_results: Mapped[int] = mapped_column(Integer, nullable=False)
+    include_domains_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    exclude_domains_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    candidates_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    result_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    provider_request_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(500), nullable=False)
+    trace_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    project: Mapped[ProjectModel] = relationship(back_populates="search_discovery_runs")
 
 
 class ParsedArtifactModel(Base):

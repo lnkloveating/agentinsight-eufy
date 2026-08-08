@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     web_connector_max_redirects: int = Field(default=5, ge=0, le=10)
     web_connector_respect_robots_txt: bool = True
     web_connector_allowed_domains: list[str] = Field(default_factory=list)
+    search_discovery_enabled: bool = True
+    search_discovery_tavily_credential_env: str = "TAVILY_API_KEY"
+    search_discovery_timeout_seconds: float = Field(default=20, ge=1, le=120)
+    search_discovery_max_response_bytes: int = Field(
+        default=1_048_576, ge=1_024, le=10_485_760
+    )
     media_processing_max_duration_seconds: float = Field(default=1_800, ge=1, le=14_400)
     media_processing_max_streams: int = Field(default=8, ge=1, le=32)
     media_processing_frame_interval_seconds: float = Field(default=10, ge=0.5, le=600)
