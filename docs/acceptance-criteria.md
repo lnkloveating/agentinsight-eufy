@@ -106,6 +106,22 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_a2a_supervisor.py`
 - 可重复真实冒烟：`scripts/smoke_competitor_user_review_live.py`
 
+## AC-03F 竞品综合与证据审计
+
+三个竞品专家均产生带 Evidence ID 的发现后，主管才允许调用竞品综合模型。综合结果必须包含
+逐产品优点、缺点与权衡、跨产品差异和待 Product Technical Agent 验证的机会假设；机会假设
+不得作为已验证未来产品结论。后端必须确定性检查每个引用是否来自本轮专家输出、是否仍存在于
+父级 Evidence Context、产品归属是否一致，以及单维度判断是否越过专家边界。任何越界引用都
+必须使本轮 Artifact 失败。缺少任一专家发现时不得调用综合模型，并返回
+`blocked_by_specialist_coverage`；覆盖不足时只能输出 `partial`，且研究缺口保持可见。
+
+验收映射：
+
+- `tests/unit/test_competitor_synthesis_contracts.py`
+- `tests/unit/test_competitor_synthesis_validation.py`
+- `tests/integration/test_competitor_synthesis_agent.py`
+- 可重复真实冒烟：`scripts/smoke_competitor_synthesis_live.py`
+
 ## AC-04A 统一资料路由
 
 用户通过统一 Source API 提交一次授权资料后，系统必须先运行可解释的确定性规则，并只在

@@ -50,6 +50,22 @@ from app.agents.competitor.supervisor import (
     CompetitorA2ASupervisorAdapter,
     build_competitor_evidence_requests,
 )
+from app.agents.competitor.synthesis_adapter import CompetitorSynthesisModelAdapter
+from app.agents.competitor.synthesis_contracts import (
+    ComparativeInsight,
+    CompetitorEvidenceAudit,
+    CompetitorProductProfile,
+    CompetitorSynthesisModelOutput,
+    CompetitorSynthesisPayload,
+    HypothesisStatus,
+    OpportunitySignal,
+    ProductAssessmentPoint,
+    ProductDimensionCoverage,
+    SynthesisDimension,
+    SynthesisGapSeverity,
+    SynthesisResearchGap,
+)
+from app.agents.competitor.synthesis_prompt import register_competitor_synthesis_prompt
 from app.agents.competitor.user_review_adapter import (
     CompetitorUserReviewModelSpecialistAdapter,
 )
@@ -81,6 +97,11 @@ __all__ = [
     "CompetitorDiscoveryModelAgentAdapter",
     "CompetitorDiscoveryRunCreate",
     "CompetitorA2ASupervisorAdapter",
+    "CompetitorEvidenceAudit",
+    "CompetitorProductProfile",
+    "CompetitorSynthesisModelAdapter",
+    "CompetitorSynthesisModelOutput",
+    "CompetitorSynthesisPayload",
     "CompetitorUserReviewEvidenceCoverage",
     "CompetitorUserReviewModelOutput",
     "CompetitorUserReviewModelSpecialistAdapter",
@@ -108,6 +129,11 @@ __all__ = [
     "PriceObservation",
     "PriceObservationDraft",
     "PriceResearchGap",
+    "ProductAssessmentPoint",
+    "ProductDimensionCoverage",
+    "ComparativeInsight",
+    "HypothesisStatus",
+    "OpportunitySignal",
     "ReviewContradiction",
     "ReviewGapSeverity",
     "ReviewRecurrenceStatus",
@@ -116,10 +142,14 @@ __all__ = [
     "ReviewSentiment",
     "ReviewTheme",
     "ReviewThemeDraft",
+    "SynthesisDimension",
+    "SynthesisGapSeverity",
+    "SynthesisResearchGap",
     "UserReviewEvidenceContextBuilder",
     "build_competitor_evidence_requests",
     "register_competitor_discovery_prompt",
     "register_competitor_user_review_prompt",
+    "register_competitor_synthesis_prompt",
     "register_official_product_prompt",
     "register_price_channel_prompt",
 ]

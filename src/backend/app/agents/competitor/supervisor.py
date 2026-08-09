@@ -5,6 +5,10 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterable
 
+from app.agents.competitor.synthesis_adapter import (
+    CompetitorSynthesisModelAdapter,
+    can_synthesize,
+)
 from app.application.runtime import AgentInvocation, RuntimeErrorCode, RuntimeGatewayError
 from app.integrations.a2a import (
     A2AErrorCode,
@@ -27,8 +31,13 @@ class CompetitorA2ASupervisorAdapter:
 
     adapter_type = "competitor-a2a-supervisor"
 
-    def __init__(self, gateway: CompetitorA2AGateway) -> None:
+    def __init__(
+        self,
+        gateway: CompetitorA2AGateway,
+        synthesizer: CompetitorSynthesisModelAdapter | None = None,
+    ) -> None:
         self.gateway = gateway
+        self.synthesizer = synthesizer
 
     async def execute(self, invocation: AgentInvocation) -> ResearchArtifact:
         if invocation.task.agent_type is not ResearchAgentType.COMPETITOR_RESEARCH:
@@ -60,7 +69,14 @@ class CompetitorA2ASupervisorAdapter:
                     ]
                 },
             ) from exc
-        return _aggregate_results(invocation, results)
+        if self.synthesizer is not None and can_synthesize(results):
+            return await self.synthesizer.synthesize(invocation, results)
+        synthesis_status = (
+            "blocked_by_specialist_coverage"
+            if self.synthesizer is not None
+            else "not_implemented_in_foundation"
+        )
+        return _aggregate_results(invocation, results, synthesis_status=synthesis_status)
 
 
 def build_competitor_evidence_requests(
@@ -137,6 +153,8 @@ def build_competitor_evidence_requests(
 def _aggregate_results(
     invocation: AgentInvocation,
     results: list[SpecialistTaskResult],
+    *,
+    synthesis_status: str = "not_implemented_in_foundation",
 ) -> ResearchArtifact:
     artifacts = [result.artifact for result in results if result.artifact is not None]
     blocked = [result for result in results if result.status is A2ATaskStatus.BLOCKED]
@@ -189,7 +207,7 @@ def _aggregate_results(
                 for result in results
             ],
             "specialist_outputs": [artifact.model_dump(mode="json") for artifact in artifacts],
-            "synthesis_status": "not_implemented_in_foundation",
+            "synthesis_status": synthesis_status,
         },
         evidence_ids=evidence_ids,
         unknowns=unknowns,
