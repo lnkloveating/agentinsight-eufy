@@ -156,6 +156,29 @@ Onboarding Item 的准确产品血缘匹配资料；有血缘时禁止回退到�
 - `tests/integration/test_competitor_source_onboarding_api.py`
 - 可重复真实冒烟：`scripts/smoke_competitor_source_onboarding_live.py`
 
+## AC-04F 按产品和维度发现竞品研究资料
+
+系统必须只从当前 Source Requirements Scope 选择具有准确型号的目标产品或已确认竞品，
+并按 `official_product`、`price_channel`、`user_review` 生成确定性查询。每个查询必须对应一个
+真实 Search Discovery Run；Provider 不可用、失败和无结果必须保持可审计状态，不能用模型
+训练知识、Mock URL 或固定业务数据补齐。
+
+搜索命中必须保持 `candidate_only`，发现阶段不得访问网页正文、自动确认授权、调用业务模型，
+也不得创建 Source Asset、Source Fragment、Evidence、Claim 或竞品结论。人工 Gate 只能选择
+当前批次真实运行中的 candidate ID，确认动作必须显式确认公开资料授权；范围外产品、跨批次
+候选、伪造候选和缺少授权必须被拒绝。
+
+确认决定、候选快照、搜索运行、准确产品、产品角色、研究维度和 Source Asset 必须保存不可变
+血缘。登记事务必须原子、项目隔离并复用重复 URL；重复相同决定幂等，不同决定冲突。事务提交
+后复用现有网页处理、Source Routing 和 Source Requirements 重评链路，单个网页失败不得生成
+事实或回滚其他资料。准备度评估必须读取新血缘，不能把一个竞品的资料模糊归给另一个产品。
+
+自动化映射：
+
+- `tests/unit/test_competitor_material_discovery_contracts.py`
+- `tests/integration/test_competitor_material_discovery_api.py`
+- 可重复真实冒烟：`scripts/smoke_competitor_material_discovery_live.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

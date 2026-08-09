@@ -71,6 +71,10 @@ POST /api/v1/projects/{project_id}/sources/links
 GET  /api/v1/projects/{project_id}/sources
 GET  /api/v1/projects/{project_id}/sources/{source_asset_id}
 DELETE /api/v1/projects/{project_id}/sources/{source_asset_id}
+POST /api/v1/projects/{project_id}/competitor-material-discoveries
+GET  /api/v1/projects/{project_id}/competitor-material-discoveries
+GET  /api/v1/projects/{project_id}/competitor-material-discoveries/{material_discovery_id}
+POST /api/v1/projects/{project_id}/competitor-material-discoveries/{material_discovery_id}/decision
 GET  /api/v1/projects/{project_id}/evidence
 GET  /api/v1/projects/{project_id}/claims
 GET  /api/v1/projects/{project_id}/innovations
