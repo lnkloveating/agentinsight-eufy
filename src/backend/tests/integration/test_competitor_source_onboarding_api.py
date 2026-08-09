@@ -12,6 +12,7 @@ from app.agents.competitor.discovery_contracts import (
 from app.agents.competitor.discovery_validation import CompetitorDiscoveryOutputValidator
 from app.application.runtime import AgentInvocation, AgentRegistry
 from app.core.config import Settings
+from app.infrastructure.database.models import SourceAssetModel
 from app.infrastructure.database.repositories import ProjectRepository
 from app.main import create_app
 from app.sources.search_discovery import (
@@ -301,6 +302,10 @@ def test_confirmed_candidates_onboard_and_automatically_use_web_processing(
             f"/api/v1/projects/{project_id}/sources/"
             f"{source['source_asset_id']}/processing"
         )
+        routing = client.get(
+            f"/api/v1/projects/{project_id}/sources/"
+            f"{source['source_asset_id']}/routing"
+        )
 
     assert before_sources["total"] == 0
     assert repeated.status_code == 200
@@ -312,6 +317,9 @@ def test_confirmed_candidates_onboard_and_automatically_use_web_processing(
     assert processing.status_code == 200
     assert processing.json()["job"]["status"] == "succeeded"
     assert processing.json()["parsed_artifact"]["fragment_count"] > 0
+    assert routing.status_code == 200
+    assert routing.json()["status"] == "confirmed"
+    assert routing.json()["confirmed_routes"] == ["official_product"]
     assert connector.calls == ["https://ring.example/products/battery-doorbell-pro"]
     assert evidence["total"] == 0
     ring_requirements = [
@@ -320,22 +328,33 @@ def test_confirmed_candidates_onboard_and_automatically_use_web_processing(
         if item.get("product") is not None and item["product"].get("brand") == "Ring"
     ]
     assert ring_requirements
-    assert all(item["status"] == "partial" for item in ring_requirements)
-    assert all(
-        source["source_asset_id"] in item["detected_source_asset_ids"]
-        for item in ring_requirements
-    )
+    requirements_by_dimension = {
+        item["dimension"]: item for item in ring_requirements
+    }
+    assert requirements_by_dimension["official_product"]["status"] == "partial"
+    assert source["source_asset_id"] in requirements_by_dimension["official_product"][
+        "detected_source_asset_ids"
+    ]
+    assert requirements_by_dimension["price_channel"]["status"] == "missing"
+    assert requirements_by_dimension["user_review"]["status"] == "missing"
 
-    async def event_types() -> list[str]:
+    async def project_events() -> list[object]:
         async with application.state.database.session() as session:
-            events = await ProjectRepository(session).list_events(project_id, limit=100)
-        return [item.event_type for item in events]
+            return await ProjectRepository(session).list_events(project_id, limit=100)
 
-    events = asyncio.run(event_types())
-    assert "source_asset_created" in events
-    assert "competitor_source_onboarding_completed" in events
-    assert "source_processing_succeeded" in events
-    assert "competitor_source_processing_completed" in events
+    events = asyncio.run(project_events())
+    event_types = [item.event_type for item in events]
+    assert "source_asset_created" in event_types
+    assert "competitor_source_onboarding_completed" in event_types
+    assert "source_processing_succeeded" in event_types
+    assert event_types.count("source_routing_analyzed") == 1
+    assert event_types.count("competitor_source_processing_completed") == 1
+    completed = next(
+        item for item in events if item.event_type == "competitor_source_processing_completed"
+    )
+    assert completed.data_json["routing_analyzed_count"] == 1
+    assert completed.data_json["routing_confirmed_count"] == 1
+    assert completed.data_json["routing_failed_count"] == 0
 
 
 def test_automatic_processing_isolates_one_failed_competitor_source(
@@ -393,8 +412,69 @@ def test_automatic_processing_isolates_one_failed_competitor_source(
     assert events[0]["claimed_queued_count"] == 2
     assert events[0]["succeeded_count"] == 1
     assert events[0]["failed_count"] == 1
+    assert events[0]["routing_analyzed_count"] == 1
+    assert events[0]["routing_confirmed_count"] == 1
+    assert events[0]["routing_failed_count"] == 0
     assert events[0]["source_requirements_status"] == "partial"
     assert isinstance(events[0]["source_requirements_input_hash"], str)
+
+
+def test_source_requirements_prefer_exact_onboarding_lineage_over_ambiguous_text(
+    tmp_path: Path,
+) -> None:
+    application = create_app(_settings(tmp_path))
+    with TestClient(application) as client:
+        _configure(application)
+        project_id = _project(client)
+        artifact = _artifact(client, project_id)
+        _confirm_ring(client, project_id, artifact)
+        created = client.post(
+            f"/api/v1/projects/{project_id}/competitor-source-onboardings",
+            json=_onboarding_payload(artifact["artifact_id"]),
+        )
+        assert created.status_code == 201
+        source_asset_id = created.json()["onboarding"]["items"][0]["source_asset"][
+            "source_asset_id"
+        ]
+
+        async def make_metadata_ambiguous() -> None:
+            async with application.state.database.session() as session:
+                source = await session.get(SourceAssetModel, source_asset_id)
+                assert source is not None
+                source.display_name = (
+                    "Ring Battery Doorbell Pro and Google Nest Doorbell Wired 2nd Gen"
+                )
+                source.purpose = (
+                    "Compare Ring Battery Doorbell Pro with Google Nest Doorbell Wired 2nd Gen."
+                )
+                await session.commit()
+
+        asyncio.run(make_metadata_ambiguous())
+        scoped = client.put(
+            f"/api/v1/projects/{project_id}/source-requirements/scope",
+            json={
+                "target_products": [{"brand": "eufy", "model": "E340"}],
+                "competitors": [
+                    {"brand": "Ring", "model": "Battery Doorbell Pro"},
+                    {"brand": "Google Nest", "model": "Doorbell Wired 2nd Gen"},
+                ],
+                "dimensions": ["official_product"],
+                "actor": "research-lead",
+                "reason": "Verify exact structured product lineage.",
+            },
+        )
+
+    assert scoped.status_code == 200
+    material_requirements = {
+        item["product"]["brand"]: item
+        for item in scoped.json()["requirements"]
+        if item.get("dimension") == "official_product"
+        and item.get("product_role") == "competitor"
+    }
+    assert material_requirements["Ring"]["status"] == "partial"
+    assert material_requirements["Ring"]["detected_source_asset_ids"] == [source_asset_id]
+    assert material_requirements["Google Nest"]["status"] == "missing"
+    assert material_requirements["Google Nest"]["detected_source_asset_ids"] == []
 
 
 def test_onboarding_requires_confirmed_gate_and_current_scope(tmp_path: Path) -> None:
