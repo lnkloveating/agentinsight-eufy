@@ -6,6 +6,7 @@ from app.api.v1.routes import (
     competitor_source_onboarding,
     concepts,
     evidence,
+    fragment_evidence,
     health,
     models,
     projects,
@@ -31,6 +32,7 @@ api_router.include_router(
     competitor_source_onboarding.router, prefix="/projects", tags=["Evidence"]
 )
 api_router.include_router(evidence.router, prefix="/projects", tags=["Evidence"])
+api_router.include_router(fragment_evidence.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(source_discovery.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(source_requirements.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(sources.router, prefix="/projects", tags=["Evidence"])

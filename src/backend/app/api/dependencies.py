@@ -16,6 +16,7 @@ from app.application.competitor_source_onboarding import (
 )
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
+from app.application.fragment_evidence import FragmentEvidencePipelineService
 from app.application.innovations import InnovationService
 from app.application.model_gateway import (
     CredentialResolver,
@@ -245,6 +246,22 @@ def get_source_evidence_promotion_service(
 SourceEvidencePromotionServiceDependency = Annotated[
     SourceEvidencePromotionService,
     Depends(get_source_evidence_promotion_service),
+]
+
+
+def get_fragment_evidence_pipeline_service(
+    request: Request,
+) -> FragmentEvidencePipelineService:
+    return FragmentEvidencePipelineService(
+        cast(Database, request.app.state.database),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+
+
+FragmentEvidencePipelineServiceDependency = Annotated[
+    FragmentEvidencePipelineService,
+    Depends(get_fragment_evidence_pipeline_service),
 ]
 
 

@@ -78,6 +78,9 @@ class ProjectModel(Base):
     competitor_material_discoveries: Mapped[
         list["CompetitorMaterialDiscoveryModel"]
     ] = relationship(back_populates="project", cascade="all, delete-orphan")
+    fragment_evidence_batches: Mapped[list["FragmentEvidenceBatchModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -792,6 +795,117 @@ class CompetitorMaterialSelectionModel(Base):
 
     decision: Mapped[CompetitorMaterialDecisionModel] = relationship(back_populates="selections")
     source_asset: Mapped[SourceAssetModel] = relationship()
+
+
+class FragmentEvidenceBatchModel(Base):
+    """一批经过确定性准备、等待一次性人工 Gate 的 Evidence Draft。"""
+
+    __tablename__ = "fragment_evidence_batches"
+    __table_args__ = (
+        Index("ix_fragment_evidence_batches_project_created", "project_id", "created_at"),
+    )
+
+    fragment_evidence_batch_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    source_asset_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(500), nullable=False)
+    fragment_evidence_decision_id: Mapped[str | None] = mapped_column(
+        String(40), nullable=True, unique=True
+    )
+    decision_action: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    selected_item_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    decided_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="fragment_evidence_batches")
+    items: Mapped[list["FragmentEvidenceBatchItemModel"]] = relationship(
+        back_populates="batch", cascade="all, delete-orphan"
+    )
+
+
+class FragmentEvidenceBatchItemModel(Base):
+    """Evidence Draft、血缘约束和最终晋级结果。"""
+
+    __tablename__ = "fragment_evidence_batch_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "fragment_evidence_batch_id",
+            "source_fragment_id",
+            name="uq_fragment_evidence_batch_fragment",
+        ),
+        Index(
+            "ix_fragment_evidence_batch_items_project_fragment",
+            "project_id",
+            "source_fragment_id",
+        ),
+    )
+
+    fragment_evidence_item_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    fragment_evidence_batch_id: Mapped[str] = mapped_column(
+        ForeignKey("fragment_evidence_batches.fragment_evidence_batch_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_fragment_id: Mapped[str] = mapped_column(
+        ForeignKey("source_fragments.source_fragment_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    eligibility: Mapped[str] = mapped_column(String(30), nullable=False)
+    block_reasons_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    confirmed_routes_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    allowed_claim_types_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    suggested_claim_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    product_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    product_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    dimensions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    region: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    authority_score: Mapped[float] = mapped_column(Float, nullable=False)
+    recency_score: Mapped[float] = mapped_column(Float, nullable=False)
+    diversity_score: Mapped[float] = mapped_column(Float, nullable=False)
+    quality_reasons_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    existing_evidence_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    selected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    selected_claim_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_segment: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    promotion_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    evidence_id: Mapped[str | None] = mapped_column(
+        ForeignKey("evidence.evidence_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    batch: Mapped[FragmentEvidenceBatchModel] = relationship(back_populates="items")
+    source_fragment: Mapped["SourceFragmentModel"] = relationship()
+    evidence: Mapped["EvidenceModel | None"] = relationship()
 
 
 class ParsedArtifactModel(Base):
