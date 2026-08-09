@@ -20,6 +20,7 @@
 6. `search-discovery.md` defines the candidate-only search Provider boundary and onboarding prerequisites.
 7. `competitor-discovery-agent.md` defines exact-model candidate classification, deterministic validation and the human Candidate Gate.
 8. `competitor-source-onboarding.md` defines confirmed-candidate authorization, atomic Source Asset creation and lineage boundaries.
+9. `source-recovery.md` defines the global user-input fallback when an authorized source fails or contains too little useful information.
 
 ## Supporting documents
 

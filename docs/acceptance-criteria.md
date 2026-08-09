@@ -287,6 +287,28 @@ Parsed Artifact、内容 Hash、Excerpt Hash、Locator 和媒体衍生物 Hash�
 - `tests/integration/test_fragment_evidence_pipeline_api.py`
 - 可重复真实冒烟：`scripts/smoke_fragment_evidence_pipeline_live.py`
 
+## AC-04H 资料失败后的用户补充与定向恢复
+
+网页或媒体资料处理失败，或虽然处理成功但没有形成满足当前 Source Requirements 的有效
+Evidence 时，后端必须基于真实 Collection Job、资料血缘和准备度评估生成恢复任务。恢复任务
+必须说明失败原因、涉及产品、缺少的具体字段及受影响 Agent；不得要求用户只能盲目更换链接，
+也不得调用模型猜测网页或媒体中未取得的内容。
+
+用户补充必须确认授权和准确性，并保存为独立的 `user_input` Source Asset、成功 Collection Job、
+可定位 Source Fragment、人工确认 Source Routing 和 `partially_verified` 的
+`user_declaration` Evidence。记录必须同时关联原失败资料、恢复任务、提交批次、替代 Source
+Asset 和 Evidence IDs。它不能被标记成官网或第三方来源，重复 request ID 必须幂等。
+
+提交后必须重新计算 Source Requirements。受影响要求满足时返回 `targeted_retry`；仍不足时保持
+`needs_more_information`。用户可以明确选择 `proceed_with_gaps`，但该决定不得创建 Evidence，
+未知项必须继续可见。恢复指令只映射当前 Task Plan 中受影响的 Agent/任务，不能要求已经成功且
+未受影响的节点重跑。
+
+自动化映射：
+
+- `tests/unit/test_source_recovery_workflow.py`
+- `tests/integration/test_source_recovery_api.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

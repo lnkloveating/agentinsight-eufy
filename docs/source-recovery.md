@@ -1,0 +1,71 @@
+# Source Recovery Orchestration
+
+## 目标
+
+当授权网页或媒体资料解析失败，或处理成功但没有覆盖当前研究所需信息时，研究流程不能直接
+卡死，也不能通过模型猜测缺失事实。后端创建一个可审计的资料恢复任务，告诉前端“为什么
+失败、缺哪些具体内容”，让用户直接补充内容后重新评估资料准备度。
+
+主流程：
+
+```text
+Source Asset 处理失败或有效信息不足
+→ POST /projects/{project_id}/source-recoveries
+→ 后端读取 Collection Job 与 Source Requirements
+→ 返回失败原因、缺失字段和受影响 Agent
+→ 前端展示结构化补充弹窗
+→ 用户提交具体内容并确认授权与准确性
+→ user_input Source Asset
+→ succeeded Collection Job
+→ verified Source Fragment
+→ manual confirmed Source Routing
+→ partially_verified user_declaration Evidence
+→ Source Requirements 重新评估
+→ 返回 targeted_retry 或继续等待补充
+```
+
+替代链接、上传文件可以继续使用已有 Source API，但不是恢复任务的主要入口。恢复接口不会
+重新访问原网站、调用 OpenCode、调用业务模型或创建虚构资料。
+
+## 前端弹窗契约
+
+创建恢复任务后，前端主要读取：
+
+- `status`：是否等待输入、仍缺资料、已解决、带缺口继续或取消；
+- `reason_code` / `reason_message`：可直接转换为失败提示；
+- `requested_fields`：字段标题、问题、是否必填、产品、地区和 Claim 类型；
+- `current_assessment`：当前 Source Requirements 缺口；
+- `resume_directive`：后端是否允许继续，以及只影响哪些 Agent/任务。
+
+前端不应要求用户盲目更换网站。主操作是“补充缺失信息”，上传文件、粘贴原文或换链接只作为
+辅助方式。用户不知道某字段时可以不提交该字段，随后继续补充，或通过人工决定选择
+`proceed_with_gaps`。
+
+## 证据和血缘规则
+
+用户填写的内容：
+
+1. 必须确认授权依据和内容准确性；
+2. 保存为 `kind=user_input` 的 Source Asset，而不是官网网页；
+3. 每个答案保存精确 JSON Locator 与原文 Fragment；
+4. Evidence 使用 `source_type=user_declaration`，初始状态为 `partially_verified`；
+5. Recovery 同时保留原失败 Source Asset、Collection Job、替代 Source Asset 与 Evidence IDs；
+6. 最终事实仍必须引用 Evidence ID，并展示其真实来源类型；
+7. 选择带缺口继续不会生成任何 Evidence，也不能把未知项改写成否定事实。
+
+## 定向恢复
+
+`resolved` 和 `proceeding_with_gaps` 才会返回可执行的 `resume_directive`。工作流通过
+`prepare_source_recovery_resume` 将受影响 Agent 类型映射到当前 Task Plan，只产生对应
+`affected_task_ids`。现有 LangGraph 定向返工路径会跳过未受影响的用户研究或竞品研究节点。
+
+资料恢复服务本身不直接启动模型调用；它保存事件和恢复指令，由当前项目的工作流主管在有效
+Checkpoint 上消费。这避免 API 请求重复触发 Agent，也保留后续飞书审批和重试的统一入口。
+
+## 明确不包含
+
+- 绕过 robots.txt、验证码、登录页或反爬限制；
+- 把用户声明伪装成官网或第三方证据；
+- 为扫描 PDF、截图、视频补造 OCR、ASR 或视觉理解能力；
+- 自动重新运行整个研究项目；
+- 用 Mock 内容填满缺失字段。
