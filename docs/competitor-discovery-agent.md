@@ -13,7 +13,7 @@
 → 确定性 candidate_id / 品牌型号 / 目标范围校验
 → Candidate Gate
 → 用户确认后更新正式竞品范围
-→ 后续 Competitor Source Onboarding
+→ Competitor Source Onboarding
 → 网页处理、路由、片段审核和 Evidence 晋级
 ```
 
@@ -65,7 +65,8 @@ POST /api/v1/projects/{project_id}/agents/competitor-discovery/artifacts/{artifa
 
 前端应先展示 Search Run 的候选来源，再展示 Agent 提名、排除理由、未知项、覆盖率、运行模型
 和 Gate 状态。`pending` 前不能把候选显示成已确认竞品；确认后应刷新
-`/source-requirements`，并进入下一步来源接入，而不是直接显示竞品结论。
+`/source-requirements`，并调用 `/competitor-source-onboardings` 接入已确认来源，而不是直接
+显示竞品结论。
 
 模型选择继承项目的 `competitor_research` Agent 覆盖。单次模型调用与整个 Runtime 使用独立
 超时预算，默认分别为 180 秒和 600 秒，因此 Model Gateway 的有限重试不会被外层提前取消。

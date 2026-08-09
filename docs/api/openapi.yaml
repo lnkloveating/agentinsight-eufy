@@ -251,6 +251,57 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/competitor-source-onboardings:
+    get:
+      tags: [Evidence]
+      summary: 查询竞品候选来源接入记录
+      description: |
+        返回当前项目由已确认 Candidate Gate 产生的 Source Onboarding 批次及完整血缘。
+        接入记录不是 Evidence，也不表示网页已经抓取、解析或审核。
+      operationId: listCompetitorSourceOnboardings
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 按创建时间倒序返回项目内的竞品来源接入批次。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorSourceOnboardingPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Evidence]
+      summary: 将已确认竞品候选批量登记为授权 Source Asset
+      description: |
+        只允许使用 Candidate Gate 已 confirm 的竞品发现 Artifact。系统自动选择该决定中
+        proposal 关联的 candidate URL，重新执行公开 URL 安全校验并批量登记 Source Asset。
+        同一 Artifact 重复请求幂等复用；该操作不访问网页、不运行解析、不创建 Evidence。
+      operationId: createCompetitorSourceOnboarding
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetitorSourceOnboardingCreate"
+      responses:
+        "201":
+          description: 已创建接入批次、Source Asset 与待处理 Collection Job。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorSourceOnboardingResult"
+        "200":
+          description: 该 Artifact 已完成接入，返回原有幂等结果。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorSourceOnboardingResult"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/events:
     get:
       tags: [Projects]
@@ -1928,6 +1979,100 @@ components:
         errors:
           type: array
           items: { type: string }
+
+    CompetitorSourceOnboardingCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - authorization_basis
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+      properties:
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        authorization_basis: { type: string, const: publicly_available }
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+
+    CompetitorSourceOnboardingItem:
+      type: object
+      additionalProperties: false
+      required:
+        - onboarding_item_id
+        - proposal_id
+        - candidate_id
+        - product
+        - source_asset
+        - source_asset_created
+      properties:
+        onboarding_item_id: { type: string, minLength: 1, maxLength: 40 }
+        proposal_id: { type: string, minLength: 1, maxLength: 40 }
+        candidate_id: { type: string, minLength: 1, maxLength: 40 }
+        product:
+          $ref: "#/components/schemas/ProductReference"
+        source_asset:
+          $ref: "#/components/schemas/SourceAsset"
+        source_asset_created: { type: boolean }
+
+    CompetitorSourceOnboarding:
+      type: object
+      additionalProperties: false
+      required:
+        - onboarding_id
+        - project_id
+        - artifact_id
+        - decision_id
+        - status
+        - authorization_basis
+        - authorized_by
+        - purpose
+        - total_item_count
+        - unique_source_asset_count
+        - created_source_asset_count
+        - reused_source_asset_count
+        - items
+        - created_at
+      properties:
+        onboarding_id: { type: string, minLength: 1, maxLength: 40 }
+        project_id: { type: string, minLength: 1, maxLength: 40 }
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        decision_id: { type: string, minLength: 1, maxLength: 40 }
+        status: { type: string, const: completed }
+        authorization_basis: { type: string, const: publicly_available }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        total_item_count: { type: integer, minimum: 1 }
+        unique_source_asset_count: { type: integer, minimum: 1 }
+        created_source_asset_count: { type: integer, minimum: 0 }
+        reused_source_asset_count: { type: integer, minimum: 0 }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CompetitorSourceOnboardingItem"
+        created_at: { type: string, format: date-time }
+
+    CompetitorSourceOnboardingResult:
+      type: object
+      additionalProperties: false
+      required: [onboarding, created]
+      properties:
+        onboarding:
+          $ref: "#/components/schemas/CompetitorSourceOnboarding"
+        created: { type: boolean }
+
+    CompetitorSourceOnboardingPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorSourceOnboarding"
+        total: { type: integer, minimum: 0 }
 
     SourceFileUpload:
       type: object

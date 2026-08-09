@@ -19,6 +19,7 @@
 5. `../tests/acceptance/features/end_to_end.feature` expresses the same release behavior as executable Chinese Gherkin scenarios.
 6. `search-discovery.md` defines the candidate-only search Provider boundary and onboarding prerequisites.
 7. `competitor-discovery-agent.md` defines exact-model candidate classification, deterministic validation and the human Candidate Gate.
+8. `competitor-source-onboarding.md` defines confirmed-candidate authorization, atomic Source Asset creation and lineage boundaries.
 
 ## Supporting documents
 
