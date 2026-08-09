@@ -7,6 +7,7 @@ from collections.abc import Iterable
 
 from app.application.runtime import AgentInvocation, RuntimeErrorCode, RuntimeGatewayError
 from app.integrations.a2a import (
+    A2AErrorCode,
     A2ATaskStatus,
     CompetitorA2ABatchError,
     CompetitorA2AGateway,
@@ -151,7 +152,11 @@ def _aggregate_results(
     )
     unknowns = _unique(
         [unknown for artifact in artifacts for unknown in artifact.unknowns]
-        + [f"{result.request.specialist_type.value} specialist is not bound" for result in blocked]
+        + [
+            f"{result.request.specialist_type.value} specialist is not bound"
+            for result in blocked
+            if result.error_code is A2AErrorCode.SPECIALIST_NOT_BOUND
+        ]
     )
     errors = _unique(
         [error for artifact in artifacts for error in artifact.errors]
