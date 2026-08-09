@@ -13,10 +13,15 @@ confirmed Competitor Discovery Artifact
 → URL 再次安全规范化和项目内去重
 → Source Asset + queued Collection Job
 → 保存 Artifact / Decision / Proposal / Candidate / Source Asset 血缘
+→ 接入事务提交
+→ 后台调用既有 Web Processing
+→ 每个来源独立成功、阻塞或失败
+→ 重新计算 Source Requirements 并发布完成事件
 ```
 
-Onboarding 不访问网页，不运行 OpenCode，不调用模型，不解析正文，也不创建 Evidence。后续仍需
-依次执行 Web Processing、Source Routing、片段审核和 Evidence 晋级。
+Onboarding 数据库事务本身不访问网页，不运行 OpenCode，不调用模型，也不创建 Evidence。
+事务提交后，后台调度器会把仍处于 `queued` 的任务交给既有 `SafeHttpWebConnector` 和
+`SourceProcessingService`。后续仍需执行 Source Routing、片段审核和 Evidence 晋级。
 
 ## 前置门禁
 
@@ -59,13 +64,21 @@ GET  /api/v1/projects/{project_id}/competitor-source-onboardings
 ```
 
 前端应在 Candidate Gate 确认成功后显示“接入已确认来源”操作，并要求用户确认公开资料授权。
-响应中的 Source Asset 应进入统一资料列表，初始处理状态为 `queued`。页面不能把
-`onboarding.status=completed` 理解为网页解析完成或 Evidence 已就绪；它只表示登记事务完成。
+响应中的 Source Asset 应立即进入统一资料列表，初始处理状态可能短暂为 `queued`，随后通过
+既有 Processing 状态接口或 SSE 事件显示 `running/succeeded/blocked/failed`，无需用户再次点击
+“解析”。页面不能把 `onboarding.status=completed` 理解为网页解析完成或 Evidence 已就绪；
+它只表示登记事务完成。
+
+调度器只领取 `queued` 任务。重复接入不会重复处理已成功或已失败的任务；失败任务继续通过
+既有 retry 接口显式重试。每个来源使用独立数据库会话，因此单个网站超时、robots 拒绝或正文
+无效不会回滚 Onboarding，也不会阻止同批其他来源。批次结束发布
+`competitor_source_processing_completed`，其中包含成功、阻塞、失败数量以及最新的 Source
+Requirements 状态和输入哈希。
 
 ## 自动化与真实验证
 
 - `tests/unit/test_competitor_source_onboarding_contracts.py`：公开授权和审计字段；
 - `tests/integration/test_competitor_source_onboarding_api.py`：Gate、范围、项目隔离、URL 去重、
-  幂等、Collection Job、事件和零 Evidence；
+  幂等、自动网页解析、单来源失败隔离、资料要求重评事件和零 Evidence；
 - `scripts/smoke_competitor_source_onboarding_live.py`：真实 Tavily、主办方模型、人工确认模拟和
-  Source Asset 接入的临时数据库链路。
+  真实公开网页自动解析的临时数据库链路。

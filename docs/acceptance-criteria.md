@@ -137,8 +137,13 @@ Mock 结果。候选 URL 必须经过公开地址校验、规范化、去重、�
 
 同一 Artifact 的接入必须幂等，批次、Source Asset、queued Collection Job、血缘和事件必须
 原子保存。重复 URL 和项目内既有授权链接必须复用；每个接入项保存 Artifact、Decision、
-Proposal、Candidate、准确产品和 Source Asset 的结构化关联。接入完成不得访问网页、调用
-模型、创建 Source Fragment、Evidence 或 Claim，也不得把 queued 资料表示为研究事实。
+Proposal、Candidate、准确产品和 Source Asset 的结构化关联。接入数据库事务不得访问网页、
+调用模型、创建 Source Fragment、Evidence 或 Claim，也不得把 queued 资料表示为研究事实。
+
+事务提交后必须自动把仍为 queued 的任务交给既有网页处理链路，不要求用户再次触发解析。
+每个来源必须使用独立处理事务；一个来源失败不得回滚接入批次或阻止其他来源。重复接入不得
+重复处理终态任务。批次结束必须重新计算 Source Requirements，并发布包含各终态数量、要求
+状态和输入哈希的完成事件。完成解析仍不得自动创建 Evidence 或 Claim。
 
 自动化映射：
 

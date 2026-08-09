@@ -11,6 +11,7 @@ from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.competitor_discovery import CompetitorDiscoveryService
 from app.application.competitor_source_onboarding import (
     CompetitorSourceOnboardingService,
+    CompetitorSourceProcessingDispatcher,
 )
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
@@ -106,6 +107,13 @@ SourceAssetServiceDependency = Annotated[SourceAssetService, Depends(get_source_
 
 def get_source_processing_service(
     request: Request, session: SessionDependency
+) -> SourceProcessingService:
+    return _build_source_processing_service(request, session)
+
+
+def _build_source_processing_service(
+    request: Request,
+    session: AsyncSession,
 ) -> SourceProcessingService:
     settings: Settings = request.app.state.settings
     trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
@@ -296,6 +304,27 @@ def get_competitor_source_onboarding_service(
 CompetitorSourceOnboardingServiceDependency = Annotated[
     CompetitorSourceOnboardingService,
     Depends(get_competitor_source_onboarding_service),
+]
+
+
+def get_competitor_source_processing_dispatcher(
+    request: Request,
+) -> CompetitorSourceProcessingDispatcher:
+    database = cast(Database, request.app.state.database)
+    event_broker = cast(ProjectEventBroker, request.app.state.event_broker)
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    return CompetitorSourceProcessingDispatcher(
+        database,
+        lambda session: _build_source_processing_service(request, session),
+        SourceRequirementService(database, event_broker, trace_id),
+        event_broker,
+        trace_id,
+    )
+
+
+CompetitorSourceProcessingDispatcherDependency = Annotated[
+    CompetitorSourceProcessingDispatcher,
+    Depends(get_competitor_source_processing_dispatcher),
 ]
 
 

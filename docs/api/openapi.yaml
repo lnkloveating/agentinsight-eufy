@@ -276,7 +276,10 @@ paths:
       description: |
         只允许使用 Candidate Gate 已 confirm 的竞品发现 Artifact。系统自动选择该决定中
         proposal 关联的 candidate URL，重新执行公开 URL 安全校验并批量登记 Source Asset。
-        同一 Artifact 重复请求幂等复用；该操作不访问网页、不运行解析、不创建 Evidence。
+        同一 Artifact 重复请求幂等复用。接入事务提交后，系统在后台把仍处于 queued 的
+        Collection Job 交给现有网页处理链路；单个来源失败不会回滚接入批次。批次结束后
+        重新计算 Source Requirements 并发布项目事件。响应不等待后台处理完成，也不把
+        queued、failed 或仅完成解析的资料表示为 Evidence。
       operationId: createCompetitorSourceOnboarding
       parameters:
         - $ref: "#/components/parameters/ProjectId"

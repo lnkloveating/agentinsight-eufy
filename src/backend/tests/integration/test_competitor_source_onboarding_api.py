@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -19,6 +20,7 @@ from app.sources.search_discovery import (
     SearchDiscoveryProviderResponse,
     SearchDiscoveryRegistry,
 )
+from app.sources.web_connector import WebConnectorError, WebFetchResult
 from app.workflows.contracts import ResearchAgentType
 
 
@@ -98,6 +100,40 @@ class OnboardingDiscoveryAdapter:
         )
 
 
+class OnboardingWebConnector:
+    def __init__(self, *, failing_domain: str | None = None) -> None:
+        self.failing_domain = failing_domain
+        self.calls: list[str] = []
+
+    async def fetch(self, source_url: str) -> WebFetchResult:
+        self.calls.append(source_url)
+        if self.failing_domain is not None and self.failing_domain in source_url:
+            raise WebConnectorError(
+                "WEB_FETCH_TIMEOUT",
+                "The webpage fetch timed out.",
+                blocked=False,
+                retryable=True,
+            )
+        product_name = (
+            "Google Nest Doorbell Wired 2nd Gen"
+            if "google" in source_url
+            else "Ring Battery Doorbell Pro"
+        )
+        return WebFetchResult(
+            requested_url=source_url,
+            final_url=source_url,
+            media_type="text/html",
+            status_code=200,
+            body_utf8=(
+                f"<html><body><main><h1>{product_name}</h1>"
+                "<p>Official public product information for research.</p>"
+                "</main></body></html>"
+            ).encode(),
+            fetched_at=datetime(2026, 8, 9, tzinfo=UTC),
+            etag='"onboarding-v1"',
+        )
+
+
 def _settings(tmp_path: Path) -> Settings:
     return Settings(
         _env_file=None,
@@ -110,13 +146,16 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
-def _configure(application: object) -> None:
+def _configure(application: object) -> OnboardingWebConnector:
     application.state.search_discovery_registry = SearchDiscoveryRegistry(
         (OnboardingSearchConnector(),)
     )
     registry = AgentRegistry()
     registry.bind(ResearchAgentType.COMPETITOR_RESEARCH, OnboardingDiscoveryAdapter())
     application.state.competitor_discovery_registry = registry
+    connector = OnboardingWebConnector()
+    application.state.web_connector = connector
+    return connector
 
 
 def _project(client: TestClient, question: str = "Which doorbells compete?") -> str:
@@ -213,12 +252,12 @@ def _onboarding_payload(artifact_id: object) -> dict[str, object]:
     }
 
 
-def test_confirmed_candidates_onboard_once_without_creating_evidence(
+def test_confirmed_candidates_onboard_and_automatically_use_web_processing(
     tmp_path: Path,
 ) -> None:
     application = create_app(_settings(tmp_path))
     with TestClient(application) as client:
-        _configure(application)
+        connector = _configure(application)
         project_id = _project(client)
         artifact = _artifact(client, project_id)
         ring = _confirm_ring(client, project_id, artifact)
@@ -271,7 +310,9 @@ def test_confirmed_candidates_onboard_once_without_creating_evidence(
     assert listed.json()["total"] == 1
     assert sources["total"] == 1
     assert processing.status_code == 200
-    assert processing.json()["job"]["status"] == "queued"
+    assert processing.json()["job"]["status"] == "succeeded"
+    assert processing.json()["parsed_artifact"]["fragment_count"] > 0
+    assert connector.calls == ["https://ring.example/products/battery-doorbell-pro"]
     assert evidence["total"] == 0
     ring_requirements = [
         item
@@ -293,6 +334,67 @@ def test_confirmed_candidates_onboard_once_without_creating_evidence(
     events = asyncio.run(event_types())
     assert "source_asset_created" in events
     assert "competitor_source_onboarding_completed" in events
+    assert "source_processing_succeeded" in events
+    assert "competitor_source_processing_completed" in events
+
+
+def test_automatic_processing_isolates_one_failed_competitor_source(
+    tmp_path: Path,
+) -> None:
+    application = create_app(_settings(tmp_path))
+    with TestClient(application) as client:
+        _configure(application)
+        application.state.web_connector = OnboardingWebConnector(
+            failing_domain="google.example"
+        )
+        project_id = _project(client)
+        artifact = _artifact(client, project_id)
+        proposal_ids = [item["proposal_id"] for item in artifact["proposals"]]
+        decision = client.post(
+            f"/api/v1/projects/{project_id}/agents/competitor-discovery/artifacts/"
+            f"{artifact['artifact_id']}/decision",
+            json={
+                "action": "confirm",
+                "selected_proposal_ids": proposal_ids,
+                "actor": "research-lead",
+                "reason": "Process both exact comparison products.",
+            },
+        )
+        assert decision.status_code == 200
+        created = client.post(
+            f"/api/v1/projects/{project_id}/competitor-source-onboardings",
+            json=_onboarding_payload(artifact["artifact_id"]),
+        )
+        assert created.status_code == 201
+        items = created.json()["onboarding"]["items"]
+        statuses = {
+            item["product"]["brand"]: client.get(
+                f"/api/v1/projects/{project_id}/sources/"
+                f"{item['source_asset']['source_asset_id']}/processing"
+            ).json()["job"]
+            for item in items
+        }
+
+    assert statuses["Ring"]["status"] == "succeeded"
+    assert statuses["Google Nest"]["status"] == "failed"
+    assert statuses["Google Nest"]["error_code"] == "WEB_FETCH_TIMEOUT"
+
+    async def processing_events() -> list[dict[str, object]]:
+        async with application.state.database.session() as session:
+            events = await ProjectRepository(session).list_events(project_id, limit=100)
+        return [
+            dict(item.data_json)
+            for item in events
+            if item.event_type == "competitor_source_processing_completed"
+        ]
+
+    events = asyncio.run(processing_events())
+    assert len(events) == 1
+    assert events[0]["claimed_queued_count"] == 2
+    assert events[0]["succeeded_count"] == 1
+    assert events[0]["failed_count"] == 1
+    assert events[0]["source_requirements_status"] == "partial"
+    assert isinstance(events[0]["source_requirements_input_hash"], str)
 
 
 def test_onboarding_requires_confirmed_gate_and_current_scope(tmp_path: Path) -> None:

@@ -40,7 +40,7 @@ http://localhost:8000/api/v1
 | Source Requirements | 保存目标产品、竞品和研究维度；按确认 route、准确产品、地区和 Evidence 实时计算 `ready/partial/blocked`；返回补充动作 | 可以实现资料准备清单，区分“已检测资料”和“已满足 Evidence”，阻止只有 eufy 资料时误跑完整竞品分析 |
 | Search Discovery | 通过显式注册的 Tavily Search Provider 发现公开候选 URL；项目隔离运行、失败分类、安全去重和域名过滤；结果固定为 `candidate_only` | 可以实现“查找资料”动作和候选来源列表；不能把搜索摘要显示成证据或自动勾选为已满足 |
 | Competitor Discovery | 主办方模型从 `competitor_candidate` 搜索运行中提名准确品牌/型号；确定性校验全部 candidate ID、目标重叠和文本依据；版本化 Artifact 停在一次性 Candidate Gate | 可以实现候选竞品审批页；Gate 前不能改写正式范围，确认后刷新资料要求并进入来源接入 |
-| Competitor Source Onboarding | 从已 confirm 的 Candidate Gate 自动读取所选 proposal/candidate；原子登记授权 Source Asset、queued Collection Job 和完整候选血缘；重复 URL 与重复请求幂等复用 | 可以在候选审批后提供“接入已确认来源”，并把新资产送入统一资料列表；不能显示成已解析或已有 Evidence |
+| Competitor Source Onboarding | 从已 confirm 的 Candidate Gate 自动读取所选 proposal/candidate；原子登记授权 Source Asset、queued Collection Job 和完整候选血缘；提交后自动复用现有网页处理链路，逐来源隔离失败并重评 Source Requirements | 候选审批后只需确认一次授权；页面通过 Processing 状态和 SSE 展示自动解析进度，解析成功仍不能显示成已有 Evidence |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
@@ -71,7 +71,7 @@ http://localhost:8000/api/v1
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
 - 价格渠道、用户评价、产品技术、商业和红队等业务 Prompt；
-- 使用 Onboarding 结构化血缘进行资料要求自动重评估和后续路由建议；
+- 将 Onboarding 结构化血缘直接作为资料与准确产品匹配的主依据（重评已自动触发，当前匹配仍读取 Source Asset 元数据），并生成后续路由建议；
 - 把已验证 SourceFragment 提供给领域 Agent 和外部 Runtime 的语义分析接线；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 竞品能力矩阵与差异化综合；
@@ -399,13 +399,13 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 191 passed
+pytest: 192 passed
 ruff: passed
-mypy: passed（158 个源文件）
+mypy: passed（159 个源文件）
 Alembic: 空数据库升级到 0013_competitor_source_onboarding、降级到 0012 后再次升级通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
-竞品发现与接入：真实 Tavily 返回 5 条 Ring 官方域名候选，DeepSeek V4 Pro 生成 completed Artifact；确认准确型号后创建 1 个 queued Source Asset，重复接入幂等复用，Evidence 保持为 0
+竞品发现与接入：真实 Tavily 返回 5 条 Ring 官方域名候选，DeepSeek V4 Pro 生成 completed Artifact；确认准确型号后接入 3 个真实来源，3 个网页均自动解析成功，重复接入幂等复用，Evidence 保持为 0
 ```
 
 接下来的后端开发顺序应先让资料准备度直接消费结构化接入血缘，再继续剩余竞品专家和领域分析：
@@ -414,7 +414,8 @@ Alembic: 空数据库升级到 0013_competitor_source_onboarding、降级到 001
 Search Discovery Connector（已完成）
 → Competitor Discovery Agent & Candidate Gate（已完成）
 → Competitor Source Onboarding（已完成）
-→ Source Requirements Re-evaluation（下一分支）
+→ Automatic Web Processing & Source Requirements Re-evaluation（已完成）
+→ Onboarding Lineage Matching & Automatic Source Routing（下一分支）
 → Competitor Price & Channel Specialist
 → Competitor User Review Specialist
 → Competitor Synthesis & Evidence Audit
