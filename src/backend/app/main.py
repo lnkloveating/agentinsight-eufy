@@ -9,10 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
     CompetitorDiscoveryModelAgentAdapter,
+    CompetitorSynthesisModelAdapter,
     CompetitorUserReviewModelSpecialistAdapter,
     OfficialProductModelSpecialistAdapter,
     PriceChannelModelSpecialistAdapter,
     register_competitor_discovery_prompt,
+    register_competitor_synthesis_prompt,
     register_competitor_user_review_prompt,
     register_official_product_prompt,
     register_price_channel_prompt,
@@ -77,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
+    register_competitor_synthesis_prompt(prompt_registry)
     register_competitor_user_review_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
     register_price_channel_prompt(prompt_registry)
@@ -196,7 +199,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         agent_registry.bind(
             ResearchAgentType.COMPETITOR_RESEARCH,
-            CompetitorA2ASupervisorAdapter(application.state.competitor_a2a_gateway),
+            CompetitorA2ASupervisorAdapter(
+                application.state.competitor_a2a_gateway,
+                CompetitorSynthesisModelAdapter(
+                    application.state.model_gateway,
+                    prompt_registry,
+                    ProjectModelSelectionResolver(database),
+                    model_timeout_seconds=(
+                        resolved_settings.competitor_synthesis_model_timeout_seconds
+                    ),
+                ),
+            ),
         )
         application.state.agent_registry = agent_registry
         if resolved_settings.auto_create_schema:
