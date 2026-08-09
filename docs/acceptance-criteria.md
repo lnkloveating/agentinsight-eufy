@@ -179,6 +179,28 @@ Onboarding Item 的准确产品血缘匹配资料；有血缘时禁止回退到�
 - `tests/integration/test_competitor_material_discovery_api.py`
 - 可重复真实冒烟：`scripts/smoke_competitor_material_discovery_live.py`
 
+## AC-04G Source Fragment 到 Evidence 的批次门禁
+
+Evidence Draft 只能来自当前项目 ready Source Asset、成功 Collection Job、持久化 Parsed
+Artifact 和 verified Source Fragment。创建 Draft 时必须读取 confirmed Source Routing 和结构化
+产品/维度血缘，不调用模型、不创建 Evidence，也不允许客户端覆盖原文、Locator、产品、地区
+或质量先验。未确认路由、未验证片段、缺失/冲突产品血缘和不允许的 Claim 类型必须明确 blocked。
+
+人工 Gate 只能选择当前批次 eligible item 和后端允许的 Claim 类型。决定必须保存 actor、reason、
+选择项和时间；相同决定幂等，不同决定冲突。晋级前必须重新验证 Source Asset、Collection Job、
+Parsed Artifact、内容 Hash、Excerpt Hash、Locator 和媒体衍生物 Hash。每项保存 Evidence ID 或
+错误码；失败重试不得重复已成功项。相同原文已使用不同证据元数据入湖时不得静默复用。
+
+晋级 Evidence 必须保留 Source Asset、Source Fragment 和 Source Locator，状态初始为
+`partially_verified`。质量分数字段只能由版本化确定性策略计算，用于排序而非宣称事实确定性。
+批次完成后必须重新计算 Source Requirements；Agent 仍只能通过 Evidence ID 引用这些内容。
+
+自动化映射：
+
+- `tests/unit/test_fragment_evidence_contracts.py`
+- `tests/integration/test_fragment_evidence_pipeline_api.py`
+- 可重复真实冒烟：`scripts/smoke_fragment_evidence_pipeline_live.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

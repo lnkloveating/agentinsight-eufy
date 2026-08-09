@@ -135,6 +135,13 @@ class SourceEvidencePromotionService:
         content_hash = build_content_hash(fragment.original_excerpt)
         existing = await self.evidence_repository.get_evidence_by_hash(project_id, content_hash)
         if existing is not None:
+            if not self._metadata_matches(existing, payload):
+                raise AppError(
+                    code="EVIDENCE_CONTENT_METADATA_CONFLICT",
+                    message="相同原文已经使用不同的证据元数据进入 Evidence Lake。",
+                    status_code=409,
+                    details={"evidence_id": existing.evidence_id},
+                )
             return EvidenceIngestResult(evidence=self._to_evidence(existing), created=False)
 
         source_url: str | None = asset.source_url
@@ -206,6 +213,30 @@ class SourceEvidencePromotionService:
             raise
         await self.event_broker.notify(project_id)
         return EvidenceIngestResult(evidence=self._to_evidence(model), created=True)
+
+    @staticmethod
+    def _metadata_matches(
+        model: EvidenceModel,
+        payload: EvidenceFromSourceFragmentIngest,
+    ) -> bool:
+        def normalized_time(value: datetime | None) -> datetime | None:
+            if value is None:
+                return None
+            if value.tzinfo is None:
+                return value.replace(tzinfo=UTC)
+            return value.astimezone(UTC)
+
+        return (
+            model.claim_type == payload.claim_type.value
+            and model.product == payload.product
+            and model.region == payload.region
+            and model.user_segment == payload.user_segment
+            and normalized_time(model.published_at) == normalized_time(payload.published_at)
+            and model.confidence == payload.confidence
+            and model.authority_score == payload.authority_score
+            and model.recency_score == payload.recency_score
+            and model.diversity_score == payload.diversity_score
+        )
 
     @staticmethod
     def _to_evidence(model: EvidenceModel) -> Evidence:

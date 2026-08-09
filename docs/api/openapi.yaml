@@ -410,6 +410,100 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/fragment-evidence-batches:
+    get:
+      tags: [Evidence]
+      summary: 查询 Fragment Evidence 审核批次
+      operationId: listFragmentEvidenceBatches
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 当前项目的 Evidence Draft 批次。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FragmentEvidenceBatchPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Evidence]
+      summary: 从已处理资料创建 Evidence Draft 批次
+      description: |
+        只读取 ready Source Asset、成功 Collection Job、verified Source Fragment、confirmed Source
+        Routing 和结构化产品/维度血缘。该操作不调用模型，也不创建 Evidence；不满足门禁的片段以
+        blocked item 返回，已经晋级的片段标记为 already_promoted。
+      operationId: createFragmentEvidenceBatch
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FragmentEvidenceBatchCreate"
+      responses:
+        "201":
+          description: 持久化的确定性 Evidence Draft 批次。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FragmentEvidenceBatch"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/fragment-evidence-batches/{fragment_evidence_batch_id}:
+    get:
+      tags: [Evidence]
+      summary: 查询一个 Fragment Evidence 审核批次
+      operationId: getFragmentEvidenceBatch
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: fragment_evidence_batch_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        "200":
+          description: Draft、Gate 决定和每项晋级结果。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FragmentEvidenceBatch"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/fragment-evidence-batches/{fragment_evidence_batch_id}/decision:
+    post:
+      tags: [Evidence]
+      summary: 提交 Fragment Evidence 一次性审核决定
+      description: |
+        confirm 只能选择该批次 eligible item，并为每项选择后端允许的 Claim 类型。产品、地区、
+        Source Locator 和质量先验由后端血缘与固定策略生成，客户端不能覆盖。每个片段重新执行
+        完整来源链校验后才进入 Evidence Lake；相同决定幂等并可恢复未完成项，不同决定冲突。
+      operationId: decideFragmentEvidenceBatch
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: fragment_evidence_batch_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 40 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FragmentEvidenceDecisionCreate"
+      responses:
+        "200":
+          description: 已保存的 Gate 决定和当前晋级结果。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FragmentEvidenceDecisionResult"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/events:
     get:
       tags: [Projects]
@@ -1355,6 +1449,25 @@ components:
     EvidenceStatus:
       type: string
       enum: [verified, partially_verified, unverified, outdated, mock, invalid]
+
+    EvidenceClaimType:
+      type: string
+      enum:
+        - fact
+        - user_opinion
+        - vendor_claim
+        - agent_inference
+        - product_identity
+        - capability
+        - specification
+        - compatibility
+        - limitation
+        - price_observation
+        - channel_availability
+        - seller_information
+        - promotion
+        - market_fact
+        - technical_fact
 
     SourceAssetKind:
       type: string
@@ -2816,6 +2929,264 @@ components:
         decision:
           $ref: "#/components/schemas/CompetitorMaterialDecision"
         created: { type: boolean }
+
+    FragmentEvidenceBatchStatus:
+      type: string
+      enum: [pending_review, processing, completed, partial, rejected]
+
+    FragmentEvidenceEligibility:
+      type: string
+      enum: [eligible, blocked, already_promoted]
+
+    FragmentEvidencePromotionStatus:
+      type: string
+      enum: [not_selected, pending, succeeded, failed]
+
+    FragmentEvidenceDecisionAction:
+      type: string
+      enum: [confirm, reject]
+
+    FragmentEvidenceBatchCreate:
+      type: object
+      additionalProperties: false
+      required: [source_asset_ids, requested_by, purpose]
+      properties:
+        source_asset_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        source_fragment_ids:
+          type: array
+          maxItems: 200
+          uniqueItems: true
+          description: |
+            可选的当前资料片段子集。为空时读取所选 Source Asset 的全部片段；若总数超过批次上限，
+            后端明确拒绝并要求先通过 Fragment 列表选择，不会静默截断。
+          items: { type: string, minLength: 1, maxLength: 40 }
+        requested_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+
+    FragmentEvidenceQualityPrior:
+      type: object
+      additionalProperties: false
+      required:
+        - policy_version
+        - confidence
+        - authority_score
+        - recency_score
+        - diversity_score
+        - reasons
+      properties:
+        policy_version: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        authority_score: { type: number, minimum: 0, maximum: 1 }
+        recency_score: { type: number, minimum: 0, maximum: 1 }
+        diversity_score: { type: number, minimum: 0, maximum: 1 }
+        reasons:
+          type: array
+          items: { type: string }
+
+    FragmentEvidenceBatchItem:
+      type: object
+      additionalProperties: false
+      required:
+        - fragment_evidence_item_id
+        - source_asset_id
+        - source_fragment
+        - eligibility
+        - block_reasons
+        - confirmed_routes
+        - allowed_claim_types
+        - suggested_claim_type
+        - product_role
+        - product
+        - dimensions
+        - region
+        - quality_prior
+        - existing_evidence_id
+        - selected
+        - selected_claim_type
+        - published_at
+        - user_segment
+        - promotion_status
+        - evidence
+        - error_code
+      properties:
+        fragment_evidence_item_id: { type: string }
+        source_asset_id: { type: string }
+        source_fragment:
+          $ref: "#/components/schemas/SourceFragment"
+        eligibility:
+          $ref: "#/components/schemas/FragmentEvidenceEligibility"
+        block_reasons:
+          type: array
+          items: { type: string }
+        confirmed_routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRouteTarget"
+        allowed_claim_types:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceClaimType"
+        suggested_claim_type:
+          oneOf:
+            - $ref: "#/components/schemas/EvidenceClaimType"
+            - type: "null"
+        product_role:
+          oneOf:
+            - $ref: "#/components/schemas/ProductRole"
+            - type: "null"
+        product:
+          oneOf:
+            - $ref: "#/components/schemas/ProductReference"
+            - type: "null"
+        dimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorResearchDimension"
+        region: { type: [string, "null"] }
+        quality_prior:
+          $ref: "#/components/schemas/FragmentEvidenceQualityPrior"
+        existing_evidence_id: { type: [string, "null"] }
+        selected: { type: boolean }
+        selected_claim_type:
+          oneOf:
+            - $ref: "#/components/schemas/EvidenceClaimType"
+            - type: "null"
+        published_at: { type: [string, "null"], format: date-time }
+        user_segment: { type: [string, "null"] }
+        promotion_status:
+          $ref: "#/components/schemas/FragmentEvidencePromotionStatus"
+        evidence:
+          oneOf:
+            - $ref: "#/components/schemas/Evidence"
+            - type: "null"
+        error_code: { type: [string, "null"] }
+
+    FragmentEvidenceDecisionSelection:
+      type: object
+      additionalProperties: false
+      required:
+        - fragment_evidence_item_id
+        - claim_type
+        - published_at
+        - user_segment
+      properties:
+        fragment_evidence_item_id: { type: string, minLength: 1, maxLength: 40 }
+        claim_type:
+          $ref: "#/components/schemas/EvidenceClaimType"
+        published_at: { type: [string, "null"], format: date-time }
+        user_segment: { type: [string, "null"], maxLength: 160 }
+
+    FragmentEvidenceDecisionCreate:
+      type: object
+      additionalProperties: false
+      required: [action, selections, actor, reason]
+      properties:
+        action:
+          $ref: "#/components/schemas/FragmentEvidenceDecisionAction"
+        selections:
+          type: array
+          maxItems: 200
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/FragmentEvidenceDecisionSelection"
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    FragmentEvidenceDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - fragment_evidence_decision_id
+        - action
+        - selected_item_ids
+        - actor
+        - reason
+        - created_at
+      properties:
+        fragment_evidence_decision_id: { type: string }
+        action:
+          $ref: "#/components/schemas/FragmentEvidenceDecisionAction"
+        selected_item_ids:
+          type: array
+          items: { type: string }
+        actor: { type: string }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+
+    FragmentEvidenceBatch:
+      type: object
+      additionalProperties: false
+      required:
+        - fragment_evidence_batch_id
+        - project_id
+        - status
+        - source_asset_ids
+        - policy_version
+        - input_hash
+        - items
+        - eligible_count
+        - blocked_count
+        - already_promoted_count
+        - promoted_count
+        - failed_count
+        - decision
+        - requested_by
+        - purpose
+        - created_at
+        - updated_at
+      properties:
+        fragment_evidence_batch_id: { type: string }
+        project_id: { type: string }
+        status:
+          $ref: "#/components/schemas/FragmentEvidenceBatchStatus"
+        source_asset_ids:
+          type: array
+          items: { type: string }
+        policy_version: { type: string }
+        input_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/FragmentEvidenceBatchItem"
+        eligible_count: { type: integer, minimum: 0 }
+        blocked_count: { type: integer, minimum: 0 }
+        already_promoted_count: { type: integer, minimum: 0 }
+        promoted_count: { type: integer, minimum: 0 }
+        failed_count: { type: integer, minimum: 0 }
+        decision:
+          oneOf:
+            - $ref: "#/components/schemas/FragmentEvidenceDecision"
+            - type: "null"
+        requested_by: { type: string }
+        purpose: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    FragmentEvidenceBatchPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FragmentEvidenceBatch"
+        total: { type: integer, minimum: 0 }
+
+    FragmentEvidenceDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [batch, decision_created]
+      properties:
+        batch:
+          $ref: "#/components/schemas/FragmentEvidenceBatch"
+        decision_created: { type: boolean }
 
     SourceRoutingSuggestion:
       type: object
