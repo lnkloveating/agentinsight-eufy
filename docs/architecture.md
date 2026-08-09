@@ -139,8 +139,10 @@ flowchart LR
 `candidate_only` URL；它不抓取网页正文，不调用业务模型，也不创建 Source Asset 或
 Evidence。密钥缺失、认证失败、限流、超时和 Provider 错误均保存为项目运行记录。候选
 必须经过竞品候选 Agent 的确定性输出校验和人工 Candidate Gate，才能写入正式竞品范围；
-随后由 Onboarding 原子保存授权 Source Asset、queued Collection Job 和候选血缘；它不访问
-网页或创建 Evidence。资料仍需经过完整 Evidence 门禁，才能交给领域 Agent。候选 Agent 使用
+随后由 Onboarding 原子保存授权 Source Asset、queued Collection Job 和候选血缘；事务提交后
+后台调度器自动复用既有安全网页 Connector 和确定性处理服务，各来源独立失败，并在批次结束
+重新计算 Source Requirements。解析产物仍不是 Evidence，资料必须经过完整 Evidence 门禁，
+才能交给领域 Agent。候选 Agent 使用
 独立 Runtime Registry，但继承项目的 `competitor_research` 模型选择，不改变竞品 A2A 主管的
 绑定。
 
