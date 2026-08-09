@@ -123,6 +123,58 @@ class AgentEvidenceContext(BaseModel):
     context_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class ResearchHandoffStatus(StrEnum):
+    READY = "ready"
+    READY_WITH_GAPS = "ready_with_gaps"
+    BLOCKED = "blocked"
+
+
+class ResearchArtifactProjection(BaseModel):
+    artifact_id: str
+    task_id: str
+    artifact_type: ResearchAgentType
+    status: ResearchTaskStatus
+    evidence_ids: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    quality_score: float = Field(ge=0, le=100)
+
+
+class CompetitorGapProjection(BaseModel):
+    scope_label: str
+    missing_dimensions: list[str] = Field(default_factory=list)
+    research_questions: list[str] = Field(default_factory=list)
+
+
+class CompetitorResearchProjection(BaseModel):
+    schema_name: str
+    synthesis_status: str
+    evidence_audit_status: str
+    product_scope: list[str] = Field(default_factory=list)
+    opportunity_signal_ids: list[str] = Field(default_factory=list)
+    gaps: list[CompetitorGapProjection] = Field(default_factory=list)
+
+
+class ResearchHandoff(BaseModel):
+    status: ResearchHandoffStatus
+    ready_for_product_technical: bool
+    user_research: ResearchArtifactProjection | None = None
+    competitor_research: ResearchArtifactProjection | None = None
+    competitor_projection: CompetitorResearchProjection | None = None
+    merged_evidence_ids: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def status_matches_readiness(self) -> ResearchHandoff:
+        if self.status is ResearchHandoffStatus.BLOCKED and self.ready_for_product_technical:
+            raise ValueError("blocked handoff cannot be ready for product technical")
+        if (
+            self.status is not ResearchHandoffStatus.BLOCKED
+            and not self.ready_for_product_technical
+        ):
+            raise ValueError("ready handoff must allow product technical")
+        return self
+
+
 class AgentContext(BaseModel):
     """传给单个 Agent 的最小必要上下文，不包含隐藏思维或完整网页。"""
 
@@ -133,6 +185,7 @@ class AgentContext(BaseModel):
     selected_innovation_ids: list[str] = Field(default_factory=list)
     decision_history: list[StageDecision] = Field(default_factory=list)
     evidence_context: AgentEvidenceContext | None = None
+    research_handoff: ResearchHandoff | None = None
 
 
 class StageDecision(BaseModel):
@@ -201,6 +254,7 @@ class ResearchState(TypedDict, total=False):
     task_plan: list[dict[str, Any]]
     artifacts: Annotated[dict[str, dict[str, Any]], merge_artifacts]
     evidence_gate: dict[str, Any]
+    research_handoff: dict[str, Any] | None
     routing_decision: str
     iteration: int
     max_iterations: int
