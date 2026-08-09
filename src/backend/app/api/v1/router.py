@@ -14,6 +14,7 @@ from app.api.v1.routes import (
     research,
     runtimes,
     source_discovery,
+    source_recovery,
     source_requirements,
     sources,
 )
@@ -34,6 +35,7 @@ api_router.include_router(
 api_router.include_router(evidence.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(fragment_evidence.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(source_discovery.router, prefix="/projects", tags=["Evidence"])
+api_router.include_router(source_recovery.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(source_requirements.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(sources.router, prefix="/projects", tags=["Evidence"])
 api_router.include_router(concepts.router, prefix="/projects", tags=["Innovations"])

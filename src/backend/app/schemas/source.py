@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, HttpUrl
 class SourceAssetKind(StrEnum):
     FILE = "file"
     LINK = "link"
+    USER_INPUT = "user_input"
 
 
 class SourceAssetStatus(StrEnum):
