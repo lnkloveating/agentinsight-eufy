@@ -75,6 +75,10 @@ POST /api/v1/projects/{project_id}/competitor-material-discoveries
 GET  /api/v1/projects/{project_id}/competitor-material-discoveries
 GET  /api/v1/projects/{project_id}/competitor-material-discoveries/{material_discovery_id}
 POST /api/v1/projects/{project_id}/competitor-material-discoveries/{material_discovery_id}/decision
+POST /api/v1/projects/{project_id}/fragment-evidence-batches
+GET  /api/v1/projects/{project_id}/fragment-evidence-batches
+GET  /api/v1/projects/{project_id}/fragment-evidence-batches/{fragment_evidence_batch_id}
+POST /api/v1/projects/{project_id}/fragment-evidence-batches/{fragment_evidence_batch_id}/decision
 GET  /api/v1/projects/{project_id}/evidence
 GET  /api/v1/projects/{project_id}/claims
 GET  /api/v1/projects/{project_id}/innovations
