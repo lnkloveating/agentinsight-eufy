@@ -75,6 +75,9 @@ class ProjectModel(Base):
     competitor_source_onboardings: Mapped[list["CompetitorSourceOnboardingModel"]] = (
         relationship(back_populates="project", cascade="all, delete-orphan")
     )
+    competitor_material_discoveries: Mapped[
+        list["CompetitorMaterialDiscoveryModel"]
+    ] = relationship(back_populates="project", cascade="all, delete-orphan")
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -632,6 +635,162 @@ class CompetitorSourceOnboardingItemModel(Base):
     onboarding: Mapped[CompetitorSourceOnboardingModel] = relationship(
         back_populates="items"
     )
+    source_asset: Mapped[SourceAssetModel] = relationship()
+
+
+class CompetitorMaterialDiscoveryModel(Base):
+    """按准确产品和研究维度执行的一批真实搜索发现。"""
+
+    __tablename__ = "competitor_material_discoveries"
+    __table_args__ = (
+        Index("ix_competitor_material_discoveries_project_created", "project_id", "created_at"),
+    )
+
+    material_discovery_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    provider_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    max_results_per_query: Mapped[int] = mapped_column(Integer, nullable=False)
+    products_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    dimensions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    scope_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    project: Mapped[ProjectModel] = relationship(back_populates="competitor_material_discoveries")
+    items: Mapped[list["CompetitorMaterialDiscoveryItemModel"]] = relationship(
+        back_populates="discovery", cascade="all, delete-orphan"
+    )
+    decision: Mapped["CompetitorMaterialDecisionModel | None"] = relationship(
+        back_populates="discovery", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class CompetitorMaterialDiscoveryItemModel(Base):
+    """发现批次内一个产品与一个维度对应的搜索运行。"""
+
+    __tablename__ = "competitor_material_discovery_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "material_discovery_id",
+            "product_role",
+            "product_identity",
+            "dimension",
+            name="uq_competitor_material_discovery_plan",
+        ),
+    )
+
+    material_discovery_item_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    material_discovery_id: Mapped[str] = mapped_column(
+        ForeignKey("competitor_material_discoveries.material_discovery_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    search_discovery_run_id: Mapped[str] = mapped_column(
+        ForeignKey("search_discovery_runs.search_discovery_run_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    product_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    product_identity: Mapped[str] = mapped_column(String(500), nullable=False)
+    product_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    dimension: Mapped[str] = mapped_column(String(40), nullable=False)
+    query: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    discovery: Mapped[CompetitorMaterialDiscoveryModel] = relationship(back_populates="items")
+    search_run: Mapped[SearchDiscoveryRunModel] = relationship()
+
+
+class CompetitorMaterialDecisionModel(Base):
+    """对一个资料发现批次的一次性人工 Gate 决定。"""
+
+    __tablename__ = "competitor_material_decisions"
+    __table_args__ = (
+        UniqueConstraint("material_discovery_id", name="uq_competitor_material_decision_discovery"),
+    )
+
+    material_decision_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    material_discovery_id: Mapped[str] = mapped_column(
+        ForeignKey("competitor_material_discoveries.material_discovery_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    selected_candidate_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    authorization_basis: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    authorization_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    discovery: Mapped[CompetitorMaterialDiscoveryModel] = relationship(back_populates="decision")
+    selections: Mapped[list["CompetitorMaterialSelectionModel"]] = relationship(
+        back_populates="decision", cascade="all, delete-orphan"
+    )
+
+
+class CompetitorMaterialSelectionModel(Base):
+    """被确认候选到 Source Asset 的不可变产品/维度血缘。"""
+
+    __tablename__ = "competitor_material_selections"
+    __table_args__ = (
+        UniqueConstraint(
+            "material_decision_id",
+            "candidate_id",
+            name="uq_competitor_material_selection_candidate",
+        ),
+        Index("ix_competitor_material_selections_project_asset", "project_id", "source_asset_id"),
+    )
+
+    material_selection_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    material_decision_id: Mapped[str] = mapped_column(
+        ForeignKey("competitor_material_decisions.material_decision_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    material_discovery_item_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "competitor_material_discovery_items.material_discovery_item_id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    search_discovery_run_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    candidate_id: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    product_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    product_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    dimension: Mapped[str] = mapped_column(String(40), nullable=False)
+    candidate_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    source_asset_created: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    decision: Mapped[CompetitorMaterialDecisionModel] = relationship(back_populates="selections")
     source_asset: Mapped[SourceAssetModel] = relationship()
 
 
