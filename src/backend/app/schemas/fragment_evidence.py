@@ -47,15 +47,16 @@ class FragmentEvidenceDecisionAction(StrEnum):
 
 class FragmentEvidenceBatchCreate(StrictModel):
     source_asset_ids: list[str] = Field(min_length=1, max_length=50)
+    source_fragment_ids: list[str] = Field(default_factory=list, max_length=200)
     requested_by: str = Field(min_length=1, max_length=120)
     purpose: str = Field(min_length=1, max_length=500)
 
-    @field_validator("source_asset_ids")
+    @field_validator("source_asset_ids", "source_fragment_ids")
     @classmethod
     def unique_asset_ids(cls, value: list[str]) -> list[str]:
         normalized = [item.strip() for item in value]
         if any(not item for item in normalized) or len(normalized) != len(set(normalized)):
-            raise ValueError("source asset IDs must be non-empty and unique")
+            raise ValueError("source/fragment IDs must be non-empty and unique")
         return normalized
 
     @field_validator("requested_by", "purpose", mode="before")

@@ -124,7 +124,11 @@ class FragmentEvidencePipelineService:
     async def create(
         self, project_id: str, payload: FragmentEvidenceBatchCreate
     ) -> FragmentEvidenceBatch:
-        snapshot = await self._load_snapshot(project_id, payload.source_asset_ids)
+        snapshot = await self._load_snapshot(
+            project_id,
+            payload.source_asset_ids,
+            payload.source_fragment_ids,
+        )
         batch_id = f"fragment_batch_{uuid4().hex[:16]}"
         now = datetime.now(UTC)
         draft_rows = self._build_drafts(snapshot)
@@ -465,7 +469,10 @@ class FragmentEvidencePipelineService:
         await self.event_broker.notify(project_id)
 
     async def _load_snapshot(
-        self, project_id: str, source_asset_ids: list[str]
+        self,
+        project_id: str,
+        source_asset_ids: list[str],
+        source_fragment_ids: list[str],
     ) -> _Snapshot:
         async with self.database.session() as session:
             repository = FragmentEvidenceRepository(session)
@@ -482,7 +489,23 @@ class FragmentEvidencePipelineService:
                     status_code=404,
                     details={"source_asset_ids": missing_ids},
                 )
-            fragments = await repository.list_fragments(project_id, source_asset_ids)
+            fragments = await repository.list_fragments(
+                project_id,
+                source_asset_ids,
+                source_fragment_ids or None,
+            )
+            if source_fragment_ids:
+                found_fragment_ids = {item.source_fragment_id for item in fragments}
+                missing_fragment_ids = sorted(
+                    set(source_fragment_ids) - found_fragment_ids
+                )
+                if missing_fragment_ids:
+                    raise AppError(
+                        code="SOURCE_FRAGMENT_NOT_FOUND",
+                        message="部分资料片段不存在、不属于当前项目或不属于所选资料。",
+                        status_code=404,
+                        details={"source_fragment_ids": missing_fragment_ids},
+                    )
             if len(fragments) > MAX_BATCH_FRAGMENTS:
                 raise AppError(
                     code="FRAGMENT_EVIDENCE_BATCH_LIMIT_EXCEEDED",

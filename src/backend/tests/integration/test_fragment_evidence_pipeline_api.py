@@ -63,10 +63,16 @@ def test_verified_competitor_fragment_is_drafted_constrained_and_promoted(
         routing = client.get(
             f"/api/v1/projects/{project_id}/sources/{source_asset_id}/routing"
         )
+        fragments = client.get(
+            f"/api/v1/projects/{project_id}/sources/{source_asset_id}/fragments"
+        ).json()
         created = client.post(
             f"/api/v1/projects/{project_id}/fragment-evidence-batches",
             json={
                 "source_asset_ids": [source_asset_id],
+                "source_fragment_ids": [
+                    fragments["items"][0]["source_fragment_id"]
+                ],
                 "requested_by": "research-lead",
                 "purpose": "Prepare verified official product excerpts for Evidence review.",
             },
@@ -187,7 +193,7 @@ def test_verified_competitor_fragment_is_drafted_constrained_and_promoted(
             )
         return batches, items, evidence_count, model_calls
 
-    assert asyncio.run(audit()) == (1, len(batch["items"]), 1, 0)
+    assert asyncio.run(audit()) == (1, 1, 1, 0)
 
 
 def test_fragment_evidence_gate_rejects_disallowed_claim_type_and_conflicting_decision(

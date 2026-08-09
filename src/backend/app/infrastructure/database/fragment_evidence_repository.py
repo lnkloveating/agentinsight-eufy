@@ -37,14 +37,20 @@ class FragmentEvidenceRepository:
         return list(await self.session.scalars(statement))
 
     async def list_fragments(
-        self, project_id: str, source_asset_ids: list[str]
+        self,
+        project_id: str,
+        source_asset_ids: list[str],
+        source_fragment_ids: list[str] | None = None,
     ) -> list[SourceFragmentModel]:
+        filters = [
+            SourceFragmentModel.project_id == project_id,
+            SourceFragmentModel.source_asset_id.in_(source_asset_ids),
+        ]
+        if source_fragment_ids is not None:
+            filters.append(SourceFragmentModel.source_fragment_id.in_(source_fragment_ids))
         statement = (
             select(SourceFragmentModel)
-            .where(
-                SourceFragmentModel.project_id == project_id,
-                SourceFragmentModel.source_asset_id.in_(source_asset_ids),
-            )
+            .where(*filters)
             .order_by(SourceFragmentModel.source_asset_id, SourceFragmentModel.ordinal)
         )
         return list(await self.session.scalars(statement))
