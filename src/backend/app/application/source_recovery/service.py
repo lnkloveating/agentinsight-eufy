@@ -659,7 +659,12 @@ class SourceRecoveryService:
             if requirement.dimension is None:
                 continue
             accepted = set(requirement.accepted_claim_types)
-            route = requirement.accepted_routes[0] if requirement.accepted_routes else None
+            preferred_route = SourceRouteTarget(requirement.dimension.value)
+            route = (
+                preferred_route
+                if preferred_route in requirement.accepted_routes
+                else (requirement.accepted_routes[0] if requirement.accepted_routes else None)
+            )
             candidates = [
                 (claim_type, required)
                 for claim_type, required in _DIMENSION_FIELDS[requirement.dimension]
@@ -752,7 +757,9 @@ class SourceRecoveryService:
     ) -> dict[str, object]:
         value = answer.value
         source_note = answer.source_note
-        excerpt = f"{field.label}：{value}"
+        product_label = SourceRecoveryService._product_label(field.product)
+        prefix = f"{product_label}｜" if product_label else ""
+        excerpt = f"{prefix}{field.label}：{value}"
         if source_note:
             excerpt = f"{excerpt}\n用户来源说明：{source_note}"
         return {
