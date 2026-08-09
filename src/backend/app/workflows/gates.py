@@ -8,12 +8,11 @@ from app.workflows.contracts import (
     GateName,
     GateRequest,
     RedTeamDirective,
-    ResearchAgentType,
     ResearchArtifact,
-    ResearchTaskStatus,
     StageDecision,
     WorkflowContractError,
 )
+from app.workflows.handoff import build_research_handoff
 
 GATE_ACTIONS: dict[GateName, list[DecisionAction]] = {
     GateName.BRIEF: [
@@ -74,22 +73,13 @@ def validate_stage_decision(raw: object, request: GateRequest) -> StageDecision:
 def evaluate_research_artifacts(
     artifacts: dict[str, ResearchArtifact],
 ) -> EvidenceGateResult:
-    """只检查 Artifact 就绪性；Evidence 的真实性仍由 Evidence/Claim Gate 负责。"""
+    """判断并行研究结果能否形成产品技术阶段的强类型交接。"""
 
-    issues: list[str] = []
-    for agent_type in (
-        ResearchAgentType.USER_RESEARCH,
-        ResearchAgentType.COMPETITOR_RESEARCH,
-    ):
-        artifact = artifacts.get(agent_type.value)
-        if artifact is None:
-            issues.append(f"missing_artifact:{agent_type}")
-            continue
-        if artifact.status is not ResearchTaskStatus.COMPLETED:
-            issues.append(f"artifact_not_completed:{agent_type}:{artifact.status}")
-        if not artifact.evidence_ids:
-            issues.append(f"artifact_has_no_evidence:{agent_type}")
-    return EvidenceGateResult(passed=not issues, issues=issues)
+    handoff = build_research_handoff(artifacts)
+    return EvidenceGateResult(
+        passed=handoff.ready_for_product_technical,
+        issues=handoff.issues,
+    )
 
 
 def parse_red_team_directive(artifact: ResearchArtifact) -> RedTeamDirective:

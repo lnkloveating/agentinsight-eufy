@@ -5,6 +5,7 @@ from app.workflows.contracts import (
     AgentContext,
     ResearchAgentType,
     ResearchArtifact,
+    ResearchHandoff,
     ResearchState,
     StageDecision,
 )
@@ -56,6 +57,13 @@ def build_agent_context(
         if key in allowed
     }
     decisions = [StageDecision.model_validate(item) for item in state.get("decision_history", [])]
+    raw_handoff = state.get("research_handoff")
+    handoff = (
+        ResearchHandoff.model_validate(raw_handoff)
+        if agent_type is ResearchAgentType.PRODUCT_TECHNICAL
+        and raw_handoff is not None
+        else None
+    )
     return AgentContext(
         project_id=state["project_id"],
         brief=ResearchBrief.model_validate(state["brief"]),
@@ -63,4 +71,5 @@ def build_agent_context(
         upstream_artifacts=artifacts,
         selected_innovation_ids=state.get("selected_innovation_ids", []),
         decision_history=decisions,
+        research_handoff=handoff,
     )

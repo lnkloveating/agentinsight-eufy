@@ -122,6 +122,25 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_synthesis_agent.py`
 - 可重复真实冒烟：`scripts/smoke_competitor_synthesis_live.py`
 
+## AC-03G 竞品主路径桥接
+
+LangGraph 必须在用户研究和竞品研究两个并行节点均返回后生成强类型 `ResearchHandoff`，
+并把两个 Artifact、合并后的 Evidence IDs、竞品产品范围、机会假设 ID、缺失研究维度和补研
+问题写入 `ResearchState`。Product Technical Agent 只能读取这份交接和策略允许的上游
+Artifact，不能从 Runtime 存储中自行猜测最新结果。
+
+状态为 `completed` 的结果可以正常交接；状态为 `partial` 的竞品综合只有在结构有效、三个
+专家输出完整、Evidence Audit 为 `passed_with_gaps` 且所有 Payload 引用均属于父级 Artifact
+时，才允许以 `ready_with_gaps` 进入产品技术阶段。Foundation 占位结构、缺失 Evidence、
+越界引用、审计失败或产品覆盖范围不一致必须阻断。阻断时只重跑受影响的用户研究或竞品研究
+任务；Checkpoint 恢复不得重复执行已经成功且未受影响的并行节点。
+
+验收映射：
+
+- `tests/unit/test_competitor_mainpath_bridge.py`
+- `tests/unit/test_workflow_contracts.py`
+- `tests/integration/test_research_workflow.py`
+
 ## AC-04A 统一资料路由
 
 用户通过统一 Source API 提交一次授权资料后，系统必须先运行可解释的确定性规则，并只在

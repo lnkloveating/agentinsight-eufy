@@ -20,9 +20,13 @@ class TestAgentRuntime:
         *,
         evidence_ready_on_attempt: int = 1,
         fail_once: set[ResearchAgentType] | None = None,
+        competitor_ready_with_gaps: bool = False,
+        invalid_competitor_attempts: int = 0,
     ) -> None:
         self.evidence_ready_on_attempt = evidence_ready_on_attempt
         self.fail_once = set(fail_once or set())
+        self.competitor_ready_with_gaps = competitor_ready_with_gaps
+        self.invalid_competitor_attempts = invalid_competitor_attempts
         self.calls: list[ResearchAgentType] = []
         self.call_counts: Counter[ResearchAgentType] = Counter()
         self.contexts: dict[ResearchAgentType, AgentContext] = {}
@@ -41,6 +45,7 @@ class TestAgentRuntime:
 
         payload: dict[str, object] = {}
         evidence_ids: list[str] = []
+        unknowns: list[str] = []
         status = ResearchTaskStatus.COMPLETED
         if task.agent_type is ResearchAgentType.RESEARCH_MANAGER:
             payload = {"tasks": [item.model_dump(mode="json") for item in _task_plan(task)]}
@@ -51,8 +56,29 @@ class TestAgentRuntime:
             if self.call_counts[task.agent_type] < self.evidence_ready_on_attempt:
                 status = ResearchTaskStatus.PARTIAL
             else:
-                evidence_ids = [f"ev_test_{task.agent_type}"]
-                payload = {"findings": [f"finding:{task.agent_type}"]}
+                evidence_id = f"ev_test_{task.agent_type}"
+                evidence_ids = [evidence_id]
+                if task.agent_type is ResearchAgentType.USER_RESEARCH:
+                    payload = _user_research_payload(evidence_id)
+                else:
+                    if (
+                        self.call_counts[task.agent_type]
+                        <= self.invalid_competitor_attempts
+                    ):
+                        payload = {
+                            "schema_name": "competitor_a2a_foundation",
+                            "specialist_outputs": [],
+                        }
+                    else:
+                        if self.competitor_ready_with_gaps:
+                            status = ResearchTaskStatus.PARTIAL
+                            unknowns = [
+                                "Recurring user-review evidence remains incomplete."
+                            ]
+                        payload = _competitor_synthesis_payload(
+                            evidence_id,
+                            with_gaps=self.competitor_ready_with_gaps,
+                        )
         elif task.agent_type is ResearchAgentType.PRODUCT_TECHNICAL:
             evidence_ids = _upstream_evidence(context)
             payload = {"innovation_ids": ["inv_one", "inv_two", "inv_three"]}
@@ -88,6 +114,7 @@ class TestAgentRuntime:
             status=status,
             payload=payload,
             evidence_ids=evidence_ids,
+            unknowns=unknowns,
             quality_score=90 if status is ResearchTaskStatus.COMPLETED else 70,
         )
 
@@ -160,3 +187,106 @@ def _upstream_evidence(context: AgentContext) -> list[str]:
             for evidence_id in artifact.evidence_ids
         }
     )
+
+
+def _user_research_payload(evidence_id: str) -> dict[str, object]:
+    return {
+        "summary": "Users still combine event context manually.",
+        "summary_evidence_ids": [evidence_id],
+        "event_chains": [],
+        "pain_points": [],
+        "unmet_needs": [],
+        "sample_biases": [],
+        "research_gaps": [],
+        "evidence_coverage": {
+            "available_evidence_count": 1,
+            "included_evidence_count": 1,
+            "cited_evidence_count": 1,
+            "independent_domain_count": 1,
+            "user_opinion_evidence_count": 1,
+            "context_hash": "a" * 64,
+        },
+    }
+
+
+def _competitor_synthesis_payload(
+    evidence_id: str,
+    *,
+    with_gaps: bool,
+) -> dict[str, object]:
+    gaps = (
+        [
+            {
+                "scope_label": "Test Doorbell",
+                "dimension": "user_review",
+                "question": "Which repeated user opinions remain missing?",
+                "reason": "The current review coverage is incomplete.",
+                "severity": "medium",
+            }
+        ]
+        if with_gaps
+        else []
+    )
+    return {
+        "schema_name": "competitor_synthesis_intelligence",
+        "schema_version": "1.0",
+        "supervisor_mode": "a2a_specialists_then_evidence_bounded_synthesis",
+        "specialist_outputs": [
+            {"specialist_type": "official_product"},
+            {"specialist_type": "price_channel"},
+            {"specialist_type": "user_review"},
+        ],
+        "summary": "Competitor evidence identifies a package-context opportunity.",
+        "summary_evidence_ids": [evidence_id],
+        "product_profiles": [
+            {
+                "scope_label": "Test Doorbell",
+                "strengths": [
+                    {
+                        "point_id": "point_detection",
+                        "dimension": "official_product",
+                        "statement": "Package detection is documented.",
+                        "explanation": "The controlled specialist output supports it.",
+                        "confidence": 0.9,
+                        "evidence_ids": [evidence_id],
+                    }
+                ],
+                "weaknesses": [],
+                "tradeoffs": [],
+            }
+        ],
+        "comparative_insights": [],
+        "opportunity_signals": [
+            {
+                "signal_id": "signal_package_context",
+                "scope_labels": ["Test Doorbell"],
+                "statement": "Package context warrants product validation.",
+                "rationale": "Detection alone does not explain risk.",
+                "validation_questions": ["Which context signals change risk?"],
+                "hypothesis_status": "requires_product_agent_validation",
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "research_gaps": gaps,
+        "coverage_matrix": [
+            {
+                "scope_label": "Test Doorbell",
+                "official_product_evidence_ids": [evidence_id],
+                "price_channel_evidence_ids": [evidence_id],
+                "user_review_evidence_ids": [] if with_gaps else [evidence_id],
+                "complete": not with_gaps,
+            }
+        ],
+        "evidence_audit": {
+            "status": "passed_with_gaps" if with_gaps else "passed",
+            "allowed_evidence_count": 1,
+            "cited_evidence_count": 1,
+            "specialist_output_count": 3,
+            "requested_product_count": 1,
+            "represented_product_count": 1,
+            "complete_product_count": 0 if with_gaps else 1,
+            "independent_source_count": 1,
+            "evidence_context_hash": "b" * 64,
+        },
+        "synthesis_status": "partial" if with_gaps else "completed",
+    }
