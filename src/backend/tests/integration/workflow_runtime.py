@@ -21,10 +21,12 @@ class TestAgentRuntime:
         evidence_ready_on_attempt: int = 1,
         fail_once: set[ResearchAgentType] | None = None,
         competitor_ready_with_gaps: bool = False,
+        invalid_competitor_attempts: int = 0,
     ) -> None:
         self.evidence_ready_on_attempt = evidence_ready_on_attempt
         self.fail_once = set(fail_once or set())
         self.competitor_ready_with_gaps = competitor_ready_with_gaps
+        self.invalid_competitor_attempts = invalid_competitor_attempts
         self.calls: list[ResearchAgentType] = []
         self.call_counts: Counter[ResearchAgentType] = Counter()
         self.contexts: dict[ResearchAgentType, AgentContext] = {}
@@ -59,13 +61,24 @@ class TestAgentRuntime:
                 if task.agent_type is ResearchAgentType.USER_RESEARCH:
                     payload = _user_research_payload(evidence_id)
                 else:
-                    if self.competitor_ready_with_gaps:
-                        status = ResearchTaskStatus.PARTIAL
-                        unknowns = ["Recurring user-review evidence remains incomplete."]
-                    payload = _competitor_synthesis_payload(
-                        evidence_id,
-                        with_gaps=self.competitor_ready_with_gaps,
-                    )
+                    if (
+                        self.call_counts[task.agent_type]
+                        <= self.invalid_competitor_attempts
+                    ):
+                        payload = {
+                            "schema_name": "competitor_a2a_foundation",
+                            "specialist_outputs": [],
+                        }
+                    else:
+                        if self.competitor_ready_with_gaps:
+                            status = ResearchTaskStatus.PARTIAL
+                            unknowns = [
+                                "Recurring user-review evidence remains incomplete."
+                            ]
+                        payload = _competitor_synthesis_payload(
+                            evidence_id,
+                            with_gaps=self.competitor_ready_with_gaps,
+                        )
         elif task.agent_type is ResearchAgentType.PRODUCT_TECHNICAL:
             evidence_ids = _upstream_evidence(context)
             payload = {"innovation_ids": ["inv_one", "inv_two", "inv_three"]}

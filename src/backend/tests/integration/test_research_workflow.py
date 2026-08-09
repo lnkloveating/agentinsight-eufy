@@ -169,6 +169,36 @@ async def test_audited_partial_competitor_gaps_reach_product_technical() -> None
 
 
 @pytest.mark.asyncio
+async def test_invalid_competitor_handoff_reruns_only_competitor() -> None:
+    runtime = TestAgentRuntime(invalid_competitor_attempts=1)
+    graph = compile_research_graph(runtime, InMemorySaver())
+    config = {
+        "configurable": {"thread_id": "proj_invalid_competitor_handoff"},
+        "recursion_limit": 50,
+    }
+
+    result = await graph.ainvoke(
+        create_initial_state("proj_invalid_competitor_handoff", _brief()), config
+    )
+    result = await graph.ainvoke(
+        Command(resume=_decision(_request(result), DecisionAction.APPROVE)), config
+    )
+
+    assert _request(result).gate is GateName.SCENARIO
+    assert runtime.call_counts[ResearchAgentType.USER_RESEARCH] == 1
+    assert runtime.call_counts[ResearchAgentType.COMPETITOR_RESEARCH] == 2
+    product_context = runtime.contexts[ResearchAgentType.PRODUCT_TECHNICAL]
+    assert product_context.research_handoff is not None
+    assert product_context.research_handoff.status == "ready"
+    skipped = [
+        event
+        for event in result["node_history"]
+        if event["event_type"] == "agent_node_skipped"
+    ]
+    assert any(event["task_id"].endswith("_user") for event in skipped)
+
+
+@pytest.mark.asyncio
 async def test_sqlite_checkpoint_retries_only_failed_parallel_node(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "workflow-checkpoints.db"
     runtime = TestAgentRuntime(fail_once={ResearchAgentType.COMPETITOR_RESEARCH})
