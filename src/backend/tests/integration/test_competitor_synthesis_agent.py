@@ -379,6 +379,13 @@ def test_three_specialists_flow_into_synthesis_and_persist_four_model_calls(
     assert artifact.payload["synthesis_status"] == "completed"
     assert artifact.payload["evidence_audit"]["status"] == "passed"
     assert artifact.payload["coverage_matrix"][0]["complete"] is True
+    assert artifact.evidence_ids == [
+        "ev_channel",
+        "ev_official",
+        "ev_price",
+        "ev_review_a",
+        "ev_review_b",
+    ]
     assert len(provider.requests) == 4
     assert {call.prompt_key for call in model_calls} == {
         "agent:competitor_official_product",

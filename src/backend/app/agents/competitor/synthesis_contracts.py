@@ -61,6 +61,8 @@ class CompetitorProductProfile(StrictModel):
         ]
         if len(point_ids) != len(set(point_ids)):
             raise ValueError("point_id must be unique within a product profile")
+        if not point_ids:
+            raise ValueError("a product profile must contain at least one cited point")
         return self
 
 

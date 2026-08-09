@@ -206,7 +206,7 @@ class CompetitorSynthesisOutputValidator:
             schema_version="1.0",
             status=status,
             payload=payload.model_dump(mode="json"),
-            evidence_ids=sorted(cited),
+            evidence_ids=sorted(allowed),
             unknowns=unknowns,
             quality_score=quality_score,
             errors=[],
