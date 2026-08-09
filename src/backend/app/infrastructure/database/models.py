@@ -72,6 +72,9 @@ class ProjectModel(Base):
     competitor_candidate_decisions: Mapped[list["CompetitorCandidateDecisionModel"]] = (
         relationship(back_populates="project", cascade="all, delete-orphan")
     )
+    competitor_source_onboardings: Mapped[list["CompetitorSourceOnboardingModel"]] = (
+        relationship(back_populates="project", cascade="all, delete-orphan")
+    )
     parsed_artifacts: Mapped[list["ParsedArtifactModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -548,6 +551,88 @@ class CompetitorCandidateDecisionModel(Base):
     )
 
     project: Mapped[ProjectModel] = relationship(back_populates="competitor_candidate_decisions")
+
+
+class CompetitorSourceOnboardingModel(Base):
+    """一次已确认竞品 Artifact 到 Source Asset 的原子接入批次。"""
+
+    __tablename__ = "competitor_source_onboardings"
+    __table_args__ = (
+        UniqueConstraint("artifact_id", name="uq_competitor_source_onboarding_artifact"),
+        Index("ix_competitor_source_onboardings_project_created", "project_id", "created_at"),
+    )
+
+    onboarding_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_artifacts.artifact_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("competitor_candidate_decisions.decision_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    authorization_basis: Mapped[str] = mapped_column(String(40), nullable=False)
+    authorized_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="competitor_source_onboardings")
+    items: Mapped[list["CompetitorSourceOnboardingItemModel"]] = relationship(
+        back_populates="onboarding", cascade="all, delete-orphan"
+    )
+
+
+class CompetitorSourceOnboardingItemModel(Base):
+    """候选 proposal/candidate 到具体 Source Asset 的不可变血缘。"""
+
+    __tablename__ = "competitor_source_onboarding_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "onboarding_id",
+            "candidate_id",
+            name="uq_competitor_source_onboarding_candidate",
+        ),
+        Index(
+            "ix_competitor_source_onboarding_items_project_asset",
+            "project_id",
+            "source_asset_id",
+        ),
+    )
+
+    onboarding_item_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    onboarding_id: Mapped[str] = mapped_column(
+        ForeignKey("competitor_source_onboardings.onboarding_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    proposal_id: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    candidate_id: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    product_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    source_asset_created: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    onboarding: Mapped[CompetitorSourceOnboardingModel] = relationship(
+        back_populates="items"
+    )
+    source_asset: Mapped[SourceAssetModel] = relationship()
 
 
 class ParsedArtifactModel(Base):

@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.competitor_discovery import CompetitorDiscoveryService
+from app.application.competitor_source_onboarding import (
+    CompetitorSourceOnboardingService,
+)
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
 from app.application.innovations import InnovationService
@@ -277,6 +280,22 @@ def get_competitor_discovery_service(request: Request) -> CompetitorDiscoverySer
 
 CompetitorDiscoveryServiceDependency = Annotated[
     CompetitorDiscoveryService, Depends(get_competitor_discovery_service)
+]
+
+
+def get_competitor_source_onboarding_service(
+    request: Request,
+) -> CompetitorSourceOnboardingService:
+    return CompetitorSourceOnboardingService(
+        cast(Database, request.app.state.database),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+
+
+CompetitorSourceOnboardingServiceDependency = Annotated[
+    CompetitorSourceOnboardingService,
+    Depends(get_competitor_source_onboarding_service),
 ]
 
 
