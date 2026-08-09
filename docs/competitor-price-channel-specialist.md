@@ -35,8 +35,8 @@ Claim 类型，并从 Evidence 采集时间生成观察时间范围。
 
 ## 接入状态
 
-生产启动将 `price_channel` 注册为竞品主管的真实 A2A 专家，与官方产品专家并行执行。用户
-评价专家仍未绑定，因此在该专家完成后，父级竞品 Artifact 仍可能为 `partial`。本分支不
+生产启动将 `price_channel` 注册为竞品主管的真实 A2A 专家，与官方产品和用户评价专家并行
+执行。任一专家证据不足时，父级竞品 Artifact 仍可能为 `partial`。本分支不
 新增公共 HTTP API，`docs/api/openapi.yaml` 保持不变；运行状态继续通过既有 Agent Run、
 A2A Task 审计和 SSE 事件表达。
 

@@ -50,6 +50,26 @@ from app.agents.competitor.supervisor import (
     CompetitorA2ASupervisorAdapter,
     build_competitor_evidence_requests,
 )
+from app.agents.competitor.user_review_adapter import (
+    CompetitorUserReviewModelSpecialistAdapter,
+)
+from app.agents.competitor.user_review_context import UserReviewEvidenceContextBuilder
+from app.agents.competitor.user_review_contracts import (
+    CompetitorUserReviewEvidenceCoverage,
+    CompetitorUserReviewModelOutput,
+    CompetitorUserReviewPayload,
+    ReviewContradiction,
+    ReviewGapSeverity,
+    ReviewRecurrenceStatus,
+    ReviewResearchGap,
+    ReviewSampleLimitation,
+    ReviewSentiment,
+    ReviewTheme,
+    ReviewThemeDraft,
+)
+from app.agents.competitor.user_review_prompt import (
+    register_competitor_user_review_prompt,
+)
 
 __all__ = [
     "CompetitorCandidateDecision",
@@ -61,6 +81,10 @@ __all__ = [
     "CompetitorDiscoveryModelAgentAdapter",
     "CompetitorDiscoveryRunCreate",
     "CompetitorA2ASupervisorAdapter",
+    "CompetitorUserReviewEvidenceCoverage",
+    "CompetitorUserReviewModelOutput",
+    "CompetitorUserReviewModelSpecialistAdapter",
+    "CompetitorUserReviewPayload",
     "GapSeverity",
     "OfficialFactType",
     "OfficialProductEvidenceContextBuilder",
@@ -84,8 +108,18 @@ __all__ = [
     "PriceObservation",
     "PriceObservationDraft",
     "PriceResearchGap",
+    "ReviewContradiction",
+    "ReviewGapSeverity",
+    "ReviewRecurrenceStatus",
+    "ReviewResearchGap",
+    "ReviewSampleLimitation",
+    "ReviewSentiment",
+    "ReviewTheme",
+    "ReviewThemeDraft",
+    "UserReviewEvidenceContextBuilder",
     "build_competitor_evidence_requests",
     "register_competitor_discovery_prompt",
+    "register_competitor_user_review_prompt",
     "register_official_product_prompt",
     "register_price_channel_prompt",
 ]

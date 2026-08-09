@@ -9,9 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
     CompetitorDiscoveryModelAgentAdapter,
+    CompetitorUserReviewModelSpecialistAdapter,
     OfficialProductModelSpecialistAdapter,
     PriceChannelModelSpecialistAdapter,
     register_competitor_discovery_prompt,
+    register_competitor_user_review_prompt,
     register_official_product_prompt,
     register_price_channel_prompt,
 )
@@ -75,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
+    register_competitor_user_review_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
     register_price_channel_prompt(prompt_registry)
     register_source_routing_prompt(prompt_registry)
@@ -163,6 +166,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 prompt_registry,
                 ProjectModelSelectionResolver(database),
                 model_timeout_seconds=(resolved_settings.competitor_price_model_timeout_seconds),
+            ),
+        )
+        a2a_specialist_registry.bind(
+            CompetitorSpecialistType.USER_REVIEW,
+            CompetitorUserReviewModelSpecialistAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(resolved_settings.competitor_review_model_timeout_seconds),
             ),
         )
         application.state.a2a_specialist_registry = a2a_specialist_registry
