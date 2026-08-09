@@ -10,8 +10,10 @@ from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
     CompetitorDiscoveryModelAgentAdapter,
     OfficialProductModelSpecialistAdapter,
+    PriceChannelModelSpecialistAdapter,
     register_competitor_discovery_prompt,
     register_official_product_prompt,
+    register_price_channel_prompt,
 )
 from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.prompt import register_user_research_prompt
@@ -74,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_user_research_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
+    register_price_channel_prompt(prompt_registry)
     register_source_routing_prompt(prompt_registry)
     external_cli_process_runner = ExternalCliProcessRunner(
         max_output_bytes=resolved_settings.external_cli_max_output_bytes,
@@ -151,6 +154,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 prompt_registry,
                 ProjectModelSelectionResolver(database),
                 model_timeout_seconds=(resolved_settings.competitor_official_model_timeout_seconds),
+            ),
+        )
+        a2a_specialist_registry.bind(
+            CompetitorSpecialistType.PRICE_CHANNEL,
+            PriceChannelModelSpecialistAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(resolved_settings.competitor_price_model_timeout_seconds),
             ),
         )
         application.state.a2a_specialist_registry = a2a_specialist_registry

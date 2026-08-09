@@ -55,6 +55,31 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_a2a_gateway.py`
 - 可重复真实冒烟：`scripts/smoke_official_product_live.py`
 
+## AC-03D 竞品价格渠道专家
+
+价格渠道专家只能读取当前项目中状态为 `verified` 或 `partially_verified`、来源资料已确认
+路由到 `price_channel`、地区与 Research Brief 一致，且 Claim 类型属于
+`price_observation`、`channel_availability`、`seller_information` 或 `promotion` 的 Evidence。
+模型不得联网、搜索或引用训练知识，也不得把搜索摘要、未审核网页片段或其他地区价格作为
+价格事实。
+
+每条价格观察必须绑定主管请求中的准确产品、币种、地区、渠道、价格类型和 Evidence IDs；
+观察时间范围由后端根据 Evidence 的采集时间确定，模型不得自行声称“当前最低价”。促销、
+会员价、套装价、起售价和常规价必须分开记录，缺少变体、卖家、时间或促销条件时必须形成
+未知项或补研问题。渠道可用性与价格观察分别建模，`listed` 不得改写成 `in_stock`。
+
+确定性 Validator 必须拒绝越界 Evidence、错产品、错地区、错误 Claim 类型、非正价格、重复
+记录和缺少时间血缘的事实发现。没有合格证据时返回 `blocked`；产品、独立来源、价格与渠道
+覆盖不足或存在高严重度缺口时返回 `partial`；只有完整满足门禁时才允许 `completed`。父级
+竞品主管必须真实绑定该专家，并继续把尚未绑定的用户评价专家标记为 `blocked`。
+
+自动化映射：
+
+- `tests/unit/test_price_channel_agent_contracts.py`
+- `tests/integration/test_price_channel_agent.py`
+- `tests/integration/test_competitor_a2a_supervisor.py`
+- 可重复真实冒烟：`scripts/smoke_price_channel_live.py`
+
 ## AC-04A 统一资料路由
 
 用户通过统一 Source API 提交一次授权资料后，系统必须先运行可解释的确定性规则，并只在

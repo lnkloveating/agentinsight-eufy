@@ -16,7 +16,7 @@ Competitor Supervisor
 每个子任务都有独立的数据库记录、状态、attempt、trace、输入 Hash、错误分类和
 Evidence IDs。
 
-当前生产启动已经注册官方产品专家；价格渠道和用户评价专家仍未绑定，会明确得到
+当前生产启动已经注册官方产品和价格渠道专家；用户评价专家仍未绑定，会明确得到
 `blocked / specialist_not_bound`。官方专家只消费受控 Evidence，不会用测试 Adapter、
 Mock 数据或大模型常识补造竞品结果。完整实现见
 `docs/competitor-official-product-specialist.md`，差异化综合属于后续分支。
@@ -72,7 +72,7 @@ evidence_count
 
 ## 当前没有实现的能力
 
-- 价格渠道与用户评价专家的真实模型 Adapter 和业务 Prompt；
+- 用户评价专家的真实模型 Adapter 和业务 Prompt；
 - 自动检索网页或绕过网站反爬；
 - 竞品能力矩阵、差异化结论和 Evidence 覆盖审计；
 - 用户选择具体竞品专家模型的公共 API；

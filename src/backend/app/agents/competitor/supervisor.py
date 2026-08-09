@@ -90,7 +90,12 @@ def build_competitor_evidence_requests(
                 "Keep region, timestamp and product variant boundaries explicit.",
             ],
             ["official_store_page", "authorized_channel_page"],
-            ["vendor_claim", "fact"],
+            [
+                "price_observation",
+                "channel_availability",
+                "seller_information",
+                "promotion",
+            ],
             task.evidence_rules.minimum_independent_domains,
         ),
         (

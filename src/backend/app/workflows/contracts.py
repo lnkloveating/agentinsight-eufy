@@ -106,6 +106,7 @@ class AgentEvidence(BaseModel):
     region: str | None = Field(default=None, max_length=120)
     user_segment: str | None = Field(default=None, max_length=160)
     published_at: datetime | None = None
+    collected_at: datetime | None = None
     confidence: float = Field(ge=0, le=1)
     authority_score: float = Field(ge=0, le=1)
     recency_score: float = Field(ge=0, le=1)
