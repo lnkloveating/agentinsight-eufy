@@ -80,6 +80,32 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_a2a_supervisor.py`
 - 可重复真实冒烟：`scripts/smoke_price_channel_live.py`
 
+## AC-03E 竞品用户评价专家
+
+用户评价专家只能读取当前项目中状态为 `verified` 或 `partially_verified`、来源资料已确认
+路由到 `user_review`、明确绑定到主管请求产品，且 Claim 类型为 `user_opinion` 的 Evidence。
+模型不得联网、搜索或使用训练知识，不得把厂商描述、商品规格、搜索摘要或没有用户表达的
+页面文字改写成用户观点。
+
+每个评价主题必须绑定准确产品、情感方向、用户表达、事件场景、影响和 Evidence IDs。后端
+根据引用 Evidence 数量及独立来源数量确定主题是单一报告还是重复主题，模型不得自行声称
+“大量用户”“普遍存在”或统计百分比。单条评论可以保存为观察，但不能满足重复主题门禁。
+正反意见必须分别保留；资料没有代表性、地区/用户分群未知、来源单一或样本过少时，必须
+形成样本限制或补研问题。
+
+确定性 Validator 必须拒绝越界 Evidence、错产品、非 `user_opinion`、重复主题 ID、主题引用
+产品血缘不一致和无引用事实。没有合格证据时返回 `blocked`；产品范围、独立来源或重复主题
+覆盖不足，或存在高严重度缺口时返回 `partial`；只有每个请求产品均有受支持的重复主题、
+达到独立来源门槛且无高严重度缺口时，才允许 `completed`。父级竞品主管必须真实绑定三个
+专家，不能再以 `specialist_not_bound` 代替用户评价结果。
+
+自动化映射：
+
+- `tests/unit/test_competitor_user_review_contracts.py`
+- `tests/integration/test_competitor_user_review_agent.py`
+- `tests/integration/test_competitor_a2a_supervisor.py`
+- 可重复真实冒烟：`scripts/smoke_competitor_user_review_live.py`
+
 ## AC-04A 统一资料路由
 
 用户通过统一 Source API 提交一次授权资料后，系统必须先运行可解释的确定性规则，并只在
