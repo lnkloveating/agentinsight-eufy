@@ -52,3 +52,9 @@ A2A Task 审计和 SSE 事件展示运行状态；完整竞品优缺点矩阵与
 - 集成测试覆盖授权评论资料、路由、Evidence Context、Model Gateway、A2A 持久化与父级聚合；
 - `scripts/smoke_competitor_user_review_live.py` 使用本地 `.env`、临时数据库和经人工审核的
   真实评论片段完成模型冒烟，不输出密钥、评论原文或运行 Trace。
+
+2026-08-09 使用公开 E340 第一人称实测页完成真实验证：网页由确定性 HTML Parser 解析为
+377 个片段，审核晋级 1 条 `user_opinion` Evidence。GLM 5.2 首次结构化输出失败后由 Model
+Gateway 自动重试成功，生成 4 个 `single_report` 主题和 3 个样本限制；DeepSeek V4 Pro
+一次调用完成，生成 2 个 `single_report` 主题和 1 个样本限制。两者都按门禁保持 `partial`，
+因为单一来源不能证明跨来源重复，这属于正确结果而不是调用失败。

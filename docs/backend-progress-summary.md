@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座、官方产品专家与价格渠道专家已经完成；用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座，以及官方产品、价格渠道和用户评价三个竞品专家已经完成；竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -48,10 +48,11 @@ http://localhost:8000/api/v1
 | Model Gateway | 模型目录、项目默认模型、Agent 级覆盖、Prompt 版本、结构化输出、重试、Token/成本审计 | 可以实现模型选择器和 Agent 调用审计展示 |
 | 主办方模型路由 | 已接入 GLM 5.2 与 DeepSeek V4 Pro，并完成真实联网冒烟测试 | 前端只使用 `/models` 返回的 `model_id`，不接触 API Key |
 | 用户研究 Agent | 消费受控 Evidence Context，输出带 Evidence IDs 的事件链、痛点和未满足需求 | 可以启动真实用户研究并展示证据覆盖、未知项和模型审计 |
-| 竞品 A2A Foundation | 竞品主管、三类 EvidenceRequest、并行专家网关、A2A Task 审计、超时和定向恢复 | 可以按 SSE 事件展示三条专家泳道；尚未实现的专家会明确 blocked |
+| 竞品 A2A Foundation | 竞品主管、三类 EvidenceRequest、并行专家网关、A2A Task 审计、超时和定向恢复 | 可以按 SSE 事件展示三条真实专家泳道；证据不足的专家会返回自己的 blocked 与补研问题 |
 | 竞品官方产品专家 | 从受控官方 Evidence 中提取产品身份、能力、规格、兼容性、限制和未知项；确定性校验范围与引用 | 可以展示官方专家的真实结构化结果和证据覆盖；不能把父级 partial 当成完整竞品结论 |
 | 竞品资料发现与片段 Evidence | 按准确产品和研究维度发现候选资料，经 Gate、网页处理、路由、片段审核后晋级带血缘 Evidence | 可以统一展示“候选→已授权→已解析→已审核→可供 Agent 使用”，不能把搜索摘要直接当证据 |
 | 竞品价格渠道专家 | 从目标地区的受控价格、库存、卖家与促销 Evidence 中输出时间化价格和渠道观察；确定性校验产品、地区、Claim 类型、采集时间与引用 | 可以展示价格/库存快照、渠道和 Evidence IDs；不得显示为永久价、全网最低价或实时库存 |
+| 竞品用户评价专家 | 从受控 user_opinion Evidence 中提炼正负体验、事件、影响、矛盾与样本限制；重复主题由后端按 Evidence 和独立来源计算 | 可以展示单条反馈和跨来源重复主题；不得把单个作者或单一页面显示成普遍用户结论 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
 
@@ -71,11 +72,12 @@ http://localhost:8000/api/v1
 12. 竞品资料发现可以按准确产品和 `official_product/price_channel/user_review` 维度生成搜索候选，经 Gate 后进入既有网页处理链路。
 13. Fragment Evidence Pipeline 只允许已验证片段、已确认路由和准确产品血缘晋级为 Evidence，并保留人工决定。
 14. 价格渠道专家能够通过项目模型策略调用 GLM 5.2 或 DeepSeek V4 Pro，输出带 Evidence IDs、地区和采集时间边界的结构化价格渠道结果。
+15. 竞品用户评价专家能够调用相同模型策略，严格消费准确产品的 `user_opinion`，并由确定性代码区分单一报告和跨来源重复主题。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 用户评价、产品技术、商业和红队等业务 Prompt；
+- 产品技术、商业和红队等业务 Prompt；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 竞品能力矩阵与差异化综合；
 - 最终报告、Package Risk Demo 和飞书集成。
@@ -402,12 +404,13 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 209 passed
+pytest: 215 passed
 ruff: passed
-mypy: passed（174 个源文件）
+mypy: passed（179 个源文件）
 Alembic: 当前迁移头为 0015_fragment_evidence_pipeline
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 价格渠道真实链路：同一授权 eufy 商品页经确定性 HTML 解析得到 372 个片段并审核晋级 2 条 Evidence；GLM 5.2 专家 completed（质量分 90），DeepSeek V4 Pro 返回契约有效的 partial（质量分 75），两次模型调用均 completed
+用户评价真实链路：公开 E340 第一人称实测页解析得到 377 个片段，人工式审核晋级 1 条 user_opinion；GLM 5.2 输出 4 个 single_report 主题并在首次结构化失败后重试成功，DeepSeek V4 Pro 一次完成并输出 2 个 single_report 主题；两者都按样本门禁保持 partial，没有伪造重复主题
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
 竞品发现与接入：真实 Tavily 返回 5 条 Ring 候选，DeepSeek V4 Pro 确认 Battery Doorbell Pro (2nd Gen)；HTTP 候选经逐跳 robots/页面安全校验跳转到 HTTPS，网页解析成功，自动确认 official_product + price_channel 路由，资料要求重评为 partial，Evidence 保持为 0
 ```
@@ -423,8 +426,8 @@ Search Discovery Connector（已完成）
 → Competitor Material Discovery（已完成）
 → Fragment Evidence Pipeline（已完成）
 → Competitor Price & Channel Specialist（已完成）
-→ Competitor User Review Specialist（下一分支）
-→ Competitor Synthesis & Evidence Audit
+→ Competitor User Review Specialist（已完成）
+→ Competitor Synthesis & Evidence Audit（下一分支）
 → Product Technical Agent
 → Commercial Agent
 → Red Team Revision
