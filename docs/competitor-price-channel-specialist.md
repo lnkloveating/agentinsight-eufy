@@ -46,3 +46,8 @@ A2A Task 审计和 SSE 事件表达。
 - 集成测试覆盖路由确认、Evidence Context、真实 Model Gateway 契约、A2A 持久化与父级聚合；
 - `scripts/smoke_price_channel_live.py` 使用本地 `.env`、临时数据库和授权网页进行可重复真实
   模型冒烟，不输出密钥，也不保存生成 Evidence 或 Runtime Trace。
+
+2026-08-09 使用同一条授权 eufy 商品页完成真实验证：网页由确定性 HTML Parser 解析为
+372 个片段，审核晋级 2 条 Evidence；GLM 5.2 输出 `completed`、质量分 90，DeepSeek V4
+Pro 输出契约有效的 `partial`、质量分 75。两次 Model Call 均为 `completed`。`partial` 表示
+模型保留了证据缺口，不是调用失败；系统不会为了演示效果把它强制改成通过。
