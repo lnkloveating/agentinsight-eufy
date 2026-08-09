@@ -14,6 +14,7 @@ from app.application.events import ProjectEventBroker
 from app.core.errors import AppError
 from app.infrastructure.database.models import (
     CollectionJobModel,
+    CompetitorSourceOnboardingItemModel,
     EvidenceModel,
     ProjectEventModel,
     SourceAssetModel,
@@ -59,6 +60,7 @@ class _AssessmentSnapshot:
     routings: tuple[SourceRoutingModel, ...]
     evidence: tuple[EvidenceModel, ...]
     jobs: tuple[CollectionJobModel, ...]
+    competitor_source_lineage: tuple[CompetitorSourceOnboardingItemModel, ...]
 
 
 _MATERIAL_SPECS = {
@@ -193,6 +195,9 @@ class SourceRequirementService:
                 routings=tuple(await repository.list_routings(project_id)),
                 evidence=tuple(await repository.list_eligible_evidence(project_id)),
                 jobs=tuple(await repository.list_collection_jobs(project_id)),
+                competitor_source_lineage=tuple(
+                    await repository.list_competitor_source_lineage(project_id)
+                ),
             )
 
     def _evaluate(
@@ -209,6 +214,9 @@ class SourceRequirementService:
             self._scope_requirement(ProductRole.TARGET, target_products),
             self._scope_requirement(ProductRole.COMPETITOR, competitors),
         ]
+        lineage_by_asset = self._lineage_products_by_asset(
+            snapshot.competitor_source_lineage
+        )
         for role, products in (
             (ProductRole.TARGET, target_products),
             (ProductRole.COMPETITOR, competitors),
@@ -223,6 +231,7 @@ class SourceRequirementService:
                             product,
                             _MATERIAL_SPECS[dimension],
                             snapshot,
+                            lineage_by_asset,
                         )
                     )
 
@@ -310,6 +319,7 @@ class SourceRequirementService:
         product: ProductReference,
         spec: _MaterialSpec,
         snapshot: _AssessmentSnapshot,
+        lineage_by_asset: dict[str, tuple[ProductReference, ...]],
     ) -> SourceRequirementItem:
         routed_by_asset = {
             routing.source_asset_id: set(routing.confirmed_routes_json)
@@ -346,7 +356,7 @@ class SourceRequirementService:
         detected_assets = [
             asset
             for asset in snapshot.assets
-            if self._asset_matches_product(asset, product)
+            if self._asset_matches_product(asset, product, lineage_by_asset)
             and (
                 accepted_route_values.intersection(
                     routed_by_asset.get(asset.source_asset_id, set())
@@ -422,17 +432,42 @@ class SourceRequirementService:
         aliases.discard("")
         return normalized in aliases
 
-    @staticmethod
-    def _asset_matches_product(asset: SourceAssetModel, product: ProductReference) -> bool:
+    @classmethod
+    def _asset_matches_product(
+        cls,
+        asset: SourceAssetModel,
+        product: ProductReference,
+        lineage_by_asset: dict[str, tuple[ProductReference, ...]],
+    ) -> bool:
         if product.model is None:
             return False
-        haystack = SourceRequirementService._normalize(
+        lineage_products = lineage_by_asset.get(asset.source_asset_id)
+        if lineage_products is not None:
+            expected_identity = cls._product_key(product)
+            return any(cls._product_key(item) == expected_identity for item in lineage_products)
+        haystack = cls._normalize(
             " ".join(filter(None, (asset.display_name, asset.purpose, asset.source_url or "")))
         )
         return (
-            SourceRequirementService._normalize(product.brand) in haystack
-            and SourceRequirementService._normalize(product.model) in haystack
+            cls._normalize(product.brand) in haystack
+            and cls._normalize(product.model) in haystack
         )
+
+    @staticmethod
+    def _lineage_products_by_asset(
+        lineages: tuple[CompetitorSourceOnboardingItemModel, ...],
+    ) -> dict[str, tuple[ProductReference, ...]]:
+        products: dict[str, list[ProductReference]] = {}
+        for lineage in lineages:
+            bucket = products.setdefault(lineage.source_asset_id, [])
+            try:
+                product = ProductReference.model_validate(lineage.product_json)
+            except ValueError:
+                # 有血缘但记录无效时保持“不匹配”，不能回退到模糊文本并错误归属。
+                continue
+            if product not in bucket:
+                bucket.append(product)
+        return {source_asset_id: tuple(items) for source_asset_id, items in products.items()}
 
     @staticmethod
     def _evidence_matches_region(

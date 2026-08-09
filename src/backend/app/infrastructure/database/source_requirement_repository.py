@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.models import (
     CollectionJobModel,
+    CompetitorSourceOnboardingItemModel,
     EvidenceModel,
     ProjectModel,
     SourceAssetModel,
@@ -70,6 +71,19 @@ class SourceRequirementRepository:
             select(CollectionJobModel)
             .where(CollectionJobModel.project_id == project_id)
             .order_by(CollectionJobModel.collection_job_id.asc())
+        )
+        return list(await self.session.scalars(statement))
+
+    async def list_competitor_source_lineage(
+        self, project_id: str
+    ) -> list[CompetitorSourceOnboardingItemModel]:
+        statement = (
+            select(CompetitorSourceOnboardingItemModel)
+            .where(CompetitorSourceOnboardingItemModel.project_id == project_id)
+            .order_by(
+                CompetitorSourceOnboardingItemModel.source_asset_id.asc(),
+                CompetitorSourceOnboardingItemModel.onboarding_item_id.asc(),
+            )
         )
         return list(await self.session.scalars(statement))
 
