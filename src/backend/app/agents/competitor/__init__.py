@@ -30,6 +30,22 @@ from app.agents.competitor.official_product_contracts import (
 from app.agents.competitor.official_product_prompt import (
     register_official_product_prompt,
 )
+from app.agents.competitor.price_channel_adapter import PriceChannelModelSpecialistAdapter
+from app.agents.competitor.price_channel_context import PriceChannelEvidenceContextBuilder
+from app.agents.competitor.price_channel_contracts import (
+    ChannelAvailabilityStatus,
+    ChannelObservation,
+    ChannelObservationDraft,
+    PriceChannelEvidenceCoverage,
+    PriceChannelModelOutput,
+    PriceChannelPayload,
+    PriceGapSeverity,
+    PriceKind,
+    PriceObservation,
+    PriceObservationDraft,
+    PriceResearchGap,
+)
+from app.agents.competitor.price_channel_prompt import register_price_channel_prompt
 from app.agents.competitor.supervisor import (
     CompetitorA2ASupervisorAdapter,
     build_competitor_evidence_requests,
@@ -55,7 +71,21 @@ __all__ = [
     "OfficialProductPayload",
     "OfficialProductRecord",
     "OfficialResearchGap",
+    "ChannelAvailabilityStatus",
+    "ChannelObservation",
+    "ChannelObservationDraft",
+    "PriceChannelEvidenceContextBuilder",
+    "PriceChannelEvidenceCoverage",
+    "PriceChannelModelOutput",
+    "PriceChannelModelSpecialistAdapter",
+    "PriceChannelPayload",
+    "PriceGapSeverity",
+    "PriceKind",
+    "PriceObservation",
+    "PriceObservationDraft",
+    "PriceResearchGap",
     "build_competitor_evidence_requests",
     "register_competitor_discovery_prompt",
     "register_official_product_prompt",
+    "register_price_channel_prompt",
 ]

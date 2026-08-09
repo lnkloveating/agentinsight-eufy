@@ -1,4 +1,4 @@
-"""从 Evidence Lake 构建官方产品专家的最小受控上下文。"""
+"""从已确认价格渠道资料构建地区受控的 Evidence Context。"""
 
 from __future__ import annotations
 
@@ -12,8 +12,15 @@ from app.infrastructure.database.source_routing_repository import SourceRoutingR
 from app.schemas.evidence import EvidenceClaimType, EvidenceStatus
 from app.workflows.contracts import AgentEvidence, AgentEvidenceContext
 
+PRICE_CHANNEL_CLAIM_TYPES = {
+    EvidenceClaimType.PRICE_OBSERVATION.value,
+    EvidenceClaimType.CHANNEL_AVAILABILITY.value,
+    EvidenceClaimType.SELLER_INFORMATION.value,
+    EvidenceClaimType.PROMOTION.value,
+}
 
-class OfficialProductEvidenceContextBuilder:
+
+class PriceChannelEvidenceContextBuilder:
     def __init__(
         self,
         database: Database,
@@ -23,55 +30,45 @@ class OfficialProductEvidenceContextBuilder:
         max_total_chars: int,
     ) -> None:
         if max_items <= 0 or max_excerpt_chars <= 0 or max_total_chars <= 0:
-            raise ValueError("official product evidence limits must be positive")
+            raise ValueError("price channel evidence limits must be positive")
         self.database = database
         self.max_items = max_items
         self.max_excerpt_chars = max_excerpt_chars
         self.max_total_chars = max_total_chars
 
-    async def build(self, project_id: str) -> AgentEvidenceContext:
-        candidate_limit = min(max(self.max_items * 10, self.max_items), 2_000)
+    async def build(self, project_id: str, *, region: str) -> AgentEvidenceContext:
+        candidate_limit = min(max(self.max_items * 20, self.max_items), 2_000)
         async with self.database.session() as session:
             source_asset_ids = await SourceRoutingRepository(session).confirmed_source_asset_ids(
-                project_id, "official_product"
+                project_id, "price_channel"
             )
-            candidates, available_count = await EvidenceRepository(
-                session
-            ).list_eligible_agent_evidence(
+            candidates, _ = await EvidenceRepository(session).list_eligible_agent_evidence(
                 project_id,
                 statuses={
                     EvidenceStatus.VERIFIED.value,
                     EvidenceStatus.PARTIALLY_VERIFIED.value,
                 },
-                claim_types={
-                    EvidenceClaimType.VENDOR_CLAIM.value,
-                    EvidenceClaimType.FACT.value,
-                    EvidenceClaimType.PRODUCT_IDENTITY.value,
-                    EvidenceClaimType.CAPABILITY.value,
-                    EvidenceClaimType.SPECIFICATION.value,
-                    EvidenceClaimType.COMPATIBILITY.value,
-                    EvidenceClaimType.LIMITATION.value,
-                },
+                claim_types=PRICE_CHANNEL_CLAIM_TYPES,
                 source_asset_ids=source_asset_ids,
                 limit=candidate_limit,
             )
 
+        matching = [item for item in candidates if self._same_region(item.region, region)]
         items: list[AgentEvidence] = []
         remaining_chars = self.max_total_chars
-        for model in self._select_diverse(candidates):
+        for model in self._select_diverse(matching):
             if remaining_chars <= 0:
                 break
-            excerpt_limit = min(self.max_excerpt_chars, remaining_chars)
-            excerpt = model.original_excerpt[:excerpt_limit].strip()
+            excerpt = model.original_excerpt[: min(self.max_excerpt_chars, remaining_chars)].strip()
             if not excerpt:
                 continue
             items.append(self._to_agent_evidence(model, excerpt))
             remaining_chars -= len(excerpt)
         return AgentEvidenceContext(
             items=items,
-            available_evidence_count=available_count,
+            available_evidence_count=len(matching),
             included_evidence_count=len(items),
-            omitted_evidence_count=max(available_count - len(items), 0),
+            omitted_evidence_count=max(len(matching) - len(items), 0),
             context_hash=self._context_hash(items),
         )
 
@@ -88,11 +85,14 @@ class OfficialProductEvidenceContextBuilder:
             seen_sources.add(source_key)
             if len(selected) >= self.max_items:
                 return selected
-        for candidate in deferred:
-            selected.append(candidate)
-            if len(selected) >= self.max_items:
-                break
-        return selected
+        return [*selected, *deferred[: self.max_items - len(selected)]]
+
+    @staticmethod
+    def _same_region(evidence_region: str | None, requested_region: str) -> bool:
+        return (
+            evidence_region is not None
+            and evidence_region.casefold() == requested_region.casefold()
+        )
 
     @staticmethod
     def _source_key(model: EvidenceModel) -> str:

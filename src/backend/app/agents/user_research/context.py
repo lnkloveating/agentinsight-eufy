@@ -109,6 +109,7 @@ class UserResearchEvidenceContextBuilder:
             region=model.region,
             user_segment=model.user_segment,
             published_at=model.published_at,
+            collected_at=model.collected_at,
             confidence=model.confidence,
             authority_score=model.authority_score,
             recency_score=model.recency_score,
