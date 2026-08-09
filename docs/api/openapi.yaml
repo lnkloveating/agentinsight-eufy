@@ -257,7 +257,8 @@ paths:
       summary: 查询竞品候选来源接入记录
       description: |
         返回当前项目由已确认 Candidate Gate 产生的 Source Onboarding 批次及完整血缘。
-        接入记录不是 Evidence，也不表示网页已经抓取、解析或审核。
+        接入记录不是 Evidence；网页处理和资料路由的当前状态应分别通过 Source Processing
+        与 Source Routing 接口查询。
       operationId: listCompetitorSourceOnboardings
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -277,9 +278,11 @@ paths:
         只允许使用 Candidate Gate 已 confirm 的竞品发现 Artifact。系统自动选择该决定中
         proposal 关联的 candidate URL，重新执行公开 URL 安全校验并批量登记 Source Asset。
         同一 Artifact 重复请求幂等复用。接入事务提交后，系统在后台把仍处于 queued 的
-        Collection Job 交给现有网页处理链路；单个来源失败不会回滚接入批次。批次结束后
-        重新计算 Source Requirements 并发布项目事件。响应不等待后台处理完成，也不把
-        queued、failed 或仅完成解析的资料表示为 Evidence。
+        Collection Job 交给现有网页处理链路；单个来源失败不会回滚接入批次。成功解析的
+        来源继续自动执行 Source Routing，低置信度结果保持 needs_review，不越过人工路由
+        门禁。批次结束后基于结构化产品血缘重新计算 Source Requirements 并发布项目事件。
+        响应不等待后台处理完成，也不把 queued、failed、仅完成解析或仅完成路由的资料表示为
+        Evidence。
       operationId: createCompetitorSourceOnboarding
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -332,8 +335,10 @@ paths:
       tags: [Evidence]
       summary: 评估项目当前资料准备度
       description: |
-        基于已保存的产品范围、已确认资料路由和可用于 Agent 的 Evidence 进行确定性评估。
-        该接口不会调用模型、抓取网页或生成事实；资料不足时返回具体补充动作。
+        基于已保存的产品范围、Competitor Source Onboarding 的结构化产品血缘、已确认资料
+        路由和可用于 Agent 的 Evidence 进行确定性评估。存在结构化血缘时不得使用标题、
+        URL 或 purpose 把同一资料模糊匹配给其他产品；没有血缘的用户资料仍使用保守元数据
+        匹配。该接口不会调用模型、抓取网页或生成事实；资料不足时返回具体补充动作。
       operationId: getSourceRequirements
       parameters:
         - $ref: "#/components/parameters/ProjectId"

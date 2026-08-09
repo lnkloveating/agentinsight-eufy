@@ -16,12 +16,15 @@ confirmed Competitor Discovery Artifact
 → 接入事务提交
 → 后台调用既有 Web Processing
 → 每个来源独立成功、阻塞或失败
+→ 成功来源自动执行 Source Routing
+→ 高置信度确认，低置信度保持 needs_review
 → 重新计算 Source Requirements 并发布完成事件
 ```
 
 Onboarding 数据库事务本身不访问网页，不运行 OpenCode，不调用模型，也不创建 Evidence。
 事务提交后，后台调度器会把仍处于 `queued` 的任务交给既有 `SafeHttpWebConnector` 和
-`SourceProcessingService`。后续仍需执行 Source Routing、片段审核和 Evidence 晋级。
+`SourceProcessingService`，成功来源继续交给既有 `SourceRoutingService`。后续仍需执行片段
+审核和 Evidence 晋级。
 
 ## 前置门禁
 
@@ -55,6 +58,9 @@ whether the Source Asset was newly created
 ```
 
 因此后续资料准备度和领域 Agent 可以使用结构化血缘，不必依靠网页标题猜测它属于哪个竞品。
+Source Requirements 对存在 Onboarding 血缘的资料只接受结构化准确产品匹配；即使标题、URL
+或 purpose 同时提到其他产品，也不会把资料错误归属给它。只有用户单独上传且没有血缘的资料
+才保留保守的元数据匹配。
 
 ## API
 
@@ -73,12 +79,15 @@ GET  /api/v1/projects/{project_id}/competitor-source-onboardings
 既有 retry 接口显式重试。每个来源使用独立数据库会话，因此单个网站超时、robots 拒绝或正文
 无效不会回滚 Onboarding，也不会阻止同批其他来源。批次结束发布
 `competitor_source_processing_completed`，其中包含成功、阻塞、失败数量以及最新的 Source
-Requirements 状态和输入哈希。
+Requirements 状态和输入哈希。成功解析后自动调用 Source Routing；确定性规则足够时自动
+确认，多义来源可调用项目选择的模型辅助，仍低于阈值时保持 `needs_review`。重复接入不会重复
+分析已经存在的路由。
 
 ## 自动化与真实验证
 
 - `tests/unit/test_competitor_source_onboarding_contracts.py`：公开授权和审计字段；
 - `tests/integration/test_competitor_source_onboarding_api.py`：Gate、范围、项目隔离、URL 去重、
-  幂等、自动网页解析、单来源失败隔离、资料要求重评事件和零 Evidence；
+  幂等、自动网页解析和路由、单来源失败隔离、结构化血缘优先、资料要求重评事件和零 Evidence；
+- `tests/unit/test_web_connector.py`：HTTP/HTTPS 页面与 robots 策略逐跳安全重定向；
 - `scripts/smoke_competitor_source_onboarding_live.py`：真实 Tavily、主办方模型、人工确认模拟和
-  真实公开网页自动解析的临时数据库链路。
+  真实公开网页解析、自动路由及资料要求重评的临时数据库链路。

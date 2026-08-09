@@ -86,7 +86,17 @@ def run_live_smoke(model_id: str) -> dict[str, Any]:
                     f"candidate_count={len(search['candidates'])} "
                     f"artifact_status={artifact['status']}"
                 )
-            proposal = artifact["proposals"][0]
+            proposal = next(
+                (
+                    item
+                    for item in artifact["proposals"]
+                    if "battery video doorbell pro"
+                    in " ".join(
+                        filter(None, (item["brand"], item["model"], item["variant"]))
+                    ).casefold()
+                ),
+                artifact["proposals"][0],
+            )
             _expect(
                 client.post(
                     f"/api/v1/projects/{project_id}/agents/competitor-discovery/artifacts/"
@@ -135,7 +145,7 @@ def run_live_smoke(model_id: str) -> dict[str, Any]:
                 200,
                 "list onboarded source assets",
             )
-            processing_statuses = []
+            source_pipeline_results = []
             for item in record["items"]:
                 source_asset_id = item["source_asset"]["source_asset_id"]
                 processing = _expect(
@@ -146,7 +156,33 @@ def run_live_smoke(model_id: str) -> dict[str, Any]:
                     200,
                     "read onboarded collection job",
                 )
-                processing_statuses.append(processing["job"]["status"])
+                routing: dict[str, Any] | None = None
+                if processing["job"]["status"] == "succeeded":
+                    routing = _expect(
+                        client.get(
+                            f"/api/v1/projects/{project_id}/sources/"
+                            f"{source_asset_id}/routing"
+                        ),
+                        200,
+                        "read automatic source routing",
+                    )
+                source_pipeline_results.append(
+                    {
+                        "source_asset_id": source_asset_id,
+                        "source_url": item["source_asset"]["source_url"],
+                        "processing_status": processing["job"]["status"],
+                        "processing_error_code": processing["job"]["error_code"],
+                        "routing_status": routing["status"] if routing is not None else None,
+                        "confirmed_routes": (
+                            routing["confirmed_routes"] if routing is not None else []
+                        ),
+                    }
+                )
+            requirements = _expect(
+                client.get(f"/api/v1/projects/{project_id}/source-requirements"),
+                200,
+                "read lineage-aware source requirements",
+            )
 
     return {
         "model_id": model_id,
@@ -160,7 +196,9 @@ def run_live_smoke(model_id: str) -> dict[str, Any]:
         "idempotent_reuse": repeated["created"] is False,
         "onboarding_item_count": record["total_item_count"],
         "source_asset_count": sources["total"],
-        "processing_statuses": processing_statuses,
+        "source_pipeline_results": source_pipeline_results,
+        "source_requirements_status": requirements["status"],
+        "source_requirements_input_hash": requirements["input_hash"],
         "evidence_count": evidence["total"],
     }
 

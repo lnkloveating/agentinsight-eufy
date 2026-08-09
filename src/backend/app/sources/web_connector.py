@@ -206,35 +206,59 @@ class SafeHttpWebConnector:
 
     async def _check_robots(self, client: httpx.AsyncClient, target_url: str) -> None:
         robots_url = f"{self._origin(target_url)}/robots.txt"
-        await self._validate_destination(robots_url)
-        snapshot = await self._get_bounded(
-            client, robots_url, min(self.max_response_bytes, 524_288)
-        )
-        if snapshot.status_code in {404, 410}:
+        current_url = robots_url
+        for redirect_count in range(self.max_redirects + 1):
+            await self._validate_destination(current_url)
+            snapshot = await self._get_bounded(
+                client, current_url, min(self.max_response_bytes, 524_288)
+            )
+            if snapshot.status_code in _REDIRECT_STATUSES:
+                if redirect_count >= self.max_redirects:
+                    raise WebConnectorError(
+                        "WEB_ROBOTS_CHECK_FAILED",
+                        "The website robots policy exceeded the allowed redirect limit.",
+                        blocked=True,
+                    )
+                location = snapshot.headers.get("location")
+                if not location:
+                    raise WebConnectorError(
+                        "WEB_ROBOTS_CHECK_FAILED",
+                        "The website robots policy returned an invalid redirect.",
+                        blocked=True,
+                    )
+                current_url = self._normalize_url(urljoin(current_url, location))
+                continue
+            if snapshot.status_code in {404, 410}:
+                return
+            if snapshot.status_code != 200:
+                raise WebConnectorError(
+                    "WEB_ROBOTS_CHECK_FAILED",
+                    "The website robots policy could not be verified.",
+                    blocked=True,
+                )
+            try:
+                robots_text = snapshot.body.decode("utf-8-sig")
+            except UnicodeDecodeError as exc:
+                raise WebConnectorError(
+                    "WEB_ROBOTS_CHECK_FAILED",
+                    "The website robots policy encoding is unsupported.",
+                    blocked=True,
+                ) from exc
+            parser = RobotFileParser()
+            parser.set_url(current_url)
+            parser.parse(robots_text.splitlines())
+            if not parser.can_fetch(self.user_agent, target_url):
+                raise WebConnectorError(
+                    "WEB_ROBOTS_DISALLOWED",
+                    "The website robots policy disallows this fetch.",
+                    blocked=True,
+                )
             return
-        if snapshot.status_code != 200:
-            raise WebConnectorError(
-                "WEB_ROBOTS_CHECK_FAILED",
-                "The website robots policy could not be verified.",
-                blocked=True,
-            )
-        try:
-            robots_text = snapshot.body.decode("utf-8-sig")
-        except UnicodeDecodeError as exc:
-            raise WebConnectorError(
-                "WEB_ROBOTS_CHECK_FAILED",
-                "The website robots policy encoding is unsupported.",
-                blocked=True,
-            ) from exc
-        parser = RobotFileParser()
-        parser.set_url(robots_url)
-        parser.parse(robots_text.splitlines())
-        if not parser.can_fetch(self.user_agent, target_url):
-            raise WebConnectorError(
-                "WEB_ROBOTS_DISALLOWED",
-                "The website robots policy disallows this fetch.",
-                blocked=True,
-            )
+        raise WebConnectorError(
+            "WEB_ROBOTS_CHECK_FAILED",
+            "The website robots policy exceeded the allowed redirect limit.",
+            blocked=True,
+        )
 
     async def _validate_destination(self, source_url: str) -> None:
         normalized = self._normalize_url(source_url)

@@ -316,6 +316,7 @@ def get_competitor_source_processing_dispatcher(
     return CompetitorSourceProcessingDispatcher(
         database,
         lambda session: _build_source_processing_service(request, session),
+        get_source_routing_service(request),
         SourceRequirementService(database, event_broker, trace_id),
         event_broker,
         trace_id,

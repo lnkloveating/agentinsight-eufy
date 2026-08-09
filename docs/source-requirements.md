@@ -13,7 +13,7 @@
 ```text
 Brief
 → 用户确认目标产品、竞品和研究维度
-→ Source Requirements 实时读取 Source、Routing、Collection Job 和 Evidence
+→ Source Requirements 实时读取 Source、Onboarding Lineage、Routing、Collection Job 和 Evidence
 → blocked：产品范围不完整
 → partial：范围完整，但资料或审核未完成
 → ready：最小 Evidence 要求全部满足
@@ -42,7 +42,7 @@ PUT /api/v1/projects/{project_id}/source-requirements/scope
 }
 ```
 
-允许先保存 `model=null` 的候选，便于下一分支接入自动竞品发现；但准确型号补齐前整体状态
+允许竞品发现阶段先保存 `model=null` 的候选；但准确型号补齐前整体状态
 保持 `blocked`。范围更新保存在 `source_requirement_scopes`，同时发送
 `source_requirement_scope_updated` 项目事件。事件只包含数量、维度和 actor，不包含原始
 资料、Evidence 摘要或凭据。
@@ -51,7 +51,8 @@ PUT /api/v1/projects/{project_id}/source-requirements/scope
 
 每一项资料要求区分：
 
-- `detected_source_asset_ids`：根据用户填写的资料名称、用途和 URL 找到的相关资料；
+- `detected_source_asset_ids`：优先根据 Onboarding 的准确产品血缘找到相关资料；无血缘的用户
+  资料才根据名称、用途和 URL 保守匹配；
 - `matched_source_asset_ids`：已经存在合格 Evidence 的资料；
 - `matched_evidence_ids`：真正满足要求、可以交给 Agent 的证据。
 
@@ -66,6 +67,10 @@ PUT /api/v1/projects/{project_id}/source-requirements/scope
 7. 价格 Evidence 的 `region` 与 Brief 的目标地区一致。
 
 因此“上传了一个文件”“页面已经解析”或“模型知道该产品”都不能单独满足资料要求。
+
+同一 Source Asset 可以因 URL、标题或正文提到多个产品而产生文本歧义。只要它存在
+`CompetitorSourceOnboardingItem`，准备度计算就以其中的 `product_json` 为主依据，并禁止回退
+到文本猜测；无效血缘也保持不匹配，而不是把错误记录静默归给其他产品。
 
 ## 前端状态与动作
 
