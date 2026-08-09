@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；竞品来源批量接入、价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、已确认竞品来源批量接入、授权公开网页快照、确定性资料解析、证据和候选场景数据底座、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 运行底座与官方产品专家已经完成；结构化接入血缘驱动的资料准备度重评估、价格渠道、用户评价、竞品综合及其余领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -40,6 +40,7 @@ http://localhost:8000/api/v1
 | Source Requirements | 保存目标产品、竞品和研究维度；按确认 route、准确产品、地区和 Evidence 实时计算 `ready/partial/blocked`；返回补充动作 | 可以实现资料准备清单，区分“已检测资料”和“已满足 Evidence”，阻止只有 eufy 资料时误跑完整竞品分析 |
 | Search Discovery | 通过显式注册的 Tavily Search Provider 发现公开候选 URL；项目隔离运行、失败分类、安全去重和域名过滤；结果固定为 `candidate_only` | 可以实现“查找资料”动作和候选来源列表；不能把搜索摘要显示成证据或自动勾选为已满足 |
 | Competitor Discovery | 主办方模型从 `competitor_candidate` 搜索运行中提名准确品牌/型号；确定性校验全部 candidate ID、目标重叠和文本依据；版本化 Artifact 停在一次性 Candidate Gate | 可以实现候选竞品审批页；Gate 前不能改写正式范围，确认后刷新资料要求并进入来源接入 |
+| Competitor Source Onboarding | 从已 confirm 的 Candidate Gate 自动读取所选 proposal/candidate；原子登记授权 Source Asset、queued Collection Job 和完整候选血缘；重复 URL 与重复请求幂等复用 | 可以在候选审批后提供“接入已确认来源”，并把新资产送入统一资料列表；不能显示成已解析或已有 Evidence |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
 | LangGraph Foundation | 研究共享状态、并行研究节点、Checkpoint、三个 Human Gate、定向重跑 | 可以按目标流程设计节点图和 Gate UI，但当前 HTTP 流程不会自动跑完整真实 Agent |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
@@ -64,12 +65,13 @@ http://localhost:8000/api/v1
 8. 已确认的多标签 Source Route 可以限定领域 Agent 的 Evidence Context；分类本身不会自动生成 Evidence。
 9. 资料准备度可以在不调用模型的情况下识别竞品范围缺失、准确型号缺失、资料处理失败、路由/Evidence 未完成和价格地区不匹配。
 10. 竞品候选发现 Agent 可以消费真实 Tavily 结果，经 Model Gateway 输出 `completed/partial/blocked` Artifact；人工确认前保持零 Evidence、零正式竞品变更。
+11. 已确认竞品候选可以批量接入 Source Asset，并保存 Artifact、Decision、Proposal、Candidate、准确产品和 Source Asset 的结构化血缘；接入完成仍保持零 Evidence。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
 - 价格渠道、用户评价、产品技术、商业和红队等业务 Prompt；
-- 确认竞品后的批量 Source Onboarding 与资料要求自动重评估；
+- 使用 Onboarding 结构化血缘进行资料要求自动重评估和后续路由建议；
 - 把已验证 SourceFragment 提供给领域 Agent 和外部 Runtime 的语义分析接线；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 竞品能力矩阵与差异化综合；
@@ -98,6 +100,8 @@ http://localhost:8000/api/v1
 | `POST` | `/projects/{project_id}/agents/competitor-discovery` | 可用 | 消费成功的竞品搜索运行，调用项目的竞品研究模型，返回版本化待审批候选 Artifact |
 | `GET` | `/projects/{project_id}/agents/competitor-discovery/artifacts` | 可用 | 查询候选发现历史版本、覆盖率、未知项和 Candidate Gate 状态 |
 | `POST` | `/projects/{project_id}/agents/competitor-discovery/artifacts/{artifact_id}/decision` | 可用 | 确认、拒绝或要求返工；只有确认的 proposal 会更新正式竞品范围 |
+| `POST` | `/projects/{project_id}/competitor-source-onboardings` | 可用 | 在确认公开资料授权后，把 Gate 选择的候选 URL 原子登记为 Source Asset；重复 Artifact 返回原批次 |
+| `GET` | `/projects/{project_id}/competitor-source-onboardings` | 可用 | 查询项目内接入批次、候选到 Source Asset 的血缘和创建/复用计数 |
 | `POST` | `/projects/{project_id}/sources/files` | 可用 | 上传用户或企业授权的 PDF、文本、DOCX、CSV、JSON、图片、音频或视频 |
 | `POST` | `/projects/{project_id}/sources/links` | 可用 | 登记用户指定的公开 HTTP/HTTPS 链接；请求本身不会抓取网页 |
 | `GET` | `/projects/{project_id}/sources` | 可用 | 按类型和状态查询项目原始资料 |
@@ -395,22 +399,22 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 183 passed
+pytest: 191 passed
 ruff: passed
-mypy: passed（153 个源文件）
-Alembic: 空数据库升级到 0012_competitor_candidate_gate、降级到 0011 后再次升级通过
+mypy: passed（158 个源文件）
+Alembic: 空数据库升级到 0013_competitor_source_onboarding、降级到 0012 后再次升级通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 外部 Runtime：OpenCode 1.18.15 + GLM 5.2 结构化 ResearchArtifact 冒烟测试通过
-竞品发现：真实 Tavily 返回 5 条 candidate_only 结果并由 DeepSeek V4 Pro 完成结构化调用；当前候选缺少足够明确型号时如实返回 blocked，Gate 保持 pending、正式范围和 Evidence 均未改变
+竞品发现与接入：真实 Tavily 返回 5 条 Ring 官方域名候选，DeepSeek V4 Pro 生成 completed Artifact；确认准确型号后创建 1 个 queued Source Asset，重复接入幂等复用，Evidence 保持为 0
 ```
 
-接下来的后端开发顺序应先把已确认竞品的候选 URL 接入统一资料链路，再继续剩余竞品专家和领域分析：
+接下来的后端开发顺序应先让资料准备度直接消费结构化接入血缘，再继续剩余竞品专家和领域分析：
 
 ```text
 Search Discovery Connector（已完成）
 → Competitor Discovery Agent & Candidate Gate（已完成）
-→ Competitor Source Onboarding（下一分支）
-→ Source Requirements Re-evaluation
+→ Competitor Source Onboarding（已完成）
+→ Source Requirements Re-evaluation（下一分支）
 → Competitor Price & Channel Specialist
 → Competitor User Review Specialist
 → Competitor Synthesis & Evidence Audit

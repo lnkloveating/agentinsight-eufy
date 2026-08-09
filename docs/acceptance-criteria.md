@@ -128,6 +128,24 @@ Mock 结果。候选 URL 必须经过公开地址校验、规范化、去重、�
 - `tests/integration/test_competitor_discovery_api.py`
 - 可重复真实冒烟：`scripts/smoke_competitor_discovery_live.py`
 
+## AC-04E 已确认竞品来源接入
+
+系统只能从当前项目已执行 `confirm` 的 Candidate Gate 读取所选 proposal 和 candidate URL，
+并在用户再次确认公开资料研究授权后登记 Source Asset。pending、reject、revision、跨项目、
+非竞品发现 Artifact 或已经不在正式竞品范围中的陈旧选择必须被拒绝。接入前必须重新执行
+公开 URL 安全规范化和域名一致性校验；前端不能在此阶段增加 Gate 未选择的竞品或 URL。
+
+同一 Artifact 的接入必须幂等，批次、Source Asset、queued Collection Job、血缘和事件必须
+原子保存。重复 URL 和项目内既有授权链接必须复用；每个接入项保存 Artifact、Decision、
+Proposal、Candidate、准确产品和 Source Asset 的结构化关联。接入完成不得访问网页、调用
+模型、创建 Source Fragment、Evidence 或 Claim，也不得把 queued 资料表示为研究事实。
+
+自动化映射：
+
+- `tests/unit/test_competitor_source_onboarding_contracts.py`
+- `tests/integration/test_competitor_source_onboarding_api.py`
+- 可重复真实冒烟：`scripts/smoke_competitor_source_onboarding_live.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

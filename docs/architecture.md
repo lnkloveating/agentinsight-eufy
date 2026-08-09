@@ -129,7 +129,8 @@ flowchart LR
     Candidate --> Agent["Competitor discovery Agent"]
     Agent --> Gate["Candidate Gate"]
     Gate --> Scope["Confirmed competitor scope"]
-    Scope --> Source["Authorized Source Asset"]
+    Scope --> Onboarding["Atomic source onboarding"]
+    Onboarding --> Source["Authorized Source Asset + lineage"]
     Source --> Processing["Processing and routing"]
     Processing --> Evidence["Evidence Lake"]
 ```
@@ -138,8 +139,10 @@ flowchart LR
 `candidate_only` URL；它不抓取网页正文，不调用业务模型，也不创建 Source Asset 或
 Evidence。密钥缺失、认证失败、限流、超时和 Provider 错误均保存为项目运行记录。候选
 必须经过竞品候选 Agent 的确定性输出校验和人工 Candidate Gate，才能写入正式竞品范围；
-随后仍需授权资料接入和完整 Evidence 门禁，才能交给领域 Agent。候选 Agent 使用独立
-Runtime Registry，但继承项目的 `competitor_research` 模型选择，不改变竞品 A2A 主管的绑定。
+随后由 Onboarding 原子保存授权 Source Asset、queued Collection Job 和候选血缘；它不访问
+网页或创建 Evidence。资料仍需经过完整 Evidence 门禁，才能交给领域 Agent。候选 Agent 使用
+独立 Runtime Registry，但继承项目的 `competitor_research` 模型选择，不改变竞品 A2A 主管的
+绑定。
 
 ## Model Gateway
 
