@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.8.0
+  version: 0.9.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -571,6 +571,119 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SourceRequirementAssessment"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-recoveries:
+    get:
+      tags: [Evidence]
+      summary: 查询资料恢复记录
+      description: 返回网页或媒体资料处理失败、或有效信息不足后生成的用户补充任务。
+      operationId: listSourceRecoveries
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 按创建时间倒序返回当前项目的恢复记录。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecoveryPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Evidence]
+      summary: 为失败或信息不足的资料创建恢复任务
+      description: |
+        确定性读取资料处理状态与 Source Requirements，分类失败原因并生成前端可直接
+        展示的缺失字段。不会调用模型、重新抓取网页或生成事实。
+      operationId: createSourceRecovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRecoveryCreate"
+      responses:
+        "201":
+          description: 已创建等待用户补充的恢复任务；相同未完成问题会返回既有记录。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-recoveries/{source_recovery_id}:
+    get:
+      tags: [Evidence]
+      summary: 查询单个资料恢复任务
+      operationId: getSourceRecovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceRecoveryId"
+      responses:
+        "200":
+          description: 包含失败原因、缺失字段、补充历史、复评结果和恢复指令。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-recoveries/{source_recovery_id}/submissions:
+    post:
+      tags: [Evidence]
+      summary: 提交用户补充的具体内容
+      description: |
+        将用户确认的结构化内容保存为 user_input Source Asset，并建立 Collection Job、
+        Fragment、人工确认路由和 partially_verified Evidence 的完整血缘；随后重新评估
+        Source Requirements。用户声明不会伪装成官网或第三方来源。
+      operationId: submitSourceRecovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceRecoveryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRecoverySubmissionCreate"
+      responses:
+        "201":
+          description: 补充内容已进入证据链，并返回复评后的恢复状态。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-recoveries/{source_recovery_id}/decisions:
+    post:
+      tags: [Evidence]
+      summary: 对未补齐的资料恢复任务作出人工决定
+      description: 允许用户明确选择带缺口继续或取消；不会把缺失事实补造成 Evidence。
+      operationId: decideSourceRecovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceRecoveryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRecoveryDecisionCreate"
+      responses:
+        "200":
+          description: 已保存人工决定及对应的定向恢复指令。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1283,6 +1396,13 @@ components:
       schema:
         type: string
         pattern: "^source_[A-Za-z0-9_-]+$"
+    SourceRecoveryId:
+      name: source_recovery_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^recovery_[A-Za-z0-9_-]+$"
     SourceFragmentId:
       name: source_fragment_id
       in: path
@@ -1471,7 +1591,7 @@ components:
 
     SourceAssetKind:
       type: string
-      enum: [file, link]
+      enum: [file, link, user_input]
 
     SourceAssetStatus:
       type: string
@@ -1504,6 +1624,31 @@ components:
     ProductRole:
       type: string
       enum: [target, competitor]
+
+    SourceRecoveryStatus:
+      type: string
+      enum: [waiting_for_user_input, needs_more_information, resolved, proceeding_with_gaps, cancelled]
+
+    SourceRecoveryReasonCode:
+      type: string
+      enum:
+        - robots_blocked
+        - authentication_required
+        - access_denied
+        - rate_limited
+        - connector_unavailable
+        - unsupported_media
+        - processing_failed
+        - empty_content
+        - insufficient_information
+
+    SourceRecoveryDecisionAction:
+      type: string
+      enum: [proceed_with_gaps, cancel]
+
+    SourceRecoveryResumeMode:
+      type: string
+      enum: [none, targeted_retry, proceed_with_gaps]
 
     CompetitorCandidateGateStatus:
       type: string
@@ -2579,6 +2724,223 @@ components:
           items: { type: string }
         input_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
         evaluated_at: { type: string, format: date-time }
+
+    SourceRecoveryCreate:
+      type: object
+      additionalProperties: false
+      required: [source_asset_id, requirement_ids, affected_task_ids, requested_by, reason]
+      properties:
+        source_asset_id: { type: string, minLength: 1, maxLength: 40 }
+        requirement_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        affected_task_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        requested_by: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    SourceRecoveryRequestedField:
+      type: object
+      additionalProperties: false
+      required:
+        - field_id
+        - requirement_id
+        - field_key
+        - label
+        - question
+        - required
+        - claim_type
+        - product
+        - region
+        - route
+      properties:
+        field_id: { type: string, minLength: 1, maxLength: 80 }
+        requirement_id: { type: string, minLength: 1, maxLength: 120 }
+        field_key: { type: string, minLength: 1, maxLength: 80 }
+        label: { type: string, minLength: 1, maxLength: 160 }
+        question: { type: string, minLength: 1, maxLength: 500 }
+        required: { type: boolean }
+        claim_type:
+          $ref: "#/components/schemas/EvidenceClaimType"
+        product:
+          oneOf:
+            - $ref: "#/components/schemas/ProductReference"
+            - type: "null"
+        region: { type: [string, "null"], maxLength: 120 }
+        route:
+          oneOf:
+            - $ref: "#/components/schemas/SourceRouteTarget"
+            - type: "null"
+
+    SourceRecoveryAnswer:
+      type: object
+      additionalProperties: false
+      required: [field_id, value, source_note]
+      properties:
+        field_id: { type: string, minLength: 1, maxLength: 80 }
+        value: { type: string, minLength: 1, maxLength: 10000 }
+        source_note: { type: [string, "null"], maxLength: 1000 }
+
+    SourceRecoverySubmissionCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+        - answers
+        - actor
+        - authorization_basis
+        - authorization_confirmed
+        - accuracy_confirmed
+      properties:
+        request_id: { type: string, minLength: 8, maxLength: 128 }
+        answers:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/SourceRecoveryAnswer"
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        authorization_basis:
+          $ref: "#/components/schemas/SourceAuthorizationBasis"
+        authorization_confirmed: { type: boolean, const: true }
+        accuracy_confirmed: { type: boolean, const: true }
+
+    SourceRecoverySubmission:
+      type: object
+      additionalProperties: false
+      required:
+        - submission_id
+        - request_id
+        - source_asset_id
+        - evidence_ids
+        - answer_count
+        - actor
+        - created_at
+      properties:
+        submission_id: { type: string }
+        request_id: { type: string }
+        source_asset_id: { type: string }
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        answer_count: { type: integer, minimum: 1 }
+        actor: { type: string }
+        created_at: { type: string, format: date-time }
+
+    SourceRecoveryResumeDirective:
+      type: object
+      additionalProperties: false
+      required: [ready, mode, affected_task_ids, affected_agent_types, reason]
+      properties:
+        ready: { type: boolean }
+        mode:
+          $ref: "#/components/schemas/SourceRecoveryResumeMode"
+        affected_task_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        affected_agent_types:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        reason: { type: string }
+
+    SourceRecoveryDecisionCreate:
+      type: object
+      additionalProperties: false
+      required: [action, actor, reason]
+      properties:
+        action:
+          $ref: "#/components/schemas/SourceRecoveryDecisionAction"
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    SourceRecovery:
+      type: object
+      additionalProperties: false
+      required:
+        - source_recovery_id
+        - project_id
+        - status
+        - reason_code
+        - reason_message
+        - failed_source_asset_id
+        - failed_collection_job_id
+        - requirement_ids
+        - requested_fields
+        - affected_task_ids
+        - affected_agent_types
+        - assessment_before
+        - current_assessment
+        - submissions
+        - resume_directive
+        - requested_by
+        - request_reason
+        - decision_actor
+        - decision_reason
+        - created_at
+        - updated_at
+        - resolved_at
+      properties:
+        source_recovery_id: { type: string }
+        project_id: { type: string }
+        status:
+          $ref: "#/components/schemas/SourceRecoveryStatus"
+        reason_code:
+          $ref: "#/components/schemas/SourceRecoveryReasonCode"
+        reason_message: { type: string }
+        failed_source_asset_id: { type: [string, "null"] }
+        failed_collection_job_id: { type: [string, "null"] }
+        requirement_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        requested_fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRecoveryRequestedField"
+        affected_task_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        affected_agent_types:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        assessment_before:
+          $ref: "#/components/schemas/SourceRequirementAssessment"
+        current_assessment:
+          $ref: "#/components/schemas/SourceRequirementAssessment"
+        submissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRecoverySubmission"
+        resume_directive:
+          $ref: "#/components/schemas/SourceRecoveryResumeDirective"
+        requested_by: { type: string }
+        request_reason: { type: string }
+        decision_actor: { type: [string, "null"] }
+        decision_reason: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        resolved_at: { type: [string, "null"], format: date-time }
+
+    SourceRecoveryPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRecovery"
+        total: { type: integer, minimum: 0 }
 
     SearchDiscoveryCreate:
       type: object
