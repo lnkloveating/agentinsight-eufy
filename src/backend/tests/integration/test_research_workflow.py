@@ -76,6 +76,17 @@ async def test_complete_graph_pauses_at_three_gates_and_runs_all_agents() -> Non
     assert runtime.calls.index(ResearchAgentType.PRODUCT_TECHNICAL) > runtime.calls.index(
         ResearchAgentType.COMPETITOR_RESEARCH
     )
+    product_context = runtime.contexts[ResearchAgentType.PRODUCT_TECHNICAL]
+    assert product_context.research_handoff is not None
+    assert product_context.research_handoff.status == "ready"
+    assert set(product_context.upstream_artifacts) == {
+        "user_research",
+        "competitor_research",
+    }
+    assert product_context.research_handoff.merged_evidence_ids == [
+        "ev_test_competitor_research",
+        "ev_test_user_research",
+    ]
     assert runtime.calls.index(ResearchAgentType.COMMERCIAL_EVALUATION) > runtime.calls.index(
         ResearchAgentType.PRODUCT_TECHNICAL
     )
@@ -133,6 +144,31 @@ async def test_evidence_gap_has_bounded_research_loop_and_no_fake_candidates() -
 
 
 @pytest.mark.asyncio
+async def test_audited_partial_competitor_gaps_reach_product_technical() -> None:
+    runtime = TestAgentRuntime(competitor_ready_with_gaps=True)
+    graph = compile_research_graph(runtime, InMemorySaver())
+    config = {"configurable": {"thread_id": "proj_competitor_gaps"}}
+
+    result = await graph.ainvoke(
+        create_initial_state("proj_competitor_gaps", _brief()), config
+    )
+    result = await graph.ainvoke(
+        Command(resume=_decision(_request(result), DecisionAction.APPROVE)), config
+    )
+
+    assert _request(result).gate is GateName.SCENARIO
+    context = runtime.contexts[ResearchAgentType.PRODUCT_TECHNICAL]
+    assert context.research_handoff is not None
+    assert context.research_handoff.status == "ready_with_gaps"
+    projection = context.research_handoff.competitor_projection
+    assert projection is not None
+    assert projection.opportunity_signal_ids == ["signal_package_context"]
+    assert projection.gaps[0].scope_label == "Test Doorbell"
+    assert projection.gaps[0].missing_dimensions == ["user_review"]
+    assert runtime.call_counts[ResearchAgentType.COMPETITOR_RESEARCH] == 1
+
+
+@pytest.mark.asyncio
 async def test_sqlite_checkpoint_retries_only_failed_parallel_node(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "workflow-checkpoints.db"
     runtime = TestAgentRuntime(fail_once={ResearchAgentType.COMPETITOR_RESEARCH})
@@ -155,6 +191,9 @@ async def test_sqlite_checkpoint_retries_only_failed_parallel_node(tmp_path: Pat
     assert _request(recovered).gate is GateName.SCENARIO
     assert runtime.call_counts[ResearchAgentType.USER_RESEARCH] == 1
     assert runtime.call_counts[ResearchAgentType.COMPETITOR_RESEARCH] == 2
+    recovered_context = runtime.contexts[ResearchAgentType.PRODUCT_TECHNICAL]
+    assert recovered_context.research_handoff is not None
+    assert recovered_context.research_handoff.status == "ready"
 
 
 @pytest.mark.asyncio

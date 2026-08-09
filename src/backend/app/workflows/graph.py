@@ -32,6 +32,7 @@ from app.workflows.gates import (
     summarize_artifacts,
     validate_stage_decision,
 )
+from app.workflows.handoff import affected_research_agents, build_research_handoff
 from app.workflows.planning import parse_task_plan, task_for_agent
 from app.workflows.runtime import AgentRuntime
 
@@ -59,6 +60,7 @@ def create_initial_state(
         progress=5,
         task_plan=[],
         artifacts={},
+        research_handoff=None,
         iteration=0,
         max_iterations=max_iterations,
         affected_task_ids=[],
@@ -242,18 +244,29 @@ class ResearchWorkflow:
             key: ResearchArtifact.model_validate(value)
             for key, value in state.get("artifacts", {}).items()
         }
+        handoff = build_research_handoff(artifacts)
         result = evaluate_research_artifacts(artifacts)
+        affected_agents = affected_research_agents(handoff)
+        affected_task_ids = [
+            self._task(state, agent_type).task_id
+            for agent_type in sorted(affected_agents, key=lambda item: item.value)
+        ]
         return {
             "evidence_gate": result.model_dump(mode="json"),
-            "affected_task_ids": self._research_task_ids(state) if not result.passed else [],
+            "research_handoff": handoff.model_dump(mode="json"),
+            "affected_task_ids": affected_task_ids if not result.passed else [],
             "current_stage": "evidence_readiness_gate",
             "progress": 40,
             "node_history": [
                 WorkflowEvent(
-                    event_type="workflow_gate_evaluated",
+                    event_type="workflow_research_handoff_evaluated",
                     node="evidence_readiness_gate",
-                    status="passed" if result.passed else "needs_research",
-                    message="研究 Artifact 已就绪。" if result.passed else ";".join(result.issues),
+                    status=handoff.status,
+                    message=(
+                        "研究结果已交接给产品技术阶段。"
+                        if result.passed
+                        else ";".join(result.issues)
+                    ),
                 ).model_dump(mode="json")
             ],
         }
