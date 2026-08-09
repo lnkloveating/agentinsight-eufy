@@ -23,6 +23,7 @@ from app.workflows.runtime import (
     AgentRuntimeNotBoundError,
     UnboundAgentRuntime,
 )
+from app.workflows.source_recovery import prepare_source_recovery_resume
 
 __all__ = [
     "AgentRuntime",
@@ -42,5 +43,6 @@ __all__ = [
     "WorkflowRunner",
     "WorkflowSnapshot",
     "compile_research_graph",
+    "prepare_source_recovery_resume",
     "create_initial_state",
 ]

@@ -29,6 +29,7 @@ from app.application.projects import ProjectService
 from app.application.research import UserResearchService
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
 from app.application.source_discovery import SearchDiscoveryService
+from app.application.source_recovery import SourceRecoveryService
 from app.application.source_requirements import SourceRequirementService
 from app.application.source_routing import SourceRoutingService
 from app.application.sources import SourceAssetService, SourceProcessingService
@@ -191,6 +192,19 @@ def get_source_requirement_service(request: Request) -> SourceRequirementService
 
 SourceRequirementServiceDependency = Annotated[
     SourceRequirementService, Depends(get_source_requirement_service)
+]
+
+
+def get_source_recovery_service(request: Request) -> SourceRecoveryService:
+    return SourceRecoveryService(
+        cast(Database, request.app.state.database),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+
+
+SourceRecoveryServiceDependency = Annotated[
+    SourceRecoveryService, Depends(get_source_recovery_service)
 ]
 
 

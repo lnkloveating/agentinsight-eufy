@@ -345,6 +345,36 @@ workflow_gate_decided
 workflow_finished
 ```
 
+### 4.10 网页/媒体失败后的资料恢复
+
+当前后端已经提供：
+
+```http
+GET  /api/v1/projects/{project_id}/source-recoveries
+POST /api/v1/projects/{project_id}/source-recoveries
+GET  /api/v1/projects/{project_id}/source-recoveries/{source_recovery_id}
+POST /api/v1/projects/{project_id}/source-recoveries/{source_recovery_id}/submissions
+POST /api/v1/projects/{project_id}/source-recoveries/{source_recovery_id}/decisions
+```
+
+网页或媒体失败、或有效信息不足时，前端可以用创建接口获得 `reason_code`、
+`requested_fields`、`current_assessment` 和 `resume_directive`，直接展示“补充缺失信息”弹窗。
+用户内容会以 `user_input` Source Asset 和 `user_declaration` Evidence 接回现有证据链，不会伪装
+成原网页。资料补齐后返回 `targeted_retry`；用户也可以明确选择带缺口继续。
+
+竞品缺口由 Source Requirements 自动生成字段；其他领域 Agent 可以由工作流主管传入
+`missing_questions` 与 `affected_agent_types`，因此恢复能力不依赖竞品专用 Requirement。
+
+前端需要新增 Source Recovery Client、恢复弹窗与以下状态展示：
+
+```text
+waiting_for_user_input
+needs_more_information
+resolved
+proceeding_with_gaps
+cancelled
+```
+
 ## 5. 建议前端现在并行完成的工作
 
 ### P0：先完成真实接口适配
@@ -408,10 +438,10 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 228 passed
+pytest: 233 passed
 ruff: passed
-mypy: passed（179 个源文件）
-Alembic: 当前迁移头为 0015_fragment_evidence_pipeline
+mypy: passed（190 个源文件）
+Alembic: 当前迁移头为 0016_source_recovery_orchestration，已从空库完整升级验证
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 价格渠道真实链路：同一授权 eufy 商品页经确定性 HTML 解析得到 372 个片段并审核晋级 2 条 Evidence；GLM 5.2 专家 completed（质量分 90），DeepSeek V4 Pro 返回契约有效的 partial（质量分 75），两次模型调用均 completed
 用户评价真实链路：公开 E340 第一人称实测页解析得到 377 个片段，人工式审核晋级 1 条 user_opinion；GLM 5.2 输出 4 个 single_report 主题并在首次结构化失败后重试成功，DeepSeek V4 Pro 一次完成并输出 2 个 single_report 主题；两者都按样本门禁保持 partial，没有伪造重复主题
@@ -434,6 +464,7 @@ Search Discovery Connector（已完成）
 → Competitor User Review Specialist（已完成）
 → Competitor Synthesis & Evidence Audit（已完成）
 → Competitor Mainpath Bridge（已完成）
+→ Source Recovery Orchestration（已完成）
 → Product Technical Agent
 → Commercial Agent
 → Red Team Revision

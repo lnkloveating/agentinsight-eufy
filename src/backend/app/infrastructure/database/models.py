@@ -66,6 +66,9 @@ class ProjectModel(Base):
     source_requirement_scope: Mapped["SourceRequirementScopeModel | None"] = relationship(
         back_populates="project", cascade="all, delete-orphan", uselist=False
     )
+    source_recoveries: Mapped[list["SourceRecoveryModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     search_discovery_runs: Mapped[list["SearchDiscoveryRunModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -487,6 +490,97 @@ class SourceRequirementScopeModel(Base):
     )
 
     project: Mapped[ProjectModel] = relationship(back_populates="source_requirement_scope")
+
+
+class SourceRecoveryModel(Base):
+    """一次资料失败/不足后的用户补充编排记录。"""
+
+    __tablename__ = "source_recoveries"
+    __table_args__ = (
+        Index("ix_source_recoveries_project_status", "project_id", "status"),
+        Index("ix_source_recoveries_project_source", "project_id", "failed_source_asset_id"),
+    )
+
+    source_recovery_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    failed_source_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    failed_collection_job_id: Mapped[str | None] = mapped_column(
+        ForeignKey("collection_jobs.collection_job_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    reason_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    reason_message: Mapped[str] = mapped_column(Text, nullable=False)
+    requirement_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    requested_fields_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    affected_task_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    affected_agent_types_json: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    assessment_before_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    current_assessment_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    request_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    decision_actor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trace_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    project: Mapped[ProjectModel] = relationship(back_populates="source_recoveries")
+    submissions: Mapped[list["SourceRecoverySubmissionModel"]] = relationship(
+        back_populates="recovery", cascade="all, delete-orphan"
+    )
+
+
+class SourceRecoverySubmissionModel(Base):
+    """用户一次结构化补充；正文只保存在可追溯 Source Fragment 中。"""
+
+    __tablename__ = "source_recovery_submissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_recovery_id", "request_id", name="uq_source_recovery_submission_request"
+        ),
+        Index("ix_source_recovery_submissions_project_created", "project_id", "created_at"),
+    )
+
+    submission_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    source_recovery_id: Mapped[str] = mapped_column(
+        ForeignKey("source_recoveries.source_recovery_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("source_assets.source_asset_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    answer_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    recovery: Mapped[SourceRecoveryModel] = relationship(back_populates="submissions")
 
 
 class SearchDiscoveryRunModel(Base):
