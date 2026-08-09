@@ -145,6 +145,11 @@ Proposal、Candidate、准确产品和 Source Asset 的结构化关联。接入�
 重复处理终态任务。批次结束必须重新计算 Source Requirements，并发布包含各终态数量、要求
 状态和输入哈希的完成事件。完成解析仍不得自动创建 Evidence 或 Claim。
 
+成功解析的来源必须自动执行既有 Source Routing。高置信度规则可以自动确认；模型辅助后仍
+低于阈值的结果必须保持 `needs_review`，不得绕过人工门禁。Source Requirements 必须优先用
+Onboarding Item 的准确产品血缘匹配资料；有血缘时禁止回退到标题、URL 或 purpose，把同一
+资料错误归属给其他产品。重复接入不得重复分析已有路由。
+
 自动化映射：
 
 - `tests/unit/test_competitor_source_onboarding_contracts.py`
