@@ -271,6 +271,7 @@ paths:
                 $ref: "#/components/schemas/CompetitorSourceOnboardingPage"
         default:
           $ref: "#/components/responses/Error"
+
     post:
       tags: [Evidence]
       summary: 将已确认竞品候选批量登记为授权 Source Asset
@@ -305,6 +306,107 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CompetitorSourceOnboardingResult"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/competitor-material-discoveries:
+    get:
+      tags: [Evidence]
+      summary: 查询竞品研究资料发现批次
+      description: 返回当前项目按准确产品和研究维度生成的资料搜索计划、真实搜索运行和候选来源。
+      operationId: listCompetitorMaterialDiscoveries
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 按创建时间倒序返回资料发现批次。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorMaterialDiscoveryPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Evidence]
+      summary: 按产品和维度发现竞品研究资料
+      description: |
+        只允许选择当前 Source Requirements 范围内具有准确型号的目标产品或竞品，并为
+        official_product、price_channel、user_review 生成确定性查询计划。系统调用已注册的
+        Search Provider，但候选固定为 candidate_only；不会抓取正文、自动授权或创建 Evidence。
+      operationId: createCompetitorMaterialDiscovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetitorMaterialDiscoveryCreate"
+      responses:
+        "201":
+          description: 资料发现计划及其搜索结果。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorMaterialDiscovery"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/competitor-material-discoveries/{material_discovery_id}:
+    get:
+      tags: [Evidence]
+      summary: 查询一个竞品研究资料发现批次
+      operationId: getCompetitorMaterialDiscovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: material_discovery_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        "200":
+          description: 完整搜索计划、候选和当前决定。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorMaterialDiscovery"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/competitor-material-discoveries/{material_discovery_id}/decision:
+    post:
+      tags: [Evidence]
+      summary: 确认或拒绝竞品研究资料候选
+      description: |
+        只能选择该批次真实 Search Run 中的 candidate ID。confirm 必须再次确认公开资料授权；
+        系统原子登记或复用 Source Asset、Collection Job 及产品/维度血缘，随后在后台复用现有
+        网页处理、Source Routing 和 Source Requirements 重评。重复决定幂等返回原结果。
+      operationId: decideCompetitorMaterialDiscovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: material_discovery_id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 40 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompetitorMaterialDecisionCreate"
+      responses:
+        "201":
+          description: 首次保存的决定和已接入来源。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorMaterialDecisionResult"
+        "200":
+          description: 幂等复用已存在的决定。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorMaterialDecisionResult"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1309,6 +1411,14 @@ components:
     SearchDiscoveryRunStatus:
       type: string
       enum: [running, succeeded, failed, blocked]
+
+    CompetitorMaterialDiscoveryStatus:
+      type: string
+      enum: [running, completed, partial, blocked, failed]
+
+    CompetitorMaterialDecisionAction:
+      type: string
+      enum: [confirm, reject]
 
     SourceRouteTarget:
       type: string
@@ -2475,6 +2585,237 @@ components:
           items:
             $ref: "#/components/schemas/SearchDiscoveryRun"
         total: { type: integer, minimum: 0 }
+
+    CompetitorMaterialProductSelection:
+      type: object
+      additionalProperties: false
+      required: [product_role, product]
+      properties:
+        product_role:
+          $ref: "#/components/schemas/ProductRole"
+        product:
+          $ref: "#/components/schemas/ProductReference"
+
+    CompetitorMaterialDiscoveryCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - products
+        - dimensions
+        - provider_id
+        - max_results_per_query
+        - requested_by
+        - purpose
+      properties:
+        products:
+          type: array
+          maxItems: 6
+          uniqueItems: true
+          description: 为空时使用当前 Source Requirements 范围内的全部准确产品。
+          items:
+            $ref: "#/components/schemas/CompetitorMaterialProductSelection"
+        dimensions:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: 为空时使用当前 Source Requirements 的全部研究维度。
+          items:
+            $ref: "#/components/schemas/CompetitorResearchDimension"
+        provider_id: { type: string, minLength: 1, maxLength: 80, default: tavily }
+        max_results_per_query: { type: integer, minimum: 1, maximum: 10, default: 5 }
+        requested_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+
+    CompetitorMaterialDiscoveryItem:
+      type: object
+      additionalProperties: false
+      required:
+        - material_discovery_item_id
+        - product_role
+        - product
+        - dimension
+        - query
+        - search_run
+      properties:
+        material_discovery_item_id: { type: string }
+        product_role:
+          $ref: "#/components/schemas/ProductRole"
+        product:
+          $ref: "#/components/schemas/ProductReference"
+        dimension:
+          $ref: "#/components/schemas/CompetitorResearchDimension"
+        query: { type: string }
+        search_run:
+          $ref: "#/components/schemas/SearchDiscoveryRun"
+
+    CompetitorMaterialSelection:
+      type: object
+      additionalProperties: false
+      required:
+        - material_selection_id
+        - material_discovery_item_id
+        - search_discovery_run_id
+        - candidate_id
+        - product_role
+        - product
+        - dimension
+        - candidate
+        - source_asset
+        - source_asset_created
+      properties:
+        material_selection_id: { type: string }
+        material_discovery_item_id: { type: string }
+        search_discovery_run_id: { type: string }
+        candidate_id: { type: string }
+        product_role:
+          $ref: "#/components/schemas/ProductRole"
+        product:
+          $ref: "#/components/schemas/ProductReference"
+        dimension:
+          $ref: "#/components/schemas/CompetitorResearchDimension"
+        candidate:
+          $ref: "#/components/schemas/SearchDiscoveryCandidate"
+        source_asset:
+          $ref: "#/components/schemas/SourceAsset"
+        source_asset_created: { type: boolean }
+
+    CompetitorMaterialDecisionCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+        - selected_candidate_ids
+        - authorization_basis
+        - authorization_confirmed
+        - actor
+        - reason
+      properties:
+        action:
+          $ref: "#/components/schemas/CompetitorMaterialDecisionAction"
+        selected_candidate_ids:
+          type: array
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        authorization_basis:
+          oneOf:
+            - type: string
+              const: publicly_available
+            - type: "null"
+        authorization_confirmed: { type: boolean }
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    CompetitorMaterialDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - material_decision_id
+        - project_id
+        - material_discovery_id
+        - action
+        - selected_candidate_ids
+        - authorization_basis
+        - authorization_confirmed
+        - actor
+        - reason
+        - selections
+        - created_at
+      properties:
+        material_decision_id: { type: string }
+        project_id: { type: string }
+        material_discovery_id: { type: string }
+        action:
+          $ref: "#/components/schemas/CompetitorMaterialDecisionAction"
+        selected_candidate_ids:
+          type: array
+          items: { type: string }
+        authorization_basis:
+          oneOf:
+            - type: string
+              const: publicly_available
+            - type: "null"
+        authorization_confirmed: { type: boolean }
+        actor: { type: string }
+        reason: { type: string }
+        selections:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorMaterialSelection"
+        created_at: { type: string, format: date-time }
+
+    CompetitorMaterialDiscovery:
+      type: object
+      additionalProperties: false
+      required:
+        - material_discovery_id
+        - project_id
+        - status
+        - provider_id
+        - max_results_per_query
+        - products
+        - dimensions
+        - scope_hash
+        - item_count
+        - completed_item_count
+        - candidate_count
+        - items
+        - decision
+        - requested_by
+        - purpose
+        - created_at
+        - completed_at
+      properties:
+        material_discovery_id: { type: string }
+        project_id: { type: string }
+        status:
+          $ref: "#/components/schemas/CompetitorMaterialDiscoveryStatus"
+        provider_id: { type: string }
+        max_results_per_query: { type: integer, minimum: 1, maximum: 10 }
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorMaterialProductSelection"
+        dimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorResearchDimension"
+        scope_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        item_count: { type: integer, minimum: 1, maximum: 18 }
+        completed_item_count: { type: integer, minimum: 0, maximum: 18 }
+        candidate_count: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorMaterialDiscoveryItem"
+        decision:
+          oneOf:
+            - $ref: "#/components/schemas/CompetitorMaterialDecision"
+            - type: "null"
+        requested_by: { type: string }
+        purpose: { type: string }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+
+    CompetitorMaterialDiscoveryPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetitorMaterialDiscovery"
+        total: { type: integer, minimum: 0 }
+
+    CompetitorMaterialDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [decision, created]
+      properties:
+        decision:
+          $ref: "#/components/schemas/CompetitorMaterialDecision"
+        created: { type: boolean }
 
     SourceRoutingSuggestion:
       type: object
