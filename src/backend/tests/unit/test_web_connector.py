@@ -64,6 +64,37 @@ def test_fetches_public_html_after_robots_check_and_normalizes_encoding() -> Non
     assert result.etag == '"capture-v1"'
 
 
+def test_follows_public_robots_and_page_redirects_without_bypassing_policy() -> None:
+    requested: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        if str(request.url) == "http://public.example/robots.txt":
+            return httpx.Response(301, headers={"location": "https://public.example/robots.txt"})
+        if str(request.url) == "https://public.example/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nAllow: /\n")
+        if str(request.url) == "http://public.example/product":
+            return httpx.Response(301, headers={"location": "https://public.example/product"})
+        return httpx.Response(
+            200,
+            text="<html><body>Public product page</body></html>",
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+
+    result = asyncio.run(
+        _connector(httpx.MockTransport(handle)).fetch("http://public.example/product")
+    )
+
+    assert result.final_url == "https://public.example/product"
+    assert requested == [
+        "http://public.example/robots.txt",
+        "https://public.example/robots.txt",
+        "http://public.example/product",
+        "https://public.example/robots.txt",
+        "https://public.example/product",
+    ]
+
+
 def test_robots_disallow_blocks_page_fetch() -> None:
     requested_paths: list[str] = []
 
