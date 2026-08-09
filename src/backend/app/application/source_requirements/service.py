@@ -14,6 +14,7 @@ from app.application.events import ProjectEventBroker
 from app.core.errors import AppError
 from app.infrastructure.database.models import (
     CollectionJobModel,
+    CompetitorMaterialSelectionModel,
     CompetitorSourceOnboardingItemModel,
     EvidenceModel,
     ProjectEventModel,
@@ -61,6 +62,7 @@ class _AssessmentSnapshot:
     evidence: tuple[EvidenceModel, ...]
     jobs: tuple[CollectionJobModel, ...]
     competitor_source_lineage: tuple[CompetitorSourceOnboardingItemModel, ...]
+    competitor_material_lineage: tuple[CompetitorMaterialSelectionModel, ...]
 
 
 _MATERIAL_SPECS = {
@@ -198,6 +200,9 @@ class SourceRequirementService:
                 competitor_source_lineage=tuple(
                     await repository.list_competitor_source_lineage(project_id)
                 ),
+                competitor_material_lineage=tuple(
+                    await repository.list_competitor_material_lineage(project_id)
+                ),
             )
 
     def _evaluate(
@@ -215,7 +220,7 @@ class SourceRequirementService:
             self._scope_requirement(ProductRole.COMPETITOR, competitors),
         ]
         lineage_by_asset = self._lineage_products_by_asset(
-            snapshot.competitor_source_lineage
+            (*snapshot.competitor_source_lineage, *snapshot.competitor_material_lineage)
         )
         for role, products in (
             (ProductRole.TARGET, target_products),
@@ -455,7 +460,9 @@ class SourceRequirementService:
 
     @staticmethod
     def _lineage_products_by_asset(
-        lineages: tuple[CompetitorSourceOnboardingItemModel, ...],
+        lineages: Iterable[
+            CompetitorSourceOnboardingItemModel | CompetitorMaterialSelectionModel
+        ],
     ) -> dict[str, tuple[ProductReference, ...]]:
         products: dict[str, list[ProductReference]] = {}
         for lineage in lineages:
@@ -565,6 +572,20 @@ class SourceRequirementService:
                     "updated_at": item.updated_at.isoformat(),
                 }
                 for item in snapshot.jobs
+            ],
+            "competitor_lineage": [
+                {
+                    "source_asset_id": item.source_asset_id,
+                    "product": item.product_json,
+                }
+                for item in snapshot.competitor_source_lineage
+            ]
+            + [
+                {
+                    "source_asset_id": item.source_asset_id,
+                    "product": item.product_json,
+                }
+                for item in snapshot.competitor_material_lineage
             ],
         }
         canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

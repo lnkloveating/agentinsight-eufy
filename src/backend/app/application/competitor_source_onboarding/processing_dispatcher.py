@@ -42,8 +42,10 @@ class CompetitorSourceProcessingDispatcher:
     async def dispatch(
         self,
         project_id: str,
-        onboarding_id: str,
+        batch_id: str,
         source_asset_ids: Sequence[str],
+        *,
+        batch_type: str = "competitor_source_onboarding",
     ) -> None:
         unique_asset_ids = tuple(dict.fromkeys(source_asset_ids))
         outcomes: list[dict[str, object]] = []
@@ -173,7 +175,13 @@ class CompetitorSourceProcessingDispatcher:
                     sequence_number=0,
                     event_type="competitor_source_processing_completed",
                     data_json={
-                        "onboarding_id": onboarding_id,
+                        "batch_id": batch_id,
+                        "batch_type": batch_type,
+                        **(
+                            {"onboarding_id": batch_id}
+                            if batch_type == "competitor_source_onboarding"
+                            else {"material_discovery_id": batch_id}
+                        ),
                         "requested_source_count": len(unique_asset_ids),
                         "claimed_queued_count": claimed_count,
                         "succeeded_count": completed_count,

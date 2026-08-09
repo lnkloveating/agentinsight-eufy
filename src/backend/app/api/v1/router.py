@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.routes import (
     competitor_discovery,
+    competitor_material_discovery,
     competitor_source_onboarding,
     concepts,
     evidence,
@@ -23,6 +24,9 @@ api_router.include_router(runtimes.router, prefix="/runtimes", tags=["Runtimes"]
 api_router.include_router(projects.router, prefix="/projects", tags=["Projects"])
 api_router.include_router(research.router, prefix="/projects", tags=["Research"])
 api_router.include_router(competitor_discovery.router, prefix="/projects", tags=["Research"])
+api_router.include_router(
+    competitor_material_discovery.router, prefix="/projects", tags=["Evidence"]
+)
 api_router.include_router(
     competitor_source_onboarding.router, prefix="/projects", tags=["Evidence"]
 )
