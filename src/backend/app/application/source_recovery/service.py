@@ -147,6 +147,13 @@ class SourceRecoveryService:
             )
             requested_fields = self._build_requested_fields(requirements, assessment.region)
             if not requested_fields:
+                requested_fields = self._build_generic_fields(
+                    asset.source_asset_id,
+                    payload.missing_questions,
+                    assessment.region,
+                    asset.purpose,
+                )
+            if not requested_fields:
                 raise AppError(
                     code="SOURCE_RECOVERY_FIELDS_NOT_AVAILABLE",
                     message="当前缺口不能通过补充事实解决，请先确认研究范围或准确型号。",
@@ -155,6 +162,7 @@ class SourceRecoveryService:
                 )
             if (
                 job.status == "succeeded"
+                and requirements
                 and all(item.status is SourceRequirementStatus.SATISFIED for item in requirements)
             ):
                 raise AppError(
@@ -164,7 +172,11 @@ class SourceRecoveryService:
                 )
 
             reason_code, reason_message = self._classify_reason(job.error_code, job.status)
-            affected_agent_types = self._affected_agent_types(requested_fields)
+            affected_agent_types = (
+                list(payload.affected_agent_types)
+                if payload.affected_agent_types
+                else self._affected_agent_types(requested_fields)
+            )
             affected_task_ids = list(payload.affected_task_ids)
             if job.task_id and job.task_id not in affected_task_ids:
                 affected_task_ids.append(job.task_id)
@@ -177,7 +189,9 @@ class SourceRecoveryService:
                 status=SourceRecoveryStatus.WAITING_FOR_USER_INPUT,
                 reason_code=reason_code,
                 reason_message=reason_message,
-                requirement_ids_json=[item.requirement_id for item in requirements],
+                requirement_ids_json=list(
+                    dict.fromkeys(item.requirement_id for item in requested_fields)
+                ),
                 requested_fields_json=[
                     item.model_dump(mode="json") for item in requested_fields
                 ],
@@ -266,6 +280,21 @@ class SourceRecoveryService:
                     message="提交内容包含不属于当前恢复任务的字段。",
                     status_code=422,
                     details={"field_ids": unknown_fields},
+                )
+            generic_required_fields = {
+                field.field_id
+                for field in requested_fields.values()
+                if field.required and field.requirement_id.startswith("requirement_source_gap_")
+            }
+            missing_generic_fields = sorted(
+                generic_required_fields - {answer.field_id for answer in payload.answers}
+            )
+            if missing_generic_fields:
+                raise AppError(
+                    code="SOURCE_RECOVERY_REQUIRED_FIELD_MISSING",
+                    message="通用资料缺口必须逐项回答；不知道时请选择带缺口继续。",
+                    status_code=422,
+                    details={"field_ids": missing_generic_fields},
                 )
 
             now = datetime.now(UTC)
@@ -546,8 +575,14 @@ class SourceRecoveryService:
             repository = SourceRecoveryRepository(session)
             recovery = await self._require_recovery(repository, project_id, source_recovery_id)
             status_by_id = {item.requirement_id: item.status for item in assessment.requirements}
+            has_submission = bool(recovery.submissions)
             resolved = all(
-                status_by_id.get(requirement_id) is SourceRequirementStatus.SATISFIED
+                (
+                    has_submission
+                    if requirement_id.startswith("requirement_source_gap_")
+                    else status_by_id.get(requirement_id)
+                    is SourceRequirementStatus.SATISFIED
+                )
                 for requirement_id in recovery.requirement_ids_json
             )
             now = datetime.now(UTC)
@@ -641,12 +676,7 @@ class SourceRecoveryService:
         ]
         if detected:
             return detected
-        raise AppError(
-            code="SOURCE_RECOVERY_REQUIREMENT_NOT_LINKED",
-            message="系统无法确定该失败资料对应哪个研究缺口，请先确认资料归属。",
-            status_code=409,
-            details={"candidate_requirement_ids": [item.requirement_id for item in material]},
-        )
+        return []
 
     @classmethod
     def _build_requested_fields(
@@ -710,6 +740,39 @@ class SourceRecoveryService:
             for agent in _AGENT_BY_ROUTE[field.route]
         }
         return sorted(agents)
+
+    @staticmethod
+    def _build_generic_fields(
+        source_asset_id: str,
+        questions: list[str],
+        region: str,
+        purpose: str,
+    ) -> list[SourceRecoveryRequestedField]:
+        prompts = questions or [
+            (
+                "请填写这份资料原本要支持的关键信息，包含研究对象、具体事实、"
+                f"适用范围和必要限制。资料用途：{purpose}"
+            )
+        ]
+        fields: list[SourceRecoveryRequestedField] = []
+        for ordinal, question in enumerate(prompts):
+            identity = f"{source_asset_id}:{ordinal}:{question}"
+            digest = hashlib.sha256(identity.encode()).hexdigest()[:16]
+            fields.append(
+                SourceRecoveryRequestedField(
+                    field_id=f"field_{digest}",
+                    requirement_id=f"requirement_source_gap_{digest}",
+                    field_key="fact",
+                    label=f"缺失信息 {ordinal + 1}",
+                    question=question,
+                    required=True,
+                    claim_type=EvidenceClaimType.FACT,
+                    product=None,
+                    region=region or None,
+                    route=SourceRouteTarget.ENTERPRISE_INTERNAL,
+                )
+            )
+        return fields
 
     @staticmethod
     def _classify_reason(

@@ -83,7 +83,9 @@ def test_failed_web_source_recovers_from_user_content_with_full_evidence_lineage
             json={
                 "source_asset_id": failed_source_id,
                 "requirement_ids": [],
+                "missing_questions": [],
                 "affected_task_ids": ["task_competitor"],
+                "affected_agent_types": [],
                 "requested_by": "research-lead",
                 "reason": "Automatic webpage processing produced no evidence.",
             },
@@ -193,7 +195,9 @@ def test_user_can_explicitly_proceed_with_gaps_without_creating_evidence(
             json={
                 "source_asset_id": failed_source_id,
                 "requirement_ids": [],
+                "missing_questions": [],
                 "affected_task_ids": [],
+                "affected_agent_types": [],
                 "requested_by": "research-lead",
                 "reason": "No accessible evidence was produced.",
             },
@@ -220,3 +224,82 @@ def test_user_can_explicitly_proceed_with_gaps_without_creating_evidence(
         if item["requirement_key"] == "material.official_product.competitor"
     )
     assert competitor_requirement["status"] == "blocked"
+
+
+def test_generic_agent_gap_can_recover_without_competitor_source_requirements(
+    tmp_path: Path,
+) -> None:
+    application = create_app(_settings(tmp_path))
+    application.state.web_connector = None
+
+    with TestClient(application) as client:
+        project = client.post(
+            "/api/v1/projects",
+            json={
+                "brief": {
+                    "question": "What future home security opportunity should eufy pursue?",
+                    "category": "home security",
+                    "target_user": "US households",
+                    "region": "US",
+                    "scenarios": ["front door"],
+                }
+            },
+        )
+        project_id = project.json()["project_id"]
+        registered = client.post(
+            f"/api/v1/projects/{project_id}/sources/links",
+            json={
+                "source_url": "https://research.example/authorized-study",
+                "display_name": "Authorized household security study",
+                "authorization_basis": "enterprise_authorized",
+                "authorization_confirmed": True,
+                "authorized_by": "research-team",
+                "purpose": "Understand household package safety pain points",
+            },
+        )
+        failed_source_id = registered.json()["source_asset"]["source_asset_id"]
+        client.post(f"/api/v1/projects/{project_id}/sources/{failed_source_id}/processing")
+        created = client.post(
+            f"/api/v1/projects/{project_id}/source-recoveries",
+            json={
+                "source_asset_id": failed_source_id,
+                "requirement_ids": [],
+                "missing_questions": [
+                    "What package-safety problem did households report most often?"
+                ],
+                "affected_task_ids": ["task_user_research"],
+                "affected_agent_types": ["user_research"],
+                "requested_by": "research-manager",
+                "reason": "The user research source could not be parsed.",
+            },
+        )
+        recovery = created.json()
+        field = recovery["requested_fields"][0]
+        submitted = client.post(
+            f"/api/v1/projects/{project_id}/source-recoveries/"
+            f"{recovery['source_recovery_id']}/submissions",
+            json={
+                "request_id": "generic-request-0001",
+                "answers": [
+                    {
+                        "field_id": field["field_id"],
+                        "value": "Residents worried that delivered packages remained exposed.",
+                        "source_note": "Summary supplied by the authorized study owner.",
+                    }
+                ],
+                "actor": "study-owner",
+                "authorization_basis": "enterprise_authorized",
+                "authorization_confirmed": True,
+                "accuracy_confirmed": True,
+            },
+        )
+
+    assert created.status_code == 201
+    assert field["requirement_id"].startswith("requirement_source_gap_")
+    assert field["claim_type"] == "fact"
+    assert recovery["affected_agent_types"] == ["user_research"]
+    assert submitted.status_code == 201
+    assert submitted.json()["status"] == "resolved"
+    assert submitted.json()["resume_directive"]["affected_task_ids"] == [
+        "task_user_research"
+    ]

@@ -293,6 +293,8 @@ Parsed Artifact、内容 Hash、Excerpt Hash、Locator 和媒体衍生物 Hash�
 Evidence 时，后端必须基于真实 Collection Job、资料血缘和准备度评估生成恢复任务。恢复任务
 必须说明失败原因、涉及产品、缺少的具体字段及受影响 Agent；不得要求用户只能盲目更换链接，
 也不得调用模型猜测网页或媒体中未取得的内容。
+竞品缺口优先读取 Source Requirements；尚未被该领域模型覆盖的缺口只能接受受信任工作流主管
+传入的具体问题和已知 Agent 类型，不能由恢复服务或前端临时生成事实性问题。
 
 用户补充必须确认授权和准确性，并保存为独立的 `user_input` Source Asset、成功 Collection Job、
 可定位 Source Fragment、人工确认 Source Routing 和 `partially_verified` 的

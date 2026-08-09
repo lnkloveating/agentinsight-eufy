@@ -362,6 +362,9 @@ POST /api/v1/projects/{project_id}/source-recoveries/{source_recovery_id}/decisi
 用户内容会以 `user_input` Source Asset 和 `user_declaration` Evidence 接回现有证据链，不会伪装
 成原网页。资料补齐后返回 `targeted_retry`；用户也可以明确选择带缺口继续。
 
+竞品缺口由 Source Requirements 自动生成字段；其他领域 Agent 可以由工作流主管传入
+`missing_questions` 与 `affected_agent_types`，因此恢复能力不依赖竞品专用 Requirement。
+
 前端需要新增 Source Recovery Client、恢复弹窗与以下状态展示：
 
 ```text
@@ -435,7 +438,7 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次后端完整验证：
 
 ```text
-pytest: 232 passed
+pytest: 233 passed
 ruff: passed
 mypy: passed（190 个源文件）
 Alembic: 当前迁移头为 0016_source_recovery_orchestration，已从空库完整升级验证

@@ -27,6 +27,11 @@ Source Asset 处理失败或有效信息不足
 替代链接、上传文件可以继续使用已有 Source API，但不是恢复任务的主要入口。恢复接口不会
 重新访问原网站、调用 OpenCode、调用业务模型或创建虚构资料。
 
+竞品研究优先从 Source Requirements 自动生成产品、价格和评价字段。对于当前
+Source Requirements 尚未覆盖的用户研究、产品技术或商业任务，受信任的工作流主管可以在
+创建恢复任务时传入 `missing_questions` 和 `affected_agent_types`；恢复服务只校验并持久化
+这些缺失问题，不在此处运行模型。未传问题时会根据原 Source Asset 的用途生成一个通用问题。
+
 ## 前端弹窗契约
 
 创建恢复任务后，前端主要读取：

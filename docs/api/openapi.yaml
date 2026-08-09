@@ -2728,7 +2728,14 @@ components:
     SourceRecoveryCreate:
       type: object
       additionalProperties: false
-      required: [source_asset_id, requirement_ids, affected_task_ids, requested_by, reason]
+      required:
+        - source_asset_id
+        - requirement_ids
+        - missing_questions
+        - affected_task_ids
+        - affected_agent_types
+        - requested_by
+        - reason
       properties:
         source_asset_id: { type: string, minLength: 1, maxLength: 40 }
         requirement_ids:
@@ -2736,9 +2743,20 @@ components:
           maxItems: 30
           uniqueItems: true
           items: { type: string, minLength: 1, maxLength: 120 }
+        missing_questions:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          description: 由受信任工作流主管传入、当前 Source Requirements 尚未覆盖的具体缺失问题。
+          items: { type: string, minLength: 1, maxLength: 500 }
         affected_task_ids:
           type: array
           maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        affected_agent_types:
+          type: array
+          maxItems: 10
           uniqueItems: true
           items: { type: string, minLength: 1, maxLength: 80 }
         requested_by: { type: string, minLength: 1, maxLength: 120 }

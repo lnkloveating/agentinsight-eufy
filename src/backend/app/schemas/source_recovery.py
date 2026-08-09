@@ -11,6 +11,17 @@ from app.schemas.source import SourceAuthorizationBasis
 from app.schemas.source_requirements import ProductReference, SourceRequirementAssessment
 from app.schemas.source_routing import SourceRouteTarget
 
+_RECOVERABLE_AGENT_TYPES = {
+    "user_research",
+    "competitor_research",
+    "product_technical",
+    "commercial_evaluation",
+    "red_team",
+    "candidate_synthesis",
+    "validation",
+    "final_synthesis",
+}
+
 
 class SourceRecoveryStatus(StrEnum):
     WAITING_FOR_USER_INPUT = "waiting_for_user_input"
@@ -46,15 +57,34 @@ class SourceRecoveryResumeMode(StrEnum):
 class SourceRecoveryCreate(BaseModel):
     source_asset_id: str = Field(min_length=1, max_length=40)
     requirement_ids: list[str] = Field(default_factory=list, max_length=30)
+    missing_questions: list[str] = Field(default_factory=list, max_length=20)
     affected_task_ids: list[str] = Field(default_factory=list, max_length=30)
+    affected_agent_types: list[str] = Field(default_factory=list, max_length=10)
     requested_by: str = Field(min_length=1, max_length=120)
     reason: str = Field(min_length=1, max_length=1000)
 
-    @field_validator("requirement_ids", "affected_task_ids")
+    @field_validator(
+        "requirement_ids", "affected_task_ids", "affected_agent_types", "missing_questions"
+    )
     @classmethod
     def unique_ids(cls, value: list[str]) -> list[str]:
         if len(value) != len(set(value)):
             raise ValueError("source recovery identifiers must be unique")
+        return value
+
+    @field_validator("missing_questions", mode="before")
+    @classmethod
+    def strip_questions(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [item.strip() if isinstance(item, str) else item for item in value]
+        return value
+
+    @field_validator("affected_agent_types")
+    @classmethod
+    def known_agent_types(cls, value: list[str]) -> list[str]:
+        invalid = sorted(set(value) - _RECOVERABLE_AGENT_TYPES)
+        if invalid:
+            raise ValueError(f"source recovery contains unknown agent types: {invalid}")
         return value
 
 
