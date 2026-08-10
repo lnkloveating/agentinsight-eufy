@@ -486,6 +486,37 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 
 如果 AI 组只提升速度而没有提升证据质量或产品判断，系统不能宣称方法更优。
 
+## AC-16 生态机会契约（分支 `domain/ecosystem-opportunity-contract`）
+
+这是 eufy 家庭安防生态方向的第一个基础分支，只定义"生态级解决方案机会"的公共契约和领域模型，
+不实现真实 Agent、不调用大模型、不生成研究结果，也不落地设备能力图、AI Native Gate 或商业评估。
+
+验收要求：
+
+- 系统可以在类型层明确区分设备功能（`device_feature`）、设备产品（`device_product`）和生态服务
+  （`ecosystem_service`）；
+- 生态候选可以表达用户安全目标、目标用户与问题、`EcosystemBlueprint`（设备角色、跨设备信息流、
+  部署位置、隐私/权限边界、离线与降级行为、已知盲区）和 `AINativeCase`（含 AI 移除测试）；
+- 蓝图只描述"方案要求什么角色和能力"，不得未经 Evidence 断言某个真实 eufy 型号一定具备该能力；
+- 模型可输出结构（`*ModelCandidate` / `*ModelOutput`）不允许包含 `gate_status`、`gate_issues` 或任何
+  确定性判定，由 `extra="forbid"` 在结构层强制；`gate_status` 与稳定 `gap_id` 属于后端；
+- 确定性校验覆盖：未知 `scope_level`、重复 `opportunity_id` / `role_id` / `flow_id` / Evidence ID /
+  `competitor_gap_ids` / `summary_evidence_ids` / `affected_opportunity_ids`、信息流引用不存在的角色、
+  `generated_candidate_count` 超过 5、`advancing_candidate_count` 或 `ecosystem_service_count` 超过生成数、
+  未知字段；
+- Evidence 不足时允许零个或少于三个候选，但必须能够表达 `portfolio_gaps`，不得用固定模板凑数；
+- `EcosystemOpportunityArtifact` 与通用 `ResearchArtifact` 双向转换，并在缺失 `gap_id` 时确定性回填；
+- 新增 `ECOSYSTEM_OPPORTUNITY` 枚举后，旧 `ProductTechnicalArtifact` 与 Product Technical v1 API 仍可解析，
+  现有 LangGraph 主路径计划与运行测试不受影响（主路径以 `PLANNED_AGENT_TYPES` 为准）；
+- 本分支不声称已经生成任何生态方案。
+
+自动化映射：
+
+- `tests/unit/test_ecosystem_opportunity_contracts.py`
+- `tests/unit/test_workflow_contracts.py`（主路径角色集合改以 `PLANNED_AGENT_TYPES` 为准）
+- `tests/integration/test_research_workflow.py`、`tests/integration/test_runtime_langgraph_integration.py`
+  （主图执行集合为 `RESEARCH_MANAGER` 加 `PLANNED_AGENT_TYPES`，新增枚举暂不接入）
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：
