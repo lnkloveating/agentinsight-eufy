@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status
+import asyncio
+
+from fastapi import APIRouter, Request, status
 
 from app.agents.product_technical import ProductTechnicalArtifact
 from app.agents.user_research import UserResearchArtifact
@@ -16,6 +18,15 @@ from app.schemas.source_recovery import (
 )
 
 router = APIRouter()
+
+
+@router.post("/{project_id}/research/retry", status_code=status.HTTP_202_ACCEPTED)
+async def retry_initial_research(project_id: str, request: Request) -> dict[str, str]:
+    launcher = getattr(request.app.state, "research_launcher", None)
+    if launcher is None:
+        return {"project_id": project_id, "status": "unavailable"}
+    asyncio.create_task(launcher(project_id), name=f"retry-initial-research-{project_id}")
+    return {"project_id": project_id, "status": "started"}
 
 
 @router.post(

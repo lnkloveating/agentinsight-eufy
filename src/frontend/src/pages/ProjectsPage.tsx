@@ -4,6 +4,7 @@ import { useCreateProjectMutation, useProjectsQuery, useWorkspaceQuery } from '.
 import type { ProjectCreateInput } from '../shared/types/api';
 import { api } from '../shared/api/client';
 import { EmptyProjectCard, ProjectCard } from '../shared/components/ProjectCard';
+import { EvidenceListPanel } from '../widgets/app-shell/WorkbenchComponents';
 
 const STAGE_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -219,6 +220,7 @@ export function ProjectsPage() {
         selected_concept_ids: [],
       });
     }
+    void api.startUserResearch(project.project_id);
     navigate(`/projects/${project.project_id}`);
   }
 
@@ -519,6 +521,7 @@ export function ProjectsPage() {
                 ))}
               </div>
             </div>
+            <EvidenceListPanel projectId={ws.project.project_id} evidence={ws.evidencePage.items} claims={ws.claims} />
             <div className="demo-actions">
               <button className="demo-btn demo-btn--primary" onClick={() => jumpTo('users')}>进入 AI 用户替身挑战</button>
             </div>

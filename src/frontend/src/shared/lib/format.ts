@@ -3,7 +3,12 @@ export function formatDateTime(value: string | null | undefined): string {
     return '未记录';
   }
 
-  const date = new Date(value);
+  // SQLite may return the backend's UTC datetime without its timezone suffix.
+  // Treat timezone-less API timestamps as UTC before local-time formatting.
+  const normalizedValue = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim())
+    ? value
+    : `${value.trim()}Z`;
+  const date = new Date(normalizedValue);
 
   return Number.isNaN(date.getTime())
     ? value

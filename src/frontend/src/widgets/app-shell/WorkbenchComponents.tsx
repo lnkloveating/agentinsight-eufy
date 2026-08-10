@@ -1,7 +1,9 @@
 import type { FormEvent } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
+import { api } from '../../shared/api/client';
 import { summarizeMetrics } from '../../shared/api/hooks';
 import { formatCurrency, formatDateTime, formatPercent, titleCaseKey } from '../../shared/lib/format';
 import {
@@ -534,14 +536,89 @@ export function ResearchEventTimeline({
   );
 }
 
-export function EvidenceListPanel({ evidence, claims }: { evidence: Evidence[]; claims: Claim[] }) {
+export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: string; evidence: Evidence[]; claims: Claim[] }) {
+  const queryClient = useQueryClient();
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [title, setTitle] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [excerpt, setExcerpt] = useState('');
+  const [status, setStatus] = useState<'verified' | 'partially_verified' | 'unverified'>('partially_verified');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const sourceOptions = useMemo(() => ['all', ...Array.from(new Set(evidence.map((item) => item.source_type)))], [evidence]);
   const filtered = sourceFilter === 'all' ? evidence : evidence.filter((item) => item.source_type === sourceFilter);
+  const statusOptions = [
+    { value: 'partially_verified' as const, label: '部分验证' },
+    { value: 'verified' as const, label: '已验证' },
+    { value: 'unverified' as const, label: '未验证' },
+  ];
+  const selectedStatusLabel = statusOptions.find((option) => option.value === status)?.label ?? statusOptions[0].label;
+
+  async function handleIngest(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.ingestEvidence(projectId, {
+        source_url: sourceUrl,
+        source_type: 'user_reviews',
+        title,
+        original_excerpt: excerpt,
+        claim_type: 'user_opinion',
+        status,
+        collected_at: new Date().toISOString(),
+        confidence: status === 'verified' ? 0.9 : 0.7,
+        authority_score: status === 'verified' ? 0.9 : 0.7,
+        recency_score: 0.8,
+        diversity_score: 0.7,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workspace', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['projects'] }),
+      ]);
+      if (status !== 'unverified') {
+        await api.retryInitialResearch(projectId);
+      }
+      setTitle('');
+      setSourceUrl('');
+      setExcerpt('');
+    } catch {
+      setError('证据保存失败，请检查来源链接和后端服务。');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Card>
       <SectionHeading eyebrow="Evidence Lake" title="证据中心" description="来源、可信度、状态和缺口要同时可见。" />
+      <form className="evidence-ingest-form" onSubmit={handleIngest}>
+        <strong>人工录入用户证据</strong>
+        <p className="muted-copy">请输入真实评论或访谈内容，并填写可追溯的来源链接。</p>
+        <div className="evidence-ingest-form__grid">
+          <label className="ui-field"><span>标题</span><input className="ui-input" required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：用户对夜间误报的反馈" /></label>
+          <label className="ui-field"><span>来源链接</span><input className="ui-input" required type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://..." /></label>
+        </div>
+        <label className="ui-field"><span>评论 / 访谈原文</span><textarea className="ui-textarea" required value={excerpt} onChange={(event) => setExcerpt(event.target.value)} placeholder="粘贴真实用户评论或访谈片段" /></label>
+        <div className="evidence-ingest-form__actions">
+          <label className="ui-field">
+            <span>审核状态</span>
+            <SelectField
+              ariaLabel="审核状态"
+              onChange={(nextLabel) => {
+                const nextStatus = statusOptions.find((option) => option.label === nextLabel)?.value;
+                if (nextStatus) {
+                  setStatus(nextStatus);
+                }
+              }}
+              options={statusOptions.map((option) => option.label)}
+              value={selectedStatusLabel}
+            />
+          </label>
+          <Button type="submit" disabled={submitting}>{submitting ? '保存中…' : '保存证据'}</Button>
+        </div>
+        {error ? <p className="form-error">{error}</p> : null}
+      </form>
       <div className="toolbar">
         <label className="ui-field">
           <span>来源类型</span>
@@ -660,6 +737,15 @@ export function ConceptComparisonBoard({ concepts }: { concepts: Concept[] }) {
       </div>
     </article>
   );
+
+  if (concepts.length === 0) {
+    return (
+      <Card>
+        <SectionHeading eyebrow="Concept Arena" title="候选概念竞技场" />
+        <EmptyState title="候选概念尚未生成" description="当前项目还在实时调研阶段，生成概念后会自动出现在这里。" />
+      </Card>
+    );
+  }
 
   return (
     <Card>

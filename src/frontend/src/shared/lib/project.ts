@@ -23,11 +23,11 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
 };
 
 export const VIEW_LABELS: Record<ViewMode, string> = {
-  brief: 'Brief Review',
-  live: 'Live Research',
-  evidence: 'Evidence Center',
-  concepts: 'Concept Arena',
-  proposal: 'Proposal Review',
+  brief: '项目简报',
+  live: '实时调研',
+  evidence: '证据中心',
+  concepts: '概念竞技场',
+  proposal: '提案审阅',
 };
 
 export const DECISION_COPY: Record<

@@ -1,5 +1,7 @@
 """项目创建、查询和人工审批用例。"""
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -37,11 +39,13 @@ class ProjectService:
         trace_id: str,
         event_broker: ProjectEventBroker,
         model_catalog: ModelCatalog,
+        research_launcher: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self.repository = repository
         self.trace_id = trace_id
         self.event_broker = event_broker
         self.model_catalog = model_catalog
+        self.research_launcher = research_launcher
 
     async def create_project(self, payload: ProjectCreate) -> Project:
         project_id = f"proj_{uuid4().hex[:16]}"
@@ -228,6 +232,11 @@ class ProjectService:
             raise
 
         await self.event_broker.notify(project_id)
+        if payload.action is DecisionAction.APPROVE and self.research_launcher is not None:
+            asyncio.create_task(
+                self.research_launcher(project_id),
+                name=f"initial-research-{project_id}",
+            )
         return self._to_project(project)
 
     async def _activate_manager_if_needed(

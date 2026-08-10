@@ -1,5 +1,6 @@
 """后端应用入口。"""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -24,6 +25,7 @@ from app.agents.product_technical import (
     register_product_technical_prompt,
 )
 from app.agents.user_research import UserResearchModelAgentAdapter
+from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
 from app.application.events import ProjectEventBroker
@@ -39,10 +41,13 @@ from app.application.model_gateway import (
 from app.application.model_gateway.selection import ProjectModelSelectionResolver
 from app.application.runtime import (
     AgentRegistry,
+    AgentRuntimeGateway,
     ExternalCliProcessRunner,
     ExternalRuntimeCatalog,
     OpenCodeCliDriver,
 )
+from app.application.research import UserResearchService
+from app.application.research.orchestrator import InitialResearchOrchestrator
 from app.application.source_routing import register_source_routing_prompt
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
@@ -228,8 +233,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ),
         )
         application.state.agent_registry = agent_registry
+        user_research_runtime = AgentRuntimeGateway(
+            database,
+            agent_registry,
+            application.state.event_broker,
+            "trace_initial_research",
+        )
+        user_research_service = UserResearchService(
+            database,
+            user_research_runtime,
+            UserResearchEvidenceContextBuilder(
+                database,
+                max_items=resolved_settings.user_research_max_evidence_items,
+                max_excerpt_chars=resolved_settings.user_research_max_excerpt_chars,
+                max_total_chars=resolved_settings.user_research_max_total_evidence_chars,
+            ),
+        )
+        initial_research = InitialResearchOrchestrator(
+            database,
+            user_research_service,
+            application.state.event_broker,
+            "trace_initial_research",
+        )
+        application.state.research_launcher = initial_research.run
         if resolved_settings.auto_create_schema:
             await database.create_schema()
+        for project_id in await initial_research.stale_project_ids():
+            asyncio.create_task(
+                initial_research.run(project_id),
+                name=f"recover-initial-research-{project_id}",
+            )
         try:
             yield
         finally:

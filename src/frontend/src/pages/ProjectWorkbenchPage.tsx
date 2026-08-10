@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
+import { api } from '../shared/api/client';
 import { useDecisionMutation, useProjectEvents, useProjectsQuery, useResolvedView, useWorkspaceQuery } from '../shared/api/hooks';
 import { formatDateTime } from '../shared/lib/format';
 import { DECISION_COPY, EVENT_COPY, describeEvent, getDefaultViewForStatus, STATUS_LABELS, VIEW_LABELS } from '../shared/lib/project';
-import type { AgentRun, Claim, DecisionAction, Metrics, Project, ProjectEvent, ViewMode } from '../shared/types/api';
+import type { AgentRun, DecisionAction, Project, ProjectEvent, ViewMode } from '../shared/types/api';
 import { Badge, Button, EmptyState } from '../shared/ui/primitives';
 import {
   BriefReviewPanel,
@@ -16,20 +18,18 @@ import {
 
 const PROJECT_VIEW_ORDER: ViewMode[] = ['brief', 'live', 'concepts', 'proposal', 'evidence'];
 
-type StageStep = {
-  key: string;
-  label: string;
-  view: ViewMode;
-};
+function getLatestWorkspaceTimestamp(project: Project, agentRuns: AgentRun[], events: ProjectEvent[]): string {
+  const timestamps = [
+    project.updated_at,
+    ...agentRuns.flatMap((run) => [run.started_at, run.completed_at]),
+    ...events.map((event) => event.timestamp),
+  ].filter((value): value is string => Boolean(value));
 
-const PROJECT_STAGE_STEPS: StageStep[] = [
-  { key: 'brief', label: 'Brief 确认', view: 'brief' },
-  { key: 'planning', label: '研究计划', view: 'live' },
-  { key: 'concept', label: '概念晋级', view: 'concepts' },
-  { key: 'proposal', label: '生成提案', view: 'proposal' },
-  { key: 'final', label: '最终审批', view: 'proposal' },
-  { key: 'done', label: '已完成', view: 'proposal' },
-];
+  return timestamps.reduce((latest, candidate) => {
+    const normalize = (value: string) => /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim()) ? value : `${value}Z`;
+    return Date.parse(normalize(candidate)) > Date.parse(normalize(latest)) ? candidate : latest;
+  }, project.updated_at);
+}
 
 function getProjectBadgeTone(status: Project['status']): 'accent' | 'warning' | 'danger' | 'success' {
   if (status === 'failed' || status === 'terminated') {
@@ -122,83 +122,6 @@ function getStageGoal(project: Project): string {
   }
 }
 
-function getPendingTaskTitle(project: Project): string {
-  if (project.pending_decision?.gate === 'brief') {
-    return '当前需要你的 Brief 确认';
-  }
-
-  if (project.pending_decision?.gate === 'concept') {
-    return '当前需要你的概念晋级决策';
-  }
-
-  if (project.pending_decision?.gate === 'final') {
-    return '当前需要你的最终审批';
-  }
-
-  if (project.status === 'researching') {
-    return '研究计划生成后需要你的确认';
-  }
-
-  if (project.status === 'supplementing_research') {
-    return '当前链路仍在补证，建议关注空证据 Claim';
-  }
-
-  if (project.status === 'generating_report') {
-    return '提案正在生成，建议关注引用证据完整性';
-  }
-
-  return '当前没有待审批事项';
-}
-
-function getPendingTaskMeta(project: Project): string {
-  if (project.pending_decision) {
-    return `更新于 ${formatDateTime(project.updated_at)}`;
-  }
-
-  if (project.status === 'researching') {
-    return '预计完成：今日';
-  }
-
-  return `最近更新：${formatDateTime(project.updated_at)}`;
-}
-
-function getRiskItems(project: Project, claims: Claim[]): string[] {
-  const items = ['最终结论必须能追溯到有效 Evidence IDs。'];
-
-  if (claims.some((claim) => claim.evidence_ids.length === 0)) {
-    items.push('存在缺少支持证据的 Claim，需要补证或显式降级。');
-  } else {
-    items.push('概念晋级前必须看见红队意见和空证据 Claim。');
-  }
-
-  if (project.status === 'failed') {
-    items.unshift('当前项目存在失败节点，建议优先排查失败事件与恢复入口。');
-  }
-
-  return items.slice(0, 2);
-}
-
-function formatCoverage(value: number | null | undefined): string {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '0%';
-  }
-
-  const normalized = value <= 1 ? value * 100 : value;
-  return `${Math.round(normalized)}%`;
-}
-
-function getMetricsRows(metrics: Metrics | null, claims: Claim[], fallbackEvidenceCount: number) {
-  const validClaims = claims.filter((claim) => claim.evidence_ids.length > 0).length;
-  const unresolvedClaims = claims.filter((claim) => claim.evidence_ids.length === 0).length;
-
-  return [
-    { label: 'Evidence', value: `${metrics?.valid_evidence_count ?? fallbackEvidenceCount}` },
-    { label: '有效 Claim', value: `${validClaims}` },
-    { label: '待验证结论', value: `${unresolvedClaims}` },
-    { label: '研究覆盖率', value: formatCoverage(metrics?.citation_coverage) },
-  ];
-}
-
 function getAgentStatusLabel(status: AgentRun['status']): string {
   switch (status) {
     case 'running':
@@ -253,6 +176,48 @@ function getAgentMarkerTone(status: AgentRun['status']): 'accent' | 'warning' | 
 function getAgentInitial(name: string): string {
   const trimmed = name.trim();
   return trimmed ? trimmed.slice(0, 1).toUpperCase() : 'A';
+}
+
+function AgentStatusIcon({ status, name }: { status: AgentRun['status']; name: string }) {
+  if (status === 'running') {
+    return (
+      <svg
+        className="project-workspace__agent-refresh-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-label={`${name} 正在运行`}
+      >
+        <path d="M20 11a8.1 8.1 0 0 0-14.8-4L3 10" />
+        <path d="M3 4v6h6" />
+        <path d="M4 13a8.1 8.1 0 0 0 14.8 4L21 14" />
+        <path d="M21 20v-6h-6" />
+      </svg>
+    );
+  }
+
+  return <span>{getAgentInitial(name)}</span>;
+}
+
+function getLatestAgentRuns(runs: AgentRun[]): Array<{ agent: AgentRun; attempts: number }> {
+  const grouped = new Map<string, AgentRun[]>();
+  for (const run of runs) {
+    const history = grouped.get(run.agent_type) ?? [];
+    history.push(run);
+    grouped.set(run.agent_type, history);
+  }
+
+  return Array.from(grouped.values()).map((history) => {
+    history.sort((left, right) => {
+      const leftTime = Date.parse(left.started_at ?? left.completed_at ?? '') || 0;
+      const rightTime = Date.parse(right.started_at ?? right.completed_at ?? '') || 0;
+      return rightTime - leftTime;
+    });
+    return { agent: history[0], attempts: history.length };
+  });
 }
 
 function buildPlaceholderProject(projectId: string): Project {
@@ -353,6 +318,11 @@ function buildFallbackEvents(project: Project): ProjectEvent[] {
   ];
 }
 
+// These builders remain available for the explicitly opt-in demo mode only.
+void buildPlaceholderProject;
+void buildFallbackAgentRuns;
+void buildFallbackEvents;
+
 function getActivityTone(eventType: string): 'accent' | 'warning' | 'danger' | 'success' {
   const preset = EVENT_COPY[eventType];
   switch (preset?.tone) {
@@ -367,114 +337,133 @@ function getActivityTone(eventType: string): 'accent' | 'warning' | 'danger' | '
   }
 }
 
-function getStageView(key: string): ViewMode {
-  switch (key) {
-    case 'brief':
-      return 'brief';
-    case 'planning':
-      return 'live';
-    case 'concept':
-      return 'concepts';
-    case 'proposal':
-    case 'final':
-    case 'done':
-      return 'proposal';
-    default:
-      return 'live';
-  }
-}
-
-function getSelectedStageKey(view: ViewMode): string {
-  switch (view) {
-    case 'brief':
-      return 'brief';
-    case 'live':
-      return 'planning';
-    case 'concepts':
-      return 'concept';
-    case 'proposal':
-      return 'proposal';
-    case 'evidence':
-      return 'planning';
-    default:
-      return 'planning';
-  }
-}
-
 function ProjectViewTabs({
+  project,
   currentView,
   onChange,
 }: {
+  project: Project;
   currentView: ViewMode;
   onChange: (view: ViewMode) => void;
 }) {
+  const stageOrder: ViewMode[] = ['brief', 'live', 'evidence', 'concepts', 'proposal'];
+  const currentStage = project.status === 'awaiting_concept_approval'
+    ? 'concepts'
+    : project.status === 'generating_report' || project.status === 'awaiting_final_approval' || project.status === 'completed'
+      ? 'proposal'
+      : project.status === 'researching' || project.status === 'supplementing_research' || project.status === 'failed'
+        ? 'live'
+        : 'brief';
+  const currentStageIndex = stageOrder.indexOf(currentStage);
+
   return (
     <nav className="project-workspace__tabs" aria-label="项目视图">
       {PROJECT_VIEW_ORDER.map((view) => (
-        <button
-          key={view}
-          type="button"
-          className={`project-workspace__tab${currentView === view ? ' project-workspace__tab--active' : ''}`}
-          onClick={() => onChange(view)}
-        >
-          {VIEW_LABELS[view]}
-        </button>
+        (() => {
+          const viewIndex = stageOrder.indexOf(view);
+          const stageStatus = view === currentStage
+            ? project.status === 'awaiting_final_approval' ? '最终审批' : project.status === 'completed' ? '已完成' : '当前阶段'
+            : viewIndex < currentStageIndex ? '已完成' : '待进入';
+          return (
+            <button
+              key={view}
+              type="button"
+              className={`project-workspace__tab${currentView === view ? ' project-workspace__tab--active' : ''}`}
+              onClick={() => onChange(view)}
+              aria-label={`${VIEW_LABELS[view]}，${stageStatus}`}
+            >
+              <span className="project-workspace__tab-label">{VIEW_LABELS[view]}</span>
+              <span
+                className={`project-workspace__tab-status project-workspace__tab-status--${stageStatus === '当前阶段' || stageStatus === '最终审批' ? 'current' : stageStatus === '已完成' ? 'done' : 'upcoming'}`}
+                title={stageStatus}
+                aria-hidden="true"
+              >
+                <span className="project-workspace__tab-status-dot" />
+              </span>
+            </button>
+          );
+        })()
       ))}
     </nav>
   );
 }
 
-function ProjectStageRailPanel({
-  currentView,
-  onNavigate,
-}: {
-  currentView: ViewMode;
-  onNavigate: (view: ViewMode) => void;
-}) {
-  const selectedStageKey = getSelectedStageKey(currentView);
+function InlineEvidenceRecovery({ projectId, evidenceCount }: { projectId: string; evidenceCount: number }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [excerpt, setExcerpt] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.ingestEvidence(projectId, {
+        source_url: sourceUrl,
+        source_type: 'user_reviews',
+        title,
+        original_excerpt: excerpt,
+        claim_type: 'user_opinion',
+        status: 'partially_verified',
+        collected_at: new Date().toISOString(),
+        confidence: 0.7,
+        authority_score: 0.7,
+        recency_score: 0.8,
+        diversity_score: 0.7,
+      });
+      await api.retryInitialResearch(projectId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workspace', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['projects'] }),
+      ]);
+      setTitle('');
+      setSourceUrl('');
+      setExcerpt('');
+      setOpen(false);
+    } catch {
+      setError('保存失败，请检查来源链接或后端服务。');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <section className="project-workspace__panel project-workspace__panel--stage">
-      <h3 className="project-workspace__panel-title">研究流转</h3>
-      <div className="project-workspace__stage-list">
-        {PROJECT_STAGE_STEPS.map((step) => {
-          const selected = step.key === selectedStageKey;
-
-          return (
-            <button
-              type="button"
-              className={`project-workspace__stage-item${selected ? ' project-workspace__stage-item--selected' : ''}`}
-              key={step.key}
-              onClick={() => onNavigate(getStageView(step.key))}
-            >
-              <span className="project-workspace__stage-dot" aria-hidden="true" />
-              <div className="project-workspace__stage-copy">
-                <strong>{step.label}</strong>
-                <span>{selected ? '当前查看' : '点击查看'}</span>
-              </div>
-              {selected ? (
-                <span className="project-workspace__stage-arrow" aria-hidden="true">
-                  <svg fill="none" viewBox="0 0 16 16">
-                    <path d="M6 3.5L10 8L6 12.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-                  </svg>
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+    <div className="inline-evidence-recovery">
+      <div className="inline-evidence-recovery__copy">
+        <strong>用户研究需要补充证据</strong>
+        <span>当前已有 {evidenceCount} 条证据，建议补充来自不同来源的真实用户评论。</span>
       </div>
-    </section>
+      <Button tone="primary" onClick={() => setOpen((current) => !current)}>{open ? '收起补充表单' : '补充证据并继续'}</Button>
+      {open ? (
+        <form className="inline-evidence-recovery__form" onSubmit={handleSubmit}>
+          <label className="ui-field"><span>评论标题</span><input className="ui-input" required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：用户对夜间误报的反馈" /></label>
+          <label className="ui-field"><span>来源链接</span><input className="ui-input" required type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://..." /></label>
+          <label className="ui-field"><span>评论或访谈原文</span><textarea className="ui-textarea" required value={excerpt} onChange={(event) => setExcerpt(event.target.value)} placeholder="粘贴真实用户评论或访谈片段" /></label>
+          <p className="muted-copy">保存后会自动重新运行 User Research Agent，无需跳转证据中心。</p>
+          {error ? <p className="form-error">{error}</p> : null}
+          <Button type="submit" disabled={submitting}>{submitting ? '保存并重试中…' : '保存并继续研究'}</Button>
+        </form>
+      ) : null}
+    </div>
   );
 }
 
 function LiveResearchOverview({
   project,
+  agentRuns,
+  evidenceCount,
   onPrimaryAction,
 }: {
   project: Project;
+  agentRuns: AgentRun[];
+  evidenceCount: number;
   onPrimaryAction?: (() => void) | null;
 }) {
-  const primaryLabel = project.pending_decision ? DECISION_COPY[project.pending_decision.allowed_actions[0]].label : '继续推进研究';
+  const primaryLabel = project.pending_decision ? DECISION_COPY[project.pending_decision.allowed_actions[0]].label : '查看 Agent 进度';
 
   return (
     <section className="project-workspace__panel project-workspace__stage-summary" id="project-stage-summary">
@@ -487,6 +476,9 @@ function LiveResearchOverview({
         <strong>当前目标</strong>
         <p>{getStageGoal(project)}</p>
       </div>
+      {project.status === 'researching' && agentRuns.some((run) => run.status === 'blocked' || run.status === 'partial') ? (
+        <InlineEvidenceRecovery projectId={project.project_id} evidenceCount={evidenceCount} />
+      ) : null}
       <div className="project-workspace__stage-actions">
         {project.pending_decision && onPrimaryAction ? (
           <Button tone={DECISION_COPY[project.pending_decision.allowed_actions[0]].tone} onClick={onPrimaryAction}>
@@ -506,24 +498,25 @@ function LiveResearchOverview({
 }
 
 function LiveAgentStatusPanel({ agentRuns }: { agentRuns: AgentRun[] }) {
+  const latestRuns = getLatestAgentRuns(agentRuns);
   return (
     <section className="project-workspace__panel" id="project-agent-status">
       <h3 className="project-workspace__panel-title">Agent 运行状态</h3>
       <div className="project-workspace__agent-list">
-        {agentRuns.length === 0 ? (
+        {latestRuns.length === 0 ? (
           <div className="project-workspace__empty-inline">
             <strong>当前还没有活跃 Agent</strong>
             <p>系统一旦开始执行研究任务，这里会显示运行态、进度和等待节点。</p>
           </div>
         ) : (
-          agentRuns.map((agent) => (
-            <article className="project-workspace__agent-row" key={agent.agent_run_id}>
+          latestRuns.map(({ agent, attempts }) => (
+            <article className="project-workspace__agent-row" key={agent.agent_type}>
               <div className={`project-workspace__agent-avatar project-workspace__agent-avatar--${getAgentMarkerTone(agent.status)}`}>
-                <span>{getAgentInitial(agent.agent_name)}</span>
+                <AgentStatusIcon status={agent.status} name={agent.agent_name} />
               </div>
               <div className="project-workspace__agent-main">
                 <strong>{agent.agent_name}</strong>
-                <p>{agent.message}</p>
+                <p>{agent.message}{attempts > 1 ? `（历史运行 ${attempts} 次，当前显示最新一次）` : ''}</p>
               </div>
               <div className="project-workspace__agent-state">
                 <Badge tone={getAgentStatusTone(agent.status)}>{getAgentStatusLabel(agent.status)}</Badge>
@@ -569,119 +562,19 @@ function LiveRecentActivityPanel({ events }: { events: ProjectEvent[] }) {
   );
 }
 
-function ProjectTaskPanel({
-  project,
-  busy,
-  onDecision,
-}: {
-  project: Project;
-  busy: boolean;
-  onDecision: (action: DecisionAction) => void;
-}) {
-  const hasPendingDecision = Boolean(project.pending_decision);
-  const actionCount = hasPendingDecision ? project.pending_decision!.allowed_actions.length : 1;
-
-  return (
-    <section className="project-workspace__panel">
-      <div className="project-workspace__side-head">
-        <h3 className="project-workspace__panel-title">待处理事项</h3>
-        <span className="project-workspace__count-badge">{actionCount}</span>
-      </div>
-      <div className="project-workspace__task-card">
-        <div className="project-workspace__task-icon" aria-hidden="true">
-          <svg fill="none" viewBox="0 0 20 20">
-            <path d="M10 5.25V10L13 12.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
-            <circle cx="10" cy="10" r="6.25" stroke="currentColor" strokeWidth="1.5" />
-          </svg>
-        </div>
-        <div className="project-workspace__task-copy">
-          <strong>{getPendingTaskTitle(project)}</strong>
-          <p>{getPendingTaskMeta(project)}</p>
-        </div>
-        {project.pending_decision ? (
-          <div className="project-workspace__task-actions">
-            {project.pending_decision.allowed_actions.slice(0, 2).map((action) => (
-              <Button
-                key={action}
-                tone={DECISION_COPY[action].tone}
-                disabled={busy}
-                onClick={() => onDecision(action)}
-              >
-                {DECISION_COPY[action].label}
-              </Button>
-            ))}
-          </div>
-        ) : (
-          <Link className="project-workspace__task-link" to={`/projects/${project.project_id}/metrics`}>
-            查看详情
-          </Link>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function ProjectRiskPanel({ project, claims }: { project: Project; claims: Claim[] }) {
-  const items = getRiskItems(project, claims);
-
-  return (
-    <section className="project-workspace__panel">
-      <h3 className="project-workspace__panel-title">风险提醒</h3>
-      <div className="project-workspace__risk-list">
-        {items.map((item) => (
-          <article className="project-workspace__risk-item" key={item}>
-            <span className="project-workspace__risk-icon" aria-hidden="true">
-              <svg fill="none" viewBox="0 0 20 20">
-                <path d="M10 4.25L16 15.25H4L10 4.25Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
-                <path d="M10 8V11.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
-                <circle cx="10" cy="13.5" r="0.85" fill="currentColor" />
-              </svg>
-            </span>
-            <p>{item}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProjectMetricsPanel({
-  metrics,
-  claims,
-  evidenceCount,
-}: {
-  metrics: Metrics | null;
-  claims: Claim[];
-  evidenceCount: number;
-}) {
-  const rows = getMetricsRows(metrics, claims, evidenceCount);
-
-  return (
-    <section className="project-workspace__panel">
-      <h3 className="project-workspace__panel-title">指标速览</h3>
-      <div className="project-workspace__metric-list">
-        {rows.map((row) => (
-          <div className="project-workspace__metric-row" key={row.label}>
-            <span>{row.label}</span>
-            <strong>{row.value}</strong>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function ProjectWorkbenchPage() {
   const params = useParams();
   const projectId = params.projectId ?? '';
   const workspaceQuery = useWorkspaceQuery(projectId);
   const projectsQuery = useProjectsQuery();
   const decisionMutation = useDecisionMutation(projectId);
+  const queryClient = useQueryClient();
   const [selectedView, setSelectedView] = useState<ViewMode | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const fallbackProject = projectsQuery.data?.find((item) => item.project_id === projectId);
-  const placeholderProject = projectId ? buildPlaceholderProject(projectId) : undefined;
-  const project = workspaceQuery.data?.project ?? fallbackProject ?? placeholderProject;
+  const project = workspaceQuery.data?.project ?? fallbackProject;
 
   useEffect(() => {
     if (project) {
@@ -690,8 +583,7 @@ export function ProjectWorkbenchPage() {
   }, [project]);
 
   const activeView = useResolvedView(project, selectedView);
-  const fallbackEvents = project ? buildFallbackEvents(project) : [];
-  const { events } = useProjectEvents(projectId, workspaceQuery.data?.events ?? fallbackEvents);
+  const { events } = useProjectEvents(projectId, workspaceQuery.data?.events ?? []);
 
   if (!projectId) {
     return (
@@ -701,13 +593,21 @@ export function ProjectWorkbenchPage() {
     );
   }
 
-  const activeProject = project ?? buildPlaceholderProject(projectId);
-  const agentRuns = workspaceQuery.data?.agentRuns ?? buildFallbackAgentRuns(activeProject);
+  if (workspaceQuery.isLoading || projectsQuery.isLoading) {
+    return <main className="screen"><EmptyState title="正在连接真实后端" description="正在读取项目、Agent、Evidence 和实时事件。" /></main>;
+  }
+
+  if (workspaceQuery.isError || !project) {
+    return <main className="screen"><EmptyState title="无法读取项目数据" description="后端接口不可用或项目不存在，请检查服务状态后重试。" /></main>;
+  }
+
+  const activeProject = project;
+  const agentRuns = workspaceQuery.data?.agentRuns ?? [];
+  const latestAgentRuns = getLatestAgentRuns(agentRuns).map(({ agent }) => agent);
   const evidencePage = workspaceQuery.data?.evidencePage ?? { items: [], next_cursor: null, total: 0 };
   const claims = workspaceQuery.data?.claims ?? [];
   const concepts = workspaceQuery.data?.concepts ?? [];
   const report = workspaceQuery.data?.report ?? null;
-  const metrics = workspaceQuery.data?.metrics ?? null;
 
   async function handleDecision(action: DecisionAction, reason: string): Promise<void> {
     if (!project?.pending_decision) {
@@ -731,6 +631,23 @@ export function ProjectWorkbenchPage() {
     void handleDecision(action, fallbackReason);
   }
 
+  async function handleRetryResearch(): Promise<void> {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      await api.retryInitialResearch(activeProject.project_id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workspace', activeProject.project_id] }),
+        queryClient.invalidateQueries({ queryKey: ['projects'] }),
+      ]);
+      setSelectedView('live');
+    } catch {
+      setRetryError('重试启动失败，请检查后端服务和 Provider 状态。');
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <main className="workspace-screen workspace-screen--project-detail">
       <header className="project-workspace__hero">
@@ -738,38 +655,61 @@ export function ProjectWorkbenchPage() {
           <p className="project-workspace__eyebrow">Project Workspace</p>
           <h1 className="project-workspace__title">{activeProject.brief.category}</h1>
           <div className="project-workspace__summary">
-            <span>{activeProject.brief.target_user}</span>
             <Badge tone={getProjectBadgeTone(activeProject.status)}>{STATUS_LABELS[activeProject.status]}</Badge>
-            <span>{activeProject.progress}%</span>
+            <span className="project-workspace__summary-progress-label">{activeProject.progress}%</span>
             <div className="project-workspace__summary-progress" aria-hidden="true">
               <span style={{ width: `${activeProject.progress}%` }} />
             </div>
-            <span>更新于</span>
-            <strong>{formatDateTime(activeProject.updated_at)}</strong>
+            <span className="project-workspace__summary-updated">更新于 {formatDateTime(getLatestWorkspaceTimestamp(activeProject, agentRuns, events))}</span>
           </div>
         </div>
         <div className="project-workspace__hero-actions">
-          <Link className="ui-button ui-button--ghost" to={`/projects/${activeProject.project_id}/metrics`}>
-            查看指标
-          </Link>
-          <Link className="ui-button ui-button--primary" to={`/projects/${activeProject.project_id}/report`}>
-            打开提案页
-          </Link>
+          {activeProject.pending_decision ? (
+            <>
+              <Button
+                tone={DECISION_COPY[activeProject.pending_decision.allowed_actions[0]].tone}
+                disabled={decisionMutation.isPending}
+                onClick={() => handleQuickDecision(activeProject.pending_decision!.allowed_actions[0])}
+              >
+                {DECISION_COPY[activeProject.pending_decision.allowed_actions[0]].label}
+              </Button>
+              <Link className="ui-button ui-button--ghost" to={`/projects/${activeProject.project_id}/metrics`}>
+                查看指标
+              </Link>
+            </>
+          ) : activeProject.status === 'failed' ? (
+            <>
+              <a className="ui-button ui-button--ghost" href="#project-agent-status">
+                查看失败原因
+              </a>
+              <Button tone="primary" disabled={retrying} onClick={() => { void handleRetryResearch(); }}>
+                {retrying ? '重试启动中…' : '重试研究'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link className="ui-button ui-button--ghost" to={`/projects/${activeProject.project_id}/metrics`}>
+                查看指标
+              </Link>
+              <Link className="ui-button ui-button--primary" to={`/projects/${activeProject.project_id}/report`}>
+                打开提案页
+              </Link>
+            </>
+          )}
+          {retryError ? <span className="project-workspace__hero-error" role="alert">{retryError}</span> : null}
         </div>
       </header>
 
-      <ProjectViewTabs currentView={activeView} onChange={setSelectedView} />
+      <ProjectViewTabs project={activeProject} currentView={activeView} onChange={setSelectedView} />
 
       <div className="project-workspace__layout">
-        <aside className="project-workspace__left">
-          <ProjectStageRailPanel currentView={activeView} onNavigate={setSelectedView} />
-        </aside>
-
         <section className="project-workspace__main">
           {activeView === 'live' ? (
             <>
               <LiveResearchOverview
                 project={activeProject}
+                agentRuns={latestAgentRuns}
+                evidenceCount={evidencePage.total}
                 onPrimaryAction={
                   activeProject.pending_decision ? () => handleQuickDecision(activeProject.pending_decision!.allowed_actions[0]) : null
                 }
@@ -787,7 +727,7 @@ export function ProjectWorkbenchPage() {
 
           {activeView === 'evidence' ? (
             <div className="project-workspace__content-stack">
-              <EvidenceListPanel evidence={evidencePage.items} claims={claims} />
+              <EvidenceListPanel projectId={activeProject.project_id} evidence={evidencePage.items} claims={claims} />
               <ClaimEvidenceGraph claims={claims} />
             </div>
           ) : null}
@@ -805,11 +745,6 @@ export function ProjectWorkbenchPage() {
           ) : null}
         </section>
 
-        <aside className="project-workspace__right">
-          <ProjectTaskPanel project={activeProject} busy={decisionMutation.isPending} onDecision={handleQuickDecision} />
-          <ProjectRiskPanel project={activeProject} claims={claims} />
-          <ProjectMetricsPanel metrics={metrics} claims={claims} evidenceCount={evidencePage.items.length} />
-        </aside>
       </div>
     </main>
   );

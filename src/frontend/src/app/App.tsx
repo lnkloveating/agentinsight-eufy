@@ -5,6 +5,7 @@ import { ProjectMetricsPage } from '../pages/ProjectMetricsPage';
 import { ProjectReportPage } from '../pages/ProjectReportPage';
 import { ProjectsPage } from '../pages/ProjectsPage';
 import { ProjectWorkbenchPage } from '../pages/ProjectWorkbenchPage';
+import { PendingTasksPage } from '../pages/PendingTasksPage';
 import { ScenarioVerificationPage } from '../pages/ScenarioVerificationPage';
 import { AppShellLayout } from '../widgets/app-shell/AppShellLayout';
 
@@ -18,6 +19,7 @@ export function App() {
           <Route path="/" element={<Navigate replace to="/projects" />} />
           <Route element={<AppShellLayout />}>
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/tasks" element={<PendingTasksPage />} />
             <Route path="/projects/:projectId" element={<ProjectWorkbenchPage />} />
             <Route path="/projects/:projectId/report" element={<ProjectReportPage />} />
             <Route path="/projects/:projectId/metrics" element={<ProjectMetricsPage />} />

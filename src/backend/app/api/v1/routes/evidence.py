@@ -1,13 +1,23 @@
 from fastapi import APIRouter
 
 from app.api.dependencies import (
+    EvidenceServiceDependency,
     EvidenceQueryServiceDependency,
     EvidenceRetrievalServiceDependency,
 )
-from app.schemas.evidence import Claim, EvidencePage, EvidenceStatus
+from app.schemas.evidence import Claim, EvidenceIngest, EvidenceIngestResult, EvidencePage, EvidenceStatus
 from app.schemas.evidence_retrieval import EvidenceRetrievalQuery, EvidenceRetrievalResult
 
 router = APIRouter()
+
+
+@router.post("/{project_id}/evidence", response_model=EvidenceIngestResult, status_code=201)
+async def ingest_evidence(
+    project_id: str,
+    payload: EvidenceIngest,
+    service: EvidenceServiceDependency,
+) -> EvidenceIngestResult:
+    return await service.ingest(project_id, payload)
 
 
 @router.get("/{project_id}/evidence", response_model=EvidencePage)

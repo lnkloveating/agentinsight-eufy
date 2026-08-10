@@ -14,6 +14,47 @@ import type {
 } from '../types/api';
 import { api } from './client';
 
+// EventSource has no wildcard listener. Keep this list aligned with the
+// backend event names so named SSE events are not silently dropped.
+const PROJECT_EVENT_TYPES = [
+  'project_created',
+  'project_deleted',
+  'project_status_changed',
+  'agent_status_changed',
+  'agent_started',
+  'agent_completed',
+  'agent_failed',
+  'agent_timed_out',
+  'agent_cancelled',
+  'agent_node_completed',
+  'agent_node_skipped',
+  'evidence_added',
+  'evidence_collection_failed',
+  'source_asset_created',
+  'source_asset_deleted',
+  'source_asset_restored',
+  'source_fragment_promoted',
+  'media_fragment_reviewed',
+  'claim_evaluated',
+  'innovation_scored',
+  'red_team_reviewed',
+  'red_team_routed',
+  'workflow_research_handoff_evaluated',
+  'workflow_gate_pending',
+  'workflow_gate_decided',
+  'workflow_revision_started',
+  'workflow_finished',
+  'source_requirement_scope_updated',
+  'source_recovery_resume_prepared',
+  'competitor_source_processing_completed',
+  'competitor_source_onboarding_completed',
+  'a2a_task_started',
+  'a2a_task_blocked',
+  'search_discovery_started',
+  'search_discovery_completed',
+  'search_discovery_failed',
+] as const;
+
 export function useProjectsQuery() {
   return useQuery({
     queryKey: ['projects'],
@@ -54,7 +95,7 @@ export function useWorkspaceQuery(projectId: string) {
         concepts,
         report,
         metrics,
-        events: api.listMockEvents(projectId),
+        events: [],
       };
     },
     enabled: !!projectId,
@@ -83,13 +124,19 @@ export function useDecisionMutation(projectId: string) {
 }
 
 export function useProjectEvents(projectId: string, initialEvents: ProjectEvent[]) {
+  const queryClient = useQueryClient();
   const [events, setEvents] = useState<ProjectEvent[]>(initialEvents);
   const [connectionState, setConnectionState] = useState<'connecting' | 'open' | 'reconnecting' | 'fallback'>(
     'connecting',
   );
 
   useEffect(() => {
-    setEvents(initialEvents);
+    setEvents((current) => {
+      const unchanged =
+        current.length === initialEvents.length &&
+        current.every((event, index) => event.event_id === initialEvents[index]?.event_id);
+      return unchanged ? current : initialEvents;
+    });
   }, [initialEvents]);
 
   useEffect(() => {
@@ -105,7 +152,7 @@ export function useProjectEvents(projectId: string, initialEvents: ProjectEvent[
         }
       };
 
-      source.onmessage = (event) => {
+      const appendEvent = (event: MessageEvent<string>) => {
         if (cancelled) {
           return;
         }
@@ -118,10 +165,15 @@ export function useProjectEvents(projectId: string, initialEvents: ProjectEvent[
             }
             return [...current, nextEvent].sort((a, b) => a.sequence_number - b.sequence_number);
           });
+          void queryClient.invalidateQueries({ queryKey: ['workspace', projectId] });
+          void queryClient.invalidateQueries({ queryKey: ['projects'] });
         } catch {
           setConnectionState('fallback');
         }
       };
+
+      source.onmessage = appendEvent;
+      PROJECT_EVENT_TYPES.forEach((eventType) => source.addEventListener(eventType, appendEvent));
 
       source.onerror = () => {
         if (cancelled) {
@@ -144,7 +196,7 @@ export function useProjectEvents(projectId: string, initialEvents: ProjectEvent[
       setConnectionState('fallback');
       return undefined;
     }
-  }, [projectId]);
+  }, [projectId, queryClient]);
 
   return { events, connectionState };
 }

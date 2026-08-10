@@ -15,13 +15,21 @@ export function AppShellLayout() {
   const [contextMenu, setContextMenu] = useState<{ projectId: string; x: number; y: number } | null>(null);
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
-  const [visitedSteps, setVisitedSteps] = useState<Set<string>>(new Set());
 
   const projectMatch = useMatch('/projects/:projectId');
   const reportMatch = useMatch('/projects/:projectId/report');
   const metricsMatch = useMatch('/projects/:projectId/metrics');
   const scenariosMatch = useMatch('/projects/:projectId/scenarios');
+  const tasksMatch = location.pathname === '/tasks';
   const currentProjectId = projectMatch?.params.projectId ?? reportMatch?.params.projectId ?? metricsMatch?.params.projectId ?? scenariosMatch?.params.projectId;
+
+  const pendingTaskCount = useMemo(() => {
+    return (projectsQuery.data ?? []).filter((project) => (
+      Boolean(project.pending_decision)
+      || project.status === 'failed'
+      || project.status === 'supplementing_research'
+    )).length;
+  }, [projectsQuery.data]);
 
   const latestProject = useMemo(() => {
     const projects = projectsQuery.data ?? [];
@@ -37,17 +45,6 @@ export function AppShellLayout() {
       if (params.get('page') === 'create') setActiveProject(null);
     }
   }, [location, currentProjectId]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const page = params.get('page');
-    if (location.pathname === '/projects' && page) {
-      setVisitedSteps((prev) => {
-        if (prev.has(page)) return prev;
-        return new Set(prev).add(page);
-      });
-    }
-  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!contextMenu) return undefined;
@@ -133,7 +130,7 @@ export function AppShellLayout() {
               <div className="app-shell__project-list">
                 {projectItems.map((item) => (
                   <div
-                    className={`app-shell__project-item${activeProject === item.id ? ' active' : ''}`}
+                    className={`app-shell__project-item${currentProjectId === item.id ? ' active' : ''}`}
                     key={item.id}
                   >
                     <button
@@ -165,6 +162,19 @@ export function AppShellLayout() {
             </div>
           ) : null}
 
+          <button
+            className={`app-shell__nav-row app-shell__nav-row--secondary${tasksMatch ? ' active' : ''}`}
+            onClick={() => navigate('/tasks')}
+            type="button"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M6 4.5h12v15H6z" strokeLinejoin="round" />
+              <path d="M9 8h6M9 12h6M9 16h4" strokeLinecap="round" />
+            </svg>
+            <span>待处理</span>
+            {pendingTaskCount > 0 ? <span className="app-shell__nav-count">{pendingTaskCount}</span> : null}
+          </button>
+
           <div className="app-shell__nav-divider" />
 
           <p className="app-shell__nav-section-title">场景验证</p>
@@ -183,33 +193,6 @@ export function AppShellLayout() {
             <span>场景实验</span>
           </button>
 
-          <div className="app-shell__nav-divider" />
-
-          <p className="app-shell__nav-section-title">产品发现</p>
-
-          <div className="app-shell__nav-steps">
-            {([
-              { page: 'brief', label: '项目简报' },
-              { page: 'research', label: '实时调研' },
-              { page: 'evidence', label: '证据中心' },
-              { page: 'users', label: '反方挑战' },
-              { page: 'concepts', label: '概念竞技场' },
-            ] as const).map(({ page, label }) => {
-              const isActive = location.search === `?page=${page}`;
-              const isDone = visitedSteps.has(page);
-              return (
-                <button
-                  className={`app-shell__nav-step${isDone ? ' done' : ''}${isActive ? ' active' : ''}`}
-                  key={page}
-                  onClick={() => navigate(`/projects?page=${page}`)}
-                  type="button"
-                >
-                  <i className="app-shell__nav-step-dot" />
-                  <span>{label}</span>
-                </button>
-              );
-            })}
-          </div>
         </nav>
       </aside>
 

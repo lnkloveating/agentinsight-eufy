@@ -97,6 +97,28 @@ export interface EvidencePage {
   total: number;
 }
 
+export interface EvidenceIngestInput {
+  source_url: string;
+  source_type: string;
+  title: string;
+  original_excerpt: string;
+  claim_type: 'user_opinion' | 'fact';
+  product?: string;
+  region?: string;
+  user_segment?: string;
+  collected_at: string;
+  status: 'verified' | 'partially_verified' | 'unverified';
+  confidence: number;
+  authority_score: number;
+  recency_score: number;
+  diversity_score: number;
+}
+
+export interface EvidenceIngestResult {
+  evidence: Evidence;
+  created: boolean;
+}
+
 export interface Claim {
   claim_id: string;
   statement: string;
@@ -115,6 +137,20 @@ export interface Concept {
   red_team_findings: string[];
   scores: Record<string, number>;
   status: string;
+}
+
+export interface Innovation {
+  innovation_id: string;
+  name: string;
+  status: string;
+  target_user: { description: string };
+  event_understanding: { recommended_action: string };
+  evidence_ids: string[];
+  score_breakdown: Record<string, { score: number }>;
+  red_team_review?: {
+    technical_risks?: string[];
+    required_actions?: string[];
+  } | null;
 }
 
 export interface Report {

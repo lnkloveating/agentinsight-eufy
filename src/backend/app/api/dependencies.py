@@ -17,6 +17,7 @@ from app.application.competitor_source_onboarding import (
 )
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import (
+    EvidenceService,
     EvidenceQueryService,
     EvidenceRetrievalService,
     SourceEvidencePromotionService,
@@ -70,6 +71,7 @@ def get_project_service(request: Request, session: SessionDependency) -> Project
         trace_id,
         request.app.state.event_broker,
         cast(ModelCatalog, request.app.state.model_catalog),
+        getattr(request.app.state, "research_launcher", None),
     )
 
 
@@ -93,6 +95,18 @@ def get_evidence_query_service(session: SessionDependency) -> EvidenceQueryServi
 EvidenceQueryServiceDependency = Annotated[
     EvidenceQueryService, Depends(get_evidence_query_service)
 ]
+
+
+def get_evidence_service(request: Request, session: SessionDependency) -> EvidenceService:
+    return EvidenceService(
+        EvidenceRepository(session),
+        ProjectRepository(session),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+        request.app.state.event_broker,
+    )
+
+
+EvidenceServiceDependency = Annotated[EvidenceService, Depends(get_evidence_service)]
 
 
 def get_evidence_retrieval_service(request: Request) -> EvidenceRetrievalService:

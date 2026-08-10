@@ -470,21 +470,163 @@ export const mockApi = {
     }
 
     let nextProject = project;
-    const agentRuns = database.agentRuns[project_id] ?? [];
 
     if (project.pending_decision?.gate === 'brief' && input.action === 'approve') {
       nextProject = updateProjectStatus(project, 'researching', 'research_planning', null, 24);
-      if (agentRuns[0]) {
-        agentRuns[0] = {
-          ...agentRuns[0],
+
+      const seededAgentRuns: AgentRun[] = [
+        {
+          agent_run_id: `agent_${project_id}_manager`,
+          project_id,
+          agent_type: 'manager',
+          agent_name: '调研总管 Agent',
+          status: 'completed',
+          progress: 100,
+          message: '调研规划完成，已派发子任务。',
+          started_at: new Date(Date.now() - 120_000).toISOString(),
+          completed_at: new Date().toISOString(),
+        },
+        {
+          agent_run_id: `agent_${project_id}_user`,
+          project_id,
+          agent_type: 'user_research',
+          agent_name: '用户研究 Agent',
+          status: 'completed',
+          progress: 100,
+          message: '用户痛点与场景聚类完成。',
+          started_at: new Date(Date.now() - 90_000).toISOString(),
+          completed_at: new Date(Date.now() - 10_000).toISOString(),
+        },
+        {
+          agent_run_id: `agent_${project_id}_competitor`,
+          project_id,
+          agent_type: 'competitor',
+          agent_name: '竞品 Agent',
+          status: 'completed',
+          progress: 100,
+          message: '竞品能力与差异矩阵已完成。',
+          started_at: new Date(Date.now() - 80_000).toISOString(),
+          completed_at: new Date(Date.now() - 5_000).toISOString(),
+        },
+        {
+          agent_run_id: `agent_${project_id}_technical`,
+          project_id,
+          agent_type: 'technical',
+          agent_name: '技术可行性 Agent',
           status: 'running',
-          progress: 24,
-          started_at: new Date().toISOString(),
-          message: 'Brief 已通过，正在规划调研任务。',
-        };
-      }
+          progress: 70,
+          message: '技术栈评估进行中…',
+          started_at: new Date(Date.now() - 60_000).toISOString(),
+          completed_at: null,
+        },
+        {
+          agent_run_id: `agent_${project_id}_business`,
+          project_id,
+          agent_type: 'business',
+          agent_name: '商业分析 Agent',
+          status: 'running',
+          progress: 55,
+          message: '市场规模与定价分析中…',
+          started_at: new Date(Date.now() - 50_000).toISOString(),
+          completed_at: null,
+        },
+        {
+          agent_run_id: `agent_${project_id}_redteam`,
+          project_id,
+          agent_type: 'red_team',
+          agent_name: '红队挑战 Agent',
+          status: 'waiting',
+          progress: 15,
+          message: '等待概念生成后介入挑战。',
+          started_at: new Date(Date.now() - 30_000).toISOString(),
+          completed_at: null,
+        },
+      ];
+      database.agentRuns[project_id] = seededAgentRuns;
+
+      const seededEvidence: Evidence[] = [
+        {
+          evidence_id: `ev_${project_id}_001`,
+          source_url: 'https://example.com/user-survey',
+          source_type: 'survey',
+          title: `${project.brief.target_user} 用户调研报告`,
+          excerpt: `${project.brief.region}市场${project.brief.category}类产品中，${project.brief.scenarios[0] ?? '核心场景'}是用户提及频次最高的使用场景。`,
+          captured_at: new Date(Date.now() - 80_000).toISOString(),
+          status: 'verified',
+          content_hash: `hash_${project_id}_001`,
+          confidence: 0.82,
+        },
+        {
+          evidence_id: `ev_${project_id}_002`,
+          source_url: 'https://example.com/competitor-analysis',
+          source_type: 'community',
+          title: '竞品功能对比分析',
+          excerpt: `当前竞品在${project.brief.focus_dimensions[0] ?? '核心维度'}上仍有明显缺口，用户期望更主动的智能体验。`,
+          captured_at: new Date(Date.now() - 50_000).toISOString(),
+          status: 'verified',
+          content_hash: `hash_${project_id}_002`,
+          confidence: 0.75,
+        },
+        {
+          evidence_id: `ev_${project_id}_003`,
+          source_url: 'https://example.com/tech-feasibility',
+          source_type: 'retail',
+          title: '技术实现可行性评估',
+          excerpt: '当前技术栈可支持基础场景推理，但多维度上下文融合仍需额外研发投入。',
+          captured_at: new Date(Date.now() - 20_000).toISOString(),
+          status: 'pending',
+          content_hash: `hash_${project_id}_003`,
+          confidence: 0.68,
+        },
+      ];
+      database.evidence[project_id] = { items: seededEvidence, next_cursor: null, total: seededEvidence.length };
+
+      const seededClaims: Claim[] = [
+        {
+          claim_id: `claim_${project_id}_001`,
+          statement: `${project.brief.scenarios[0] ?? '核心场景'}场景下用户对被动通知的满意度持续走低，期望系统更主动预判风险。`,
+          evidence_ids: [`ev_${project_id}_001`],
+          contradicting_evidence_ids: [],
+          status: 'supported',
+        },
+        {
+          claim_id: `claim_${project_id}_002`,
+          statement: `${project.brief.focus_dimensions[0] ?? '关键能力'}的竞品覆盖度不足，存在明确差异化机会。`,
+          evidence_ids: [`ev_${project_id}_002`],
+          contradicting_evidence_ids: [],
+          status: 'missing_evidence',
+        },
+      ];
+      database.claims[project_id] = seededClaims;
+
+      database.reports[project_id] = {
+        report_id: `report_${project_id}_v1`,
+        project_id,
+        version: 1,
+        recommendation: '待概念生成后生成最终提案。',
+        sections: {},
+        cited_evidence_ids: [],
+        unknowns: [],
+        generated_at: new Date().toISOString(),
+      };
+
+      database.metrics[project_id] = {
+        elapsed_seconds: 8_400,
+        valid_evidence_count: 2,
+        citation_coverage: 0.45,
+        source_diversity: 3,
+        estimated_cost: 52.2,
+        comparison: {},
+      };
+
+      nextProject = updateProjectStatus(nextProject, 'researching', 'research_planning', null, 46);
+
       appendEvent(database, project_id, 'decision_submitted', { action: input.action, gate: 'brief' });
       appendEvent(database, project_id, 'research_started', { stage: 'research_planning' });
+      appendEvent(database, project_id, 'evidence_collected', { evidence_id: seededEvidence[0].evidence_id });
+      appendEvent(database, project_id, 'evidence_collected', { evidence_id: seededEvidence[1].evidence_id });
+      appendEvent(database, project_id, 'research_finding', { message: `用户研究 Agent 发现：${seededClaims[0].statement}` });
+      appendEvent(database, project_id, 'research_finding', { message: `竞品 Agent 发现：${seededClaims[1].statement}` });
     } else if (project.pending_decision?.gate === 'brief' && input.action === 'terminate') {
       nextProject = updateProjectStatus(project, 'terminated', 'brief_closed', null, 10);
       appendEvent(database, project_id, 'decision_submitted', { action: input.action, gate: 'brief' });
@@ -536,6 +678,29 @@ export const mockApi = {
     delete database.reports[project_id];
     delete database.metrics[project_id];
     delete database.events[project_id];
+    commitDatabase(database);
+  },
+
+  startUserResearch(project_id: string): void {
+    const database = cloneDatabase();
+    const userAgent = database.agentRuns[project_id]?.find(
+      (run) => run.agent_type === 'user_research',
+    );
+    if (userAgent) {
+      userAgent.status = 'completed';
+      userAgent.progress = 100;
+      userAgent.completed_at = new Date().toISOString();
+      userAgent.message = '用户痛点与场景聚类完成。';
+    }
+    const project = database.projects.find((p) => p.project_id === project_id);
+    if (project) {
+      project.progress = Math.max(project.progress, 50);
+      project.updated_at = new Date().toISOString();
+    }
+    appendEvent(database, project_id, 'agent_completed', {
+      agent_type: 'user_research',
+      message: '用户研究 Agent 已完成调研。',
+    });
     commitDatabase(database);
   },
 
