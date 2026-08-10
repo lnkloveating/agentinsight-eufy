@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -29,6 +30,14 @@ class StrictModel(BaseModel):
     # ``protected_namespaces=()`` keeps the spec-mandated ``model_responsibilities`` field on
     # ``AINativeCase`` from colliding with Pydantic's reserved ``model_`` namespace.
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+
+Identifier = Annotated[str, Field(min_length=1, max_length=80)]
+EvidenceId = Annotated[str, Field(min_length=1, max_length=80)]
+CapabilityName = Annotated[str, Field(min_length=1, max_length=200)]
+EvidenceTypeName = Annotated[str, Field(min_length=1, max_length=120)]
+BoundedDetail = Annotated[str, Field(min_length=1, max_length=500)]
+GateIssue = Annotated[str, Field(min_length=1, max_length=1_000)]
 
 
 def _require_unique(value: list[str], field_name: str) -> list[str]:
@@ -74,12 +83,12 @@ class EcosystemGateStatus(StrEnum):
 
 
 class RequiredDeviceRole(StrictModel):
-    role_id: str = Field(min_length=1, max_length=80)
+    role_id: Identifier
     role_type: DeviceRoleType
     description: str = Field(min_length=1, max_length=2_000)
-    required_capabilities: list[str] = Field(default_factory=list, max_length=20)
+    required_capabilities: list[CapabilityName] = Field(default_factory=list, max_length=20)
     optional: bool = False
-    evidence_ids: list[str] = Field(default_factory=list, max_length=40)
+    evidence_ids: list[EvidenceId] = Field(default_factory=list, max_length=40)
 
     @field_validator("required_capabilities", "evidence_ids")
     @classmethod
@@ -88,12 +97,12 @@ class RequiredDeviceRole(StrictModel):
 
 
 class CrossDeviceInformationFlow(StrictModel):
-    flow_id: str = Field(min_length=1, max_length=80)
-    from_role_id: str = Field(min_length=1, max_length=80)
-    to_role_id: str = Field(min_length=1, max_length=80)
+    flow_id: Identifier
+    from_role_id: Identifier
+    to_role_id: Identifier
     data_type: str = Field(min_length=1, max_length=160)
     purpose: str = Field(min_length=1, max_length=1_000)
-    privacy_constraints: list[str] = Field(default_factory=list, max_length=20)
+    privacy_constraints: list[BoundedDetail] = Field(default_factory=list, max_length=20)
     fallback: str = Field(min_length=1, max_length=1_000)
 
     @field_validator("privacy_constraints")
@@ -110,7 +119,7 @@ class EcosystemBlueprint(StrictModel):
     """
 
     required_device_roles: list[RequiredDeviceRole] = Field(min_length=1, max_length=20)
-    required_capabilities: list[str] = Field(default_factory=list, max_length=40)
+    required_capabilities: list[CapabilityName] = Field(default_factory=list, max_length=40)
     cross_device_information_flows: list[CrossDeviceInformationFlow] = Field(
         default_factory=list, max_length=40
     )
@@ -119,7 +128,7 @@ class EcosystemBlueprint(StrictModel):
     permission_boundary: str = Field(min_length=1, max_length=2_000)
     offline_behavior: str = Field(min_length=1, max_length=2_000)
     fallback_behavior: str = Field(min_length=1, max_length=2_000)
-    known_blind_spots: list[str] = Field(default_factory=list, max_length=40)
+    known_blind_spots: list[BoundedDetail] = Field(default_factory=list, max_length=40)
 
     @field_validator("required_capabilities", "known_blind_spots")
     @classmethod
@@ -147,8 +156,8 @@ class EcosystemBlueprint(StrictModel):
 class AIRemovalTest(StrictModel):
     core_value_survives_without_ai: bool
     rationale: str = Field(min_length=1, max_length=2_000)
-    lost_capabilities_without_ai: list[str] = Field(default_factory=list, max_length=20)
-    evidence_ids: list[str] = Field(default_factory=list, max_length=40)
+    lost_capabilities_without_ai: list[BoundedDetail] = Field(default_factory=list, max_length=20)
+    evidence_ids: list[EvidenceId] = Field(default_factory=list, max_length=40)
 
     @field_validator("lost_capabilities_without_ai", "evidence_ids")
     @classmethod
@@ -159,11 +168,11 @@ class AIRemovalTest(StrictModel):
 class AINativeCase(StrictModel):
     open_ended_goal: str = Field(min_length=1, max_length=2_000)
     why_fixed_rules_are_insufficient: str = Field(min_length=1, max_length=2_000)
-    model_responsibilities: list[str] = Field(min_length=1, max_length=20)
-    deterministic_responsibilities: list[str] = Field(min_length=1, max_length=20)
+    model_responsibilities: list[BoundedDetail] = Field(min_length=1, max_length=20)
+    deterministic_responsibilities: list[BoundedDetail] = Field(min_length=1, max_length=20)
     ai_removal_test: AIRemovalTest
-    learning_or_revision_loop: list[str] = Field(default_factory=list, max_length=20)
-    safety_constraints: list[str] = Field(default_factory=list, max_length=20)
+    learning_or_revision_loop: list[BoundedDetail] = Field(default_factory=list, max_length=20)
+    safety_constraints: list[BoundedDetail] = Field(default_factory=list, max_length=20)
 
     @field_validator(
         "model_responsibilities",
@@ -181,10 +190,10 @@ class EcosystemValidationPlan(StrictModel):
 
     validation_goal: str = Field(min_length=1, max_length=2_000)
     required_scenario_types: list[EcosystemScenarioType] = Field(min_length=1, max_length=4)
-    success_conditions: list[str] = Field(min_length=1, max_length=20)
-    failure_conditions: list[str] = Field(min_length=1, max_length=20)
-    required_data: list[str] = Field(default_factory=list, max_length=20)
-    human_review_points: list[str] = Field(default_factory=list, max_length=20)
+    success_conditions: list[BoundedDetail] = Field(min_length=1, max_length=20)
+    failure_conditions: list[BoundedDetail] = Field(min_length=1, max_length=20)
+    required_data: list[BoundedDetail] = Field(default_factory=list, max_length=20)
+    human_review_points: list[BoundedDetail] = Field(default_factory=list, max_length=20)
 
     @field_validator("required_scenario_types")
     @classmethod
@@ -207,7 +216,7 @@ class EcosystemValidationPlan(StrictModel):
 class EcosystemOpportunityModelCandidate(StrictModel):
     """Candidate semantics the model is allowed to emit; gate fields are backend-owned."""
 
-    opportunity_id: str = Field(min_length=1, max_length=80)
+    opportunity_id: Identifier
     name: str = Field(min_length=1, max_length=200)
     scope_level: SolutionScope
     target_user: TargetUser
@@ -215,11 +224,11 @@ class EcosystemOpportunityModelCandidate(StrictModel):
     safety_goal: str = Field(min_length=1, max_length=2_000)
     ecosystem_blueprint: EcosystemBlueprint
     ai_native_case: AINativeCase
-    competitor_gap_ids: list[str] = Field(default_factory=list, max_length=50)
-    technical_hypotheses: list[str] = Field(default_factory=list, max_length=20)
-    commercial_hypotheses: list[str] = Field(default_factory=list, max_length=20)
+    competitor_gap_ids: list[Identifier] = Field(default_factory=list, max_length=50)
+    technical_hypotheses: list[BoundedDetail] = Field(default_factory=list, max_length=20)
+    commercial_hypotheses: list[BoundedDetail] = Field(default_factory=list, max_length=20)
     validation_plan: EcosystemValidationPlan
-    evidence_ids: list[str] = Field(min_length=2, max_length=60)
+    evidence_ids: list[EvidenceId] = Field(min_length=2, max_length=60)
 
     @model_validator(mode="after")
     def _identifiers_are_unique(self) -> EcosystemOpportunityModelCandidate:
@@ -232,19 +241,38 @@ class EcosystemOpportunityModelCandidate(StrictModel):
             values = getattr(self, field_name)
             if len(values) != len(set(values)):
                 raise ValueError(f"{field_name} must be unique")
+        nested_evidence_ids = {
+            *self.ai_native_case.ai_removal_test.evidence_ids,
+            *(
+                evidence_id
+                for role in self.ecosystem_blueprint.required_device_roles
+                for evidence_id in role.evidence_ids
+            ),
+        }
+        out_of_scope = sorted(nested_evidence_ids - set(self.evidence_ids))
+        if out_of_scope:
+            raise ValueError(
+                "nested evidence_ids must be included in candidate evidence_ids: "
+                f"{out_of_scope}"
+            )
         return self
 
 
 class EcosystemOpportunityCandidate(EcosystemOpportunityModelCandidate):
     gate_status: EcosystemGateStatus
-    gate_issues: list[str] = Field(default_factory=list, max_length=50)
+    gate_issues: list[GateIssue] = Field(default_factory=list, max_length=50)
+
+    @field_validator("gate_issues")
+    @classmethod
+    def _gate_issues_are_unique(cls, value: list[str]) -> list[str]:
+        return _require_unique(value, "gate_issues")
 
 
 class EcosystemOpportunityModelGap(StrictModel):
     question: str = Field(min_length=1, max_length=1_500)
     reason: str = Field(min_length=1, max_length=1_500)
-    required_evidence_types: list[str] = Field(default_factory=list, max_length=20)
-    affected_opportunity_ids: list[str] = Field(default_factory=list, max_length=5)
+    required_evidence_types: list[EvidenceTypeName] = Field(default_factory=list, max_length=20)
+    affected_opportunity_ids: list[Identifier] = Field(default_factory=list, max_length=5)
 
     @field_validator("required_evidence_types", "affected_opportunity_ids")
     @classmethod
@@ -253,7 +281,7 @@ class EcosystemOpportunityModelGap(StrictModel):
 
 
 class EcosystemOpportunityGap(EcosystemOpportunityModelGap):
-    gap_id: str = Field(min_length=1, max_length=80)
+    gap_id: Identifier
 
 
 def ecosystem_opportunity_gap_id(question: str, opportunity_ids: list[str]) -> str:
@@ -275,7 +303,7 @@ class EcosystemOpportunityModelOutput(StrictModel):
     """The structure the model is permitted to return before deterministic gating."""
 
     summary: str = Field(min_length=1, max_length=5_000)
-    summary_evidence_ids: list[str] = Field(default_factory=list, max_length=60)
+    summary_evidence_ids: list[EvidenceId] = Field(default_factory=list, max_length=60)
     opportunities: list[EcosystemOpportunityModelCandidate] = Field(
         default_factory=list, max_length=5
     )
@@ -292,17 +320,26 @@ class EcosystemOpportunityModelOutput(StrictModel):
         ids = [item.opportunity_id for item in self.opportunities]
         if len(ids) != len(set(ids)):
             raise ValueError("opportunity_id must be unique")
+        self._validate_gap_references(set(ids), self.portfolio_gaps)
         return self
 
+    @staticmethod
+    def _validate_gap_references(
+        opportunity_ids: set[str], gaps: Sequence[EcosystemOpportunityModelGap]
+    ) -> None:
+        for gap in gaps:
+            unknown = sorted(set(gap.affected_opportunity_ids) - opportunity_ids)
+            if unknown:
+                raise ValueError(f"portfolio gap references unknown opportunity_id: {unknown}")
+
     def cited_evidence_ids(self) -> set[str]:
-        return {
-            *self.summary_evidence_ids,
-            *(
-                evidence_id
-                for opportunity in self.opportunities
-                for evidence_id in opportunity.evidence_ids
-            ),
-        }
+        cited = set(self.summary_evidence_ids)
+        for opportunity in self.opportunities:
+            cited.update(opportunity.evidence_ids)
+            cited.update(opportunity.ai_native_case.ai_removal_test.evidence_ids)
+            for role in opportunity.ecosystem_blueprint.required_device_roles:
+                cited.update(role.evidence_ids)
+        return cited
 
 
 class EcosystemOpportunityCoverage(StrictModel):
@@ -326,10 +363,10 @@ class EcosystemOpportunityCoverage(StrictModel):
 
 
 class EcosystemOpportunityPayload(StrictModel):
-    schema_name: str = "ecosystem_opportunity_portfolio"
-    schema_version: str = "1.0"
+    schema_name: Literal["ecosystem_opportunity_portfolio"] = "ecosystem_opportunity_portfolio"
+    schema_version: Literal["1.0"] = "1.0"
     summary: str = Field(min_length=1, max_length=5_000)
-    summary_evidence_ids: list[str] = Field(default_factory=list, max_length=60)
+    summary_evidence_ids: list[EvidenceId] = Field(default_factory=list, max_length=60)
     opportunities: list[EcosystemOpportunityCandidate] = Field(default_factory=list, max_length=5)
     portfolio_gaps: list[EcosystemOpportunityGap] = Field(default_factory=list, max_length=30)
     coverage: EcosystemOpportunityCoverage
@@ -340,25 +377,64 @@ class EcosystemOpportunityPayload(StrictModel):
         return _require_unique(value, "summary_evidence_ids")
 
     @model_validator(mode="after")
-    def _opportunity_ids_are_unique(self) -> EcosystemOpportunityPayload:
+    def _content_is_consistent(self) -> EcosystemOpportunityPayload:
         ids = [item.opportunity_id for item in self.opportunities]
         if len(ids) != len(set(ids)):
             raise ValueError("opportunity_id must be unique")
+        generated_count = len(self.opportunities)
+        advancing_count = sum(
+            item.gate_status is EcosystemGateStatus.PASSED for item in self.opportunities
+        )
+        ecosystem_service_count = sum(
+            item.scope_level is SolutionScope.ECOSYSTEM_SERVICE for item in self.opportunities
+        )
+        expected_counts = {
+            "generated_candidate_count": generated_count,
+            "advancing_candidate_count": advancing_count,
+            "ecosystem_service_count": ecosystem_service_count,
+        }
+        for field_name, expected in expected_counts.items():
+            actual = getattr(self.coverage, field_name)
+            if actual != expected:
+                raise ValueError(f"coverage {field_name} must be {expected}, got {actual}")
+        if generated_count < self.coverage.target_candidate_count and not self.portfolio_gaps:
+            raise ValueError("fewer than target candidates requires at least one portfolio gap")
+        EcosystemOpportunityModelOutput._validate_gap_references(
+            set(ids), self.portfolio_gaps
+        )
         return self
 
 
 class EcosystemOpportunityArtifact(StrictModel):
-    artifact_id: str
-    task_id: str
-    artifact_type: str
-    schema_version: str
+    artifact_id: Identifier
+    task_id: Identifier
+    artifact_type: Literal["ecosystem_opportunity"]
+    schema_version: Literal["1.0"]
     status: ResearchTaskStatus
     payload: EcosystemOpportunityPayload
-    evidence_ids: list[str]
+    evidence_ids: list[EvidenceId]
     contradictions: list[str]
     unknowns: list[str]
     quality_score: float = Field(ge=0, le=100)
     errors: list[str]
+
+    @field_validator("status")
+    @classmethod
+    def _status_matches_public_contract(cls, value: ResearchTaskStatus) -> ResearchTaskStatus:
+        allowed = {
+            ResearchTaskStatus.COMPLETED,
+            ResearchTaskStatus.PARTIAL,
+            ResearchTaskStatus.BLOCKED,
+            ResearchTaskStatus.NEEDS_REVISION,
+        }
+        if value not in allowed:
+            raise ValueError("ecosystem opportunity artifact status is not publishable")
+        return value
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def _evidence_ids_are_unique(cls, value: list[str]) -> list[str]:
+        return _require_unique(value, "artifact evidence_ids")
 
     @classmethod
     def from_research_artifact(cls, artifact: ResearchArtifact) -> EcosystemOpportunityArtifact:
