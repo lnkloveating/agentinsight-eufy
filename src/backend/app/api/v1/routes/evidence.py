@@ -1,7 +1,11 @@
 from fastapi import APIRouter
 
-from app.api.dependencies import EvidenceQueryServiceDependency
+from app.api.dependencies import (
+    EvidenceQueryServiceDependency,
+    EvidenceRetrievalServiceDependency,
+)
 from app.schemas.evidence import Claim, EvidencePage, EvidenceStatus
+from app.schemas.evidence_retrieval import EvidenceRetrievalQuery, EvidenceRetrievalResult
 
 router = APIRouter()
 
@@ -20,6 +24,19 @@ async def list_evidence(
         status=status,
         source_type=source_type,
     )
+
+
+@router.post(
+    "/{project_id}/evidence/retrievals",
+    response_model=EvidenceRetrievalResult,
+    summary="检索项目共享 Evidence 上下文",
+)
+async def retrieve_evidence(
+    project_id: str,
+    payload: EvidenceRetrievalQuery,
+    service: EvidenceRetrievalServiceDependency,
+) -> EvidenceRetrievalResult:
+    return await service.retrieve(project_id, payload)
 
 
 @router.get("/{project_id}/claims", response_model=list[Claim])

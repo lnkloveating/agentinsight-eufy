@@ -1,16 +1,11 @@
 """从已确认用户评价资料构建产品受控的 Evidence Context。"""
 
-from __future__ import annotations
-
-import hashlib
-import json
-
-from app.infrastructure.database.evidence_repository import EvidenceRepository
-from app.infrastructure.database.models import EvidenceModel
+from app.application.evidence import EvidenceRetrievalService
 from app.infrastructure.database.session import Database
 from app.infrastructure.database.source_routing_repository import SourceRoutingRepository
-from app.schemas.evidence import EvidenceClaimType, EvidenceStatus
-from app.workflows.contracts import AgentEvidence, AgentEvidenceContext
+from app.schemas.evidence import EvidenceClaimType
+from app.schemas.evidence_retrieval import EvidenceRetrievalQuery
+from app.workflows.contracts import AgentEvidenceContext
 
 
 class UserReviewEvidenceContextBuilder:
@@ -28,6 +23,7 @@ class UserReviewEvidenceContextBuilder:
         self.max_items = max_items
         self.max_excerpt_chars = max_excerpt_chars
         self.max_total_chars = max_total_chars
+        self.retrieval = EvidenceRetrievalService(database)
 
     async def build(self, project_id: str) -> AgentEvidenceContext:
         candidate_limit = min(max(self.max_items * 20, self.max_items), 2_000)
@@ -35,91 +31,18 @@ class UserReviewEvidenceContextBuilder:
             source_asset_ids = await SourceRoutingRepository(session).confirmed_source_asset_ids(
                 project_id, "user_review"
             )
-            candidates, available_count = await EvidenceRepository(
-                session
-            ).list_eligible_agent_evidence(
-                project_id,
-                statuses={
-                    EvidenceStatus.VERIFIED.value,
-                    EvidenceStatus.PARTIALLY_VERIFIED.value,
-                },
-                claim_types={EvidenceClaimType.USER_OPINION.value},
-                source_asset_ids=source_asset_ids,
-                limit=candidate_limit,
-            )
-
-        items: list[AgentEvidence] = []
-        remaining_chars = self.max_total_chars
-        for model in self._select_diverse(candidates):
-            if remaining_chars <= 0:
-                break
-            excerpt = model.original_excerpt[: min(self.max_excerpt_chars, remaining_chars)].strip()
-            if not excerpt:
-                continue
-            items.append(self._to_agent_evidence(model, excerpt))
-            remaining_chars -= len(excerpt)
-        return AgentEvidenceContext(
-            items=items,
-            available_evidence_count=available_count,
-            included_evidence_count=len(items),
-            omitted_evidence_count=max(available_count - len(items), 0),
-            context_hash=self._context_hash(items),
+        if not source_asset_ids:
+            return self.retrieval.empty_context()
+        result = await self.retrieval.retrieve(
+            project_id,
+            EvidenceRetrievalQuery(
+                consumer="competitor_user_review",
+                claim_types=[EvidenceClaimType.USER_OPINION],
+                source_asset_ids=sorted(source_asset_ids),
+                max_items=self.max_items,
+                max_excerpt_chars=self.max_excerpt_chars,
+                max_total_chars=self.max_total_chars,
+                candidate_limit=candidate_limit,
+            ),
         )
-
-    def _select_diverse(self, candidates: list[EvidenceModel]) -> list[EvidenceModel]:
-        selected: list[EvidenceModel] = []
-        deferred: list[EvidenceModel] = []
-        seen_sources: set[str] = set()
-        for candidate in candidates:
-            source_key = self._source_key(candidate)
-            if source_key in seen_sources:
-                deferred.append(candidate)
-                continue
-            selected.append(candidate)
-            seen_sources.add(source_key)
-            if len(selected) >= self.max_items:
-                return selected
-        return [*selected, *deferred[: self.max_items - len(selected)]]
-
-    @staticmethod
-    def _source_key(model: EvidenceModel) -> str:
-        if model.source_domain:
-            return f"domain:{model.source_domain}"
-        if model.source_asset_id:
-            return f"asset:{model.source_asset_id}"
-        return f"source_type:{model.source_type}"
-
-    @staticmethod
-    def _to_agent_evidence(model: EvidenceModel, excerpt: str) -> AgentEvidence:
-        return AgentEvidence(
-            evidence_id=model.evidence_id,
-            title=model.title,
-            original_excerpt=excerpt,
-            claim_type=model.claim_type,
-            status=model.status,
-            source_type=model.source_type,
-            source_url=model.source_url,
-            source_domain=model.source_domain,
-            source_asset_id=model.source_asset_id,
-            source_fragment_id=model.source_fragment_id,
-            source_locator=model.source_locator_json,
-            product=model.product,
-            region=model.region,
-            user_segment=model.user_segment,
-            published_at=model.published_at,
-            collected_at=model.collected_at,
-            confidence=model.confidence,
-            authority_score=model.authority_score,
-            recency_score=model.recency_score,
-            diversity_score=model.diversity_score,
-        )
-
-    @staticmethod
-    def _context_hash(items: list[AgentEvidence]) -> str:
-        canonical = json.dumps(
-            [item.model_dump(mode="json") for item in items],
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return result.context

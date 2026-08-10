@@ -124,6 +124,69 @@ class EvidenceRepository:
         )
         return models, total
 
+    async def list_retrieval_candidates(
+        self,
+        project_id: str,
+        *,
+        statuses: set[str],
+        claim_types: set[str] | None = None,
+        source_types: set[str] | None = None,
+        source_asset_ids: set[str] | None = None,
+        evidence_ids: set[str] | None = None,
+        products: set[str] | None = None,
+        regions: set[str] | None = None,
+        user_segments: set[str] | None = None,
+        limit: int,
+    ) -> tuple[list[EvidenceModel], int]:
+        """Return a bounded metadata-filtered candidate pool for shared retrieval."""
+
+        filters = [
+            EvidenceModel.project_id == project_id,
+            EvidenceModel.status.in_(statuses),
+        ]
+        if claim_types is not None:
+            filters.append(EvidenceModel.claim_type.in_(claim_types))
+        if source_types is not None:
+            filters.append(EvidenceModel.source_type.in_(source_types))
+        if source_asset_ids is not None:
+            filters.append(EvidenceModel.source_asset_id.in_(source_asset_ids))
+        if evidence_ids is not None:
+            filters.append(EvidenceModel.evidence_id.in_(evidence_ids))
+        if products is not None:
+            filters.append(func.lower(EvidenceModel.product).in_(products))
+        if regions is not None:
+            filters.append(func.lower(EvidenceModel.region).in_(regions))
+        if user_segments is not None:
+            filters.append(func.lower(EvidenceModel.user_segment).in_(user_segments))
+
+        total = int(
+            await self.session.scalar(select(func.count(EvidenceModel.evidence_id)).where(*filters))
+            or 0
+        )
+        verified_first = case(
+            (EvidenceModel.status == "verified", 0),
+            else_=1,
+        )
+        quality = (
+            EvidenceModel.confidence
+            + EvidenceModel.authority_score
+            + EvidenceModel.recency_score
+            + EvidenceModel.diversity_score
+        )
+        models = list(
+            await self.session.scalars(
+                select(EvidenceModel)
+                .where(*filters)
+                .order_by(
+                    verified_first.asc(),
+                    quality.desc(),
+                    EvidenceModel.evidence_id.asc(),
+                )
+                .limit(limit)
+            )
+        )
+        return models, total
+
     async def add_claim(self, claim: ClaimModel) -> None:
         self.session.add(claim)
         await self.session.flush()
