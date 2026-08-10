@@ -359,15 +359,15 @@ paths:
   /projects/{project_id}/agents/ecosystem-opportunity:
     post:
       tags: [Research]
-      summary: Run the ecosystem opportunity Agent (target contract, not yet served)
+      summary: Run the ecosystem opportunity Agent
       description: |
-        Target /api/v2 contract for the ecosystem direction. Consumes the latest advancing
-        user-research and competitor-synthesis Artifacts and generates ecosystem-level solution
-        candidates that are explicitly typed as device_feature, device_product or ecosystem_service.
-        Candidates are generated dynamically from their cited Evidence; the target is three and the
-        hard maximum is five, and fewer candidates are valid when the Artifact reports the missing
-        research. This branch only defines the schema; no FastAPI route, Prompt or model call exists
-        yet, so calling it currently returns the standard not-implemented Error.
+        Consumes the latest advancing user-research and competitor-ecosystem Artifacts, the shared
+        Evidence context and the evidence-backed Device Capability Graph. It generates solution
+        candidates typed as device_feature, device_product or ecosystem_service. Existing device
+        capabilities may only be asserted when the graph cites eligible Evidence; unknown or missing
+        capabilities remain hypotheses and portfolio gaps. Candidates are generated dynamically with
+        a target of three and hard maximum of five; fewer candidates are valid when research is
+        insufficient.
       operationId: runEcosystemOpportunityAgent
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -384,7 +384,7 @@ paths:
   /projects/{project_id}/agents/ecosystem-opportunity/artifacts:
     get:
       tags: [Research]
-      summary: List ecosystem opportunity Artifact versions (target contract)
+      summary: List ecosystem opportunity Artifact versions
       operationId: listEcosystemOpportunityArtifacts
       parameters:
         - $ref: "#/components/parameters/ProjectId"
