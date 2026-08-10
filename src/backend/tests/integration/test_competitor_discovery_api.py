@@ -20,6 +20,7 @@ from app.sources.search_discovery import (
     SearchDiscoveryRegistry,
 )
 from app.workflows.contracts import ResearchAgentType
+from tests.research_brief import home_safety_brief_payload
 
 
 @dataclass
@@ -121,17 +122,14 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
-def _approved_project(client: TestClient, question: str = "Which doorbells compete?") -> str:
+def _approved_project(
+    client: TestClient,
+    question: str = "Which home-safety ecosystems should be compared?",
+) -> str:
     created = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": question,
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload(question)
         },
     )
     assert created.status_code == 201

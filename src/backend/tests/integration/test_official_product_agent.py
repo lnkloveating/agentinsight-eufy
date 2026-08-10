@@ -26,6 +26,7 @@ from app.workflows.contracts import (
     ResearchBudget,
     ResearchTask,
 )
+from tests.research_brief import home_safety_brief, home_safety_brief_payload
 
 
 class OfficialPageConnector:
@@ -131,15 +132,7 @@ def _approve_project(client: TestClient) -> str:
     created = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "Which future opportunities exist in home security?",
-                "category": "home security",
-                "target_user": "North American households",
-                "region": "US",
-                "scenarios": ["front door package"],
-                "constraints": ["privacy first"],
-                "focus_dimensions": ["official capabilities"],
-            }
+            "brief": home_safety_brief_payload('Which future opportunities exist in home security?')
         },
     )
     assert created.status_code == 201
@@ -330,7 +323,9 @@ def test_authorized_webpage_flows_to_real_official_product_specialist_contract(
     a2a_tasks = list(raw_tasks)
     model_calls = list(raw_model_calls)
     official_task = next(task for task in a2a_tasks if task.specialist_type == "official_product")
-    assert artifact.status == "partial"  # The other two specialists are intentionally unbound.
+    assert artifact.status == "blocked"  # One fact specialist cannot support ecosystem synthesis.
+    assert artifact.payload["schema_name"] == "competitor_ecosystem_analysis"
+    assert artifact.payload["synthesis_status"] == "blocked"
     assert official_task.status == "completed"
     assert official_task.output_json["evidence_ids"] == sorted(provider.evidence_ids)
     assert (
@@ -349,10 +344,4 @@ def test_authorized_webpage_flows_to_real_official_product_specialist_contract(
 
 
 def _research_brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="Which future opportunities exist in home security?",
-        category="home security",
-        target_user="North American households",
-        region="US",
-        scenarios=["front door package"],
-    )
+    return home_safety_brief()

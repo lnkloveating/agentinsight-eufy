@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     default_model_id: str | None = None
     model_max_retries: int = Field(default=2, ge=0, le=5)
     model_retry_base_seconds: float = Field(default=0.5, ge=0, le=30)
+    brief_clarifier_model_timeout_seconds: float = Field(default=120, ge=1, le=600)
     user_research_max_evidence_items: int = Field(default=30, ge=1, le=200)
     user_research_max_excerpt_chars: int = Field(default=2_000, ge=200, le=10_000)
     user_research_max_total_evidence_chars: int = Field(default=40_000, ge=1_000, le=500_000)
@@ -46,12 +47,24 @@ class Settings(BaseSettings):
     competitor_review_max_total_evidence_chars: int = Field(default=100_000, ge=1_000, le=500_000)
     competitor_review_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
     competitor_synthesis_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    competitor_ecosystem_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    competitor_ecosystem_max_evidence_items: int = Field(default=200, ge=1, le=200)
+    competitor_ecosystem_max_excerpt_chars: int = Field(default=3_000, ge=200, le=10_000)
+    competitor_ecosystem_max_total_evidence_chars: int = Field(
+        default=200_000, ge=1_000, le=500_000
+    )
     product_technical_max_evidence_items: int = Field(default=80, ge=1, le=200)
     product_technical_max_excerpt_chars: int = Field(default=2_000, ge=200, le=10_000)
     product_technical_max_total_evidence_chars: int = Field(
         default=80_000, ge=1_000, le=500_000
     )
     product_technical_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    ecosystem_opportunity_max_evidence_items: int = Field(default=120, ge=1, le=200)
+    ecosystem_opportunity_max_excerpt_chars: int = Field(default=2_000, ge=200, le=10_000)
+    ecosystem_opportunity_max_total_evidence_chars: int = Field(
+        default=120_000, ge=1_000, le=500_000
+    )
+    ecosystem_opportunity_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
     competitor_discovery_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
     competitor_discovery_runtime_timeout_seconds: float = Field(default=600, ge=1, le=1_800)
     competitor_discovery_max_input_candidates: int = Field(default=50, ge=1, le=50)

@@ -10,15 +10,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
     CompetitorDiscoveryModelAgentAdapter,
+    CompetitorEcosystemModelAdapter,
     CompetitorSynthesisModelAdapter,
     CompetitorUserReviewModelSpecialistAdapter,
     OfficialProductModelSpecialistAdapter,
     PriceChannelModelSpecialistAdapter,
     register_competitor_discovery_prompt,
+    register_competitor_ecosystem_prompt,
     register_competitor_synthesis_prompt,
     register_competitor_user_review_prompt,
     register_official_product_prompt,
     register_price_channel_prompt,
+)
+from app.agents.ecosystem_opportunity import (
+    EcosystemOpportunityModelAgentAdapter,
+    register_ecosystem_opportunity_prompt,
 )
 from app.agents.product_technical import (
     ProductTechnicalModelAgentAdapter,
@@ -28,6 +34,7 @@ from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
+from app.application.brief_clarification import register_brief_clarifier_prompt
 from app.application.events import ProjectEventBroker
 from app.application.model_gateway import (
     EnvironmentCredentialResolver,
@@ -86,9 +93,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             OpenAICompatibleProvider(provider_config.provider_id, provider_config.base_url)
         )
     prompt_registry = PromptRegistry()
+    register_brief_clarifier_prompt(prompt_registry)
     register_user_research_prompt(prompt_registry)
     register_product_technical_prompt(prompt_registry)
+    register_ecosystem_opportunity_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
+    register_competitor_ecosystem_prompt(prompt_registry)
     register_competitor_synthesis_prompt(prompt_registry)
     register_competitor_user_review_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
@@ -219,6 +229,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         resolved_settings.competitor_synthesis_model_timeout_seconds
                     ),
                 ),
+                CompetitorEcosystemModelAdapter(
+                    application.state.model_gateway,
+                    prompt_registry,
+                    ProjectModelSelectionResolver(database),
+                    model_timeout_seconds=(
+                        resolved_settings.competitor_ecosystem_model_timeout_seconds
+                    ),
+                ),
             ),
         )
         agent_registry.bind(
@@ -229,6 +247,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ProjectModelSelectionResolver(database),
                 model_timeout_seconds=(
                     resolved_settings.product_technical_model_timeout_seconds
+                ),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
+            EcosystemOpportunityModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.ecosystem_opportunity_model_timeout_seconds
                 ),
             ),
         )
@@ -271,7 +300,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(
         title=resolved_settings.app_name,
         version=resolved_settings.app_version,
-        description="有证据、有反方、有淘汰、有人类决策的 AI 原生产品定义平台。",
+        description="有证据、有反方、有淘汰、有人类决策的 AI 原生家庭安防生态研究平台。",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",

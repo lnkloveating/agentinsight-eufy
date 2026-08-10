@@ -5,23 +5,21 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.infrastructure.database.models import CollectionJobModel, SourceAssetModel
+from tests.research_brief import home_safety_brief_payload
 
 
-def _project_payload(question: str = "智能门铃应如何理解包裹风险？") -> dict[str, object]:
+def _project_payload(
+    question: str = "AI 原生家庭安防生态需要哪些授权资料？",
+) -> dict[str, object]:
     return {
-        "brief": {
-            "question": question,
-            "category": "家庭安防",
-            "target_user": "智能门铃用户",
-            "region": "北美",
-            "scenarios": ["包裹送达"],
-            "constraints": ["隐私优先"],
-            "focus_dimensions": ["证据", "技术"],
-        }
+        "brief": home_safety_brief_payload(question)
     }
 
 
-def _create_project(client: TestClient, question: str = "智能门铃应如何理解包裹风险？") -> str:
+def _create_project(
+    client: TestClient,
+    question: str = "AI 原生家庭安防生态需要哪些授权资料？",
+) -> str:
     response = client.post("/api/v1/projects", json=_project_payload(question))
     assert response.status_code == 201
     return str(response.json()["project_id"])
@@ -39,7 +37,7 @@ def _upload_pdf(
             "authorization_basis": "enterprise_authorized",
             "authorization_confirmed": "true",
             "authorized_by": "research-team",
-            "purpose": "未来门铃产品机会研究",
+            "purpose": "AI 原生家庭安防生态能力研究",
         },
     )
 

@@ -1,17 +1,13 @@
 from fastapi.testclient import TestClient
 
+from tests.research_brief import home_safety_brief_payload
+
 
 def project_payload() -> dict[str, object]:
     return {
-        "brief": {
-            "question": "eufy 是否应该为北美租房用户设计可迁移的家庭安防产品？",
-            "category": "家庭安防",
-            "target_user": "北美租房用户",
-            "region": "美国和加拿大",
-            "scenarios": ["门口访客", "搬家迁移"],
-            "constraints": ["免打孔", "低订阅依赖"],
-            "focus_dimensions": ["安装", "迁移"],
-        }
+        "brief": home_safety_brief_payload(
+            "eufy 如何为北美租房家庭构建可迁移、可验证的 AI 原生安防生态？"
+        )
     }
 
 
@@ -30,7 +26,10 @@ def test_create_list_get_and_approve_project(client: TestClient) -> None:
 
     detail_response = client.get(f"/api/v1/projects/{project_id}")
     assert detail_response.status_code == 200
-    assert detail_response.json()["brief"]["category"] == "家庭安防"
+    brief = detail_response.json()["brief"]
+    assert brief["research_scope"] == "home_safety_ecosystem"
+    assert brief["target_ecosystems"] == ["eufy Security"]
+    assert "category" not in brief
 
     agents_response = client.get(f"/api/v1/projects/{project_id}/agents")
     assert agents_response.status_code == 200
@@ -76,6 +75,26 @@ def test_project_not_found_uses_chinese_error_envelope(client: TestClient) -> No
     assert body["code"] == "PROJECT_NOT_FOUND"
     assert body["message"] == "没有找到指定的研究项目。"
     assert body["trace_id"].startswith("trace_")
+
+
+def test_legacy_single_product_brief_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/projects",
+        json={
+            "brief": {
+                "question": "分析 eufy 未来产品机会",
+                "category": "家庭安防",
+                "target_user": "北美家庭",
+                "region": "US",
+                "scenarios": ["package delivery"],
+            }
+        },
+    )
+
+    assert response.status_code == 422
+    serialized = response.text
+    assert "research_scope" in serialized
+    assert "category" in serialized
 
 
 def test_rejects_mismatched_decision_id(client: TestClient) -> None:

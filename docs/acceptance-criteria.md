@@ -486,6 +486,172 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 
 如果 AI 组只提升速度而没有提升证据质量或产品判断，系统不能宣称方法更优。
 
+## AC-16 生态机会契约（分支 `domain/ecosystem-opportunity-contract`）
+
+这是 eufy 家庭安防生态方向的第一个基础分支，只定义"生态级解决方案机会"的公共契约和领域模型，
+不实现真实 Agent、不调用大模型、不生成研究结果，也不落地设备能力图、AI Native Gate 或商业评估。
+
+验收要求：
+
+- 系统可以在类型层明确区分设备功能（`device_feature`）、设备产品（`device_product`）和生态服务
+  （`ecosystem_service`）；
+- 生态候选可以表达用户安全目标、目标用户与问题、`EcosystemBlueprint`（设备角色、跨设备信息流、
+  部署位置、隐私/权限边界、离线与降级行为、已知盲区）和 `AINativeCase`（含 AI 移除测试）；
+- 蓝图只描述"方案要求什么角色和能力"，不得未经 Evidence 断言某个真实 eufy 型号一定具备该能力；
+- 模型可输出结构（`*ModelCandidate` / `*ModelOutput`）不允许包含 `gate_status`、`gate_issues` 或任何
+  确定性判定，由 `extra="forbid"` 在结构层强制；`gate_status` 与稳定 `gap_id` 属于后端；
+- 确定性校验覆盖：未知 `scope_level`、重复 `opportunity_id` / `role_id` / `flow_id` / Evidence ID /
+  `competitor_gap_ids` / `summary_evidence_ids` / `affected_opportunity_ids`、信息流引用不存在的角色、
+  `generated_candidate_count` 超过 5、未知字段，以及 OpenAPI 字符串长度边界；
+- 设备角色和 AI 移除测试中的嵌套 Evidence ID 必须属于候选顶层 `evidence_ids`，并进入统一引用审计集合；
+- `schema_name`、`schema_version`、`artifact_type`、可发布状态和 Artifact Evidence 唯一性必须与
+  OpenAPI 保持一致，内部不得生成公共 API 无法表达的 Artifact；
+- Coverage 的生成数、晋级数和生态服务数必须分别等于真实候选、`passed` 候选和
+  `ecosystem_service` 候选数量；Gap 不得引用当前组合中不存在的 Opportunity；
+- Evidence 不足时允许零个或少于三个候选，但必须包含 `portfolio_gaps`，不得用固定模板凑数；
+- `EcosystemOpportunityArtifact` 与通用 `ResearchArtifact` 双向转换，并在缺失 `gap_id` 时确定性回填；
+- 新增 `ECOSYSTEM_OPPORTUNITY` 枚举后，旧 `ProductTechnicalArtifact` 与 Product Technical v1 API 仍可解析，
+  现有 LangGraph 主路径计划与运行测试不受影响（主路径以 `PLANNED_AGENT_TYPES` 为准）；
+- 本分支不声称已经生成任何生态方案。
+
+自动化映射：
+
+- `tests/unit/test_ecosystem_opportunity_contracts.py`
+- `tests/unit/test_workflow_contracts.py`（主路径角色集合改以 `PLANNED_AGENT_TYPES` 为准）
+- `tests/integration/test_research_workflow.py`、`tests/integration/test_runtime_langgraph_integration.py`
+  （主图执行集合为 `RESEARCH_MANAGER` 加 `PLANNED_AGENT_TYPES`，新增枚举暂不接入）
+
+## AC-17 设备能力图（分支 `evidence/device-capability-graph`）
+
+设备能力图为生态机会与后续安全策略提供确定性事实边界，不负责生成策略，也不调用大模型猜测设备能力。
+
+验收要求：
+
+- 厂商通用设备目录与用户家庭设备实例分开保存，所有数据按研究项目隔离；
+- 厂商设备身份和能力断言只接受当前项目 `verified` 或 `partially_verified` Evidence，拒绝
+  `mock`、`invalid`、`unverified`、`outdated` Evidence 以及其他项目 Evidence；
+- 能力可以表达 Sensor、Action、Compute、Storage、Connectivity 和 Context，并记录可用性、最大延迟、
+  数据处理位置、授权要求、离线支持、fallback 与置信度；
+- 同一设备能力同时存在支持与不支持的合格 Evidence 时必须保留两者，并在能力查询中返回 `conflict`，
+  不得以后写入的数据静默覆盖先前事实；
+- 用户授权保存家庭设备快照时只收集粗粒度位置、设备角色、在线状态和授权状态，不接收精确地址、序列号、
+  原始家庭视频或生物识别数据；每次修改生成新版本，旧版本标记为 `superseded`；
+- 未映射目录的家庭设备或未找到对应能力时返回 `unknown`；设备离线、未授权或能力明确不可用时返回
+  `unavailable`；满足能力、证据和运行状态时才返回 `available`；
+- 查询结果返回准确的 Capability Claim ID 和 Evidence ID，供生态机会、技术可行性和前端证据下钻复用；
+- 查询时重新检查 Evidence 当前状态；已经 outdated/invalid/移除的历史 Evidence 不得继续生成 `available` 结论；
+- 删除仍被任何家庭快照引用的目录设备时返回冲突，不级联删除用户快照；
+- 企业 eufy Device API 未配置时不创建假 Adapter、不声明已联调成功，后续可以在不改变公共查询契约的前提下接入；
+- 新增 OpenAPI、数据库迁移、领域/服务单元测试和 HTTP 集成测试。
+
+自动化映射：
+
+- `tests/unit/test_device_capability_contracts.py`
+- `tests/unit/test_device_capability_query.py`
+- `tests/integration/test_device_capability_api.py`
+- `tests/integration/test_device_capability_migration.py`
+
+## AC-18 AI 原生家庭安防研究范围（分支 `domain/ai-native-home-safety-research-scope`）
+
+本分支只允许新项目以家庭安防生态、安全目标、授权信号、隐私/干预边界和验证期望描述研究范围，
+不再接受旧单品式 Research Brief。
+
+验收要求：
+
+- `ResearchBrief` 的 `research_scope` 只能是 `home_safety_ecosystem`；
+- 目标生态、目标用户、市场、安全领域、安全目标和风险场景不能为空，目标生态与对照生态不得重叠；
+- `category`、`target_user`、`region`、`scenarios`、`constraints`、`focus_dimensions` 作为额外字段被 422 拒绝；
+- 明确公开资料、用户上传、企业内部资料和家庭事件四类授权边界；
+- 明确原始媒体、限制区域、保留策略和外部共享边界；
+- 高影响动作必须要求人工批准，禁止通过请求关闭该约束；
+- 用户研究、竞品主管、资料发现、片段 Evidence 和资料要求服务只读取新 Brief 字段；
+- 地区型证据使用 `markets[0]`，不得因为旧 `region` 缺失而永久停留在 `partial`；
+- 老人安全、包裹保护等是动态场景，不是后端固定候选；
+- 历史迁移和旧 Artifact 读取不等于支持旧 Brief，新项目不得静默迁移旧字段。
+
+自动化映射：
+
+- `tests/unit/test_home_safety_research_scope.py`
+- `tests/research_brief.py`
+- `tests/integration/test_project_lifecycle.py`
+- `tests/integration/test_source_requirements_api.py`
+- 所有创建项目或直接构造 `ResearchBrief` 的后端测试。
+
+## AC-19 Research Brief 多轮追问（分支 `agent/research-brief-clarifier-v2`）
+
+模糊研究目标必须先进入项目外的持久化追问会话。模型可以提取用户明确回答并生成动态问题，
+但只有确定性代码确认正式 `ResearchBrief` 全部字段合法后才能进入确认状态。
+
+验收要求：
+
+- `POST /research-brief-clarifications` 使用默认或用户选择的真实 Model Gateway 模型，不返回固定假问题；
+- 会话、对话、部分草稿、问题、版本和模型用量可持久化读取；
+- 模型生成的每个草稿叶子字段必须引用现有用户消息 ID，无引用字段不得写入草稿；
+- 未明确回答时，原始媒体、家庭事件、外部分享、第三方通知和其他权限字段保持缺失；
+- 问题只针对后端仍缺失的字段，每轮最多六个；模型问题无效时由后端生成明确补充提示，不补造答案；
+- `ready_for_confirmation` 必须同时满足零缺失字段和完整 `ResearchBrief` Schema 校验；
+- 追问完成后仍由用户确认，再调用现有项目创建 API，不自动绕过 Brief Gate；
+- 过期 `expected_version` 返回 409，模型失败保存安全错误分类；
+- 模型调用审计允许关联追问会话，不要求伪造 Project 或 Agent Run；
+- 数据库迁移可从 `0019` 升级到 head，并可降级回 `0019`。
+
+自动化映射：
+
+- `tests/integration/test_brief_clarification_api.py`
+- `tests/integration/test_brief_clarification_migration.py`
+- `tests/integration/test_model_gateway.py`
+
+## AC-20 竞品生态分析（分支 `agent/competitor-ecosystem-analysis`）
+
+竞品研究必须保留“具体产品事实”和“生态层判断”两层，不能让模型直接凭常识描述 Ring、Google Nest、Arlo 或 eufy 生态。
+
+验收要求：
+
+- 生态范围只来自已确认 Research Brief 的 `target_ecosystems` 与 `comparison_ecosystems`；候选产品只来自已有 Competitor Discovery、资料接入和 Evidence 血缘；
+- 官方产品、价格渠道和用户评价三个 A2A 专家继续并行提取具体产品事实，旧产品事实综合作为生态综合的内部上游，不再充当新项目最终竞品 Artifact；
+- 生态综合固定覆盖安全目标、跨设备协作、跨时间状态、主动感知、不确定性、分级干预、本地/云分工、隐私授权、离线降级、照护者流程、失败修订和商业模式 12 个维度；
+- `supported`、`limited`、`contradicted` 必须引用当前项目、对应产品且属于声明专家维度的 Evidence ID；
+- 没有合格 Evidence 的维度只能是 `unknown`，不得引用 Evidence，也不得改写为“竞品没有该能力”；
+- 同一具体产品不得映射到多个生态；生态比较与机会信号只能引用参与生态已映射产品的 Evidence；
+- 后端确定性生成覆盖矩阵、资料缺口、审计状态和质量分，模型不得自行决定完成状态；
+- 资料不全但审计通过时返回 `partial` 与 `passed_with_gaps`，三个事实专家无法形成有效上游时返回显式 `blocked`，不得生成伪成功结论；
+- v2 `competitor_ecosystem_analysis` Artifact 可以进入 `ResearchHandoff`，并投影生态范围、产品范围、12 维状态、机会信号和补研问题；历史 v1 Artifact 仍可读取；
+- `POST /projects/{project_id}/agents/competitor-ecosystem` 与 Artifact 历史查询接口和 OpenAPI 一致，运行记录、模型调用与 Artifact 版本可审计；
+- 本分支不生成未来生态方案，不判断技术或商业上架结论；这些属于后续 Ecosystem Opportunity、Technical Feasibility 与 Commercial Agent。
+
+自动化映射：
+
+- `tests/unit/test_competitor_ecosystem_analysis.py`
+- `tests/unit/test_competitor_mainpath_bridge.py`
+- `tests/integration/test_competitor_synthesis_agent.py`
+
+## AC-21 生态机会 Agent（分支 `agent/ecosystem-opportunity`）
+
+用户研究、竞品生态、共享 Evidence 和设备能力图必须通过真实 Model Gateway 与确定性门禁生成
+版本化生态机会，而不是复用固定场景模板。
+
+验收要求：
+
+- `POST /projects/{project_id}/agents/ecosystem-opportunity` 和 Artifact 历史接口与 OpenAPI 一致；
+- 只消费最新 advancing User Research 与 Competitor Ecosystem Artifact；上游未就绪时不调用模型，
+  返回显式 blocked Artifact 和补研问题；
+- Context Builder 只投影设备身份与能力断言均有当前合格 Evidence 的 Capability Graph 事实；
+- 所有模型引用属于 Research Handoff、补研 Evidence 或当前 Capability Graph，编造 Evidence ID 被拒绝；
+- 每个候选同时引用用户和竞品 Evidence，竞品机会 ID 必须真实存在；
+- 已证实设备能力引用 Capability Graph Evidence；未知能力显式保留为 technical hypothesis 并生成
+  `portfolio_gap`，不支持、不可用或冲突能力不得伪装成可用；
+- `ecosystem_service` 至少包含两个设备角色和跨设备信息流；候选名称、安全目标和 ID 不重复；
+- 动态生成目标 3 个、最多 5 个；不足时保留真实数量和稳定 Gap，不使用老人、门铃、包裹或
+  Guardian 固定模板凑数；
+- Runtime 保存 Agent Run、模型调用、输入 Artifact 血缘和输出 Artifact 版本，密钥不进入 Prompt；
+- 本分支不接入 LangGraph 主图，不宣称通过 AI Native、技术、商业、红队或上架 Gate。
+
+自动化映射：
+
+- `tests/unit/test_ecosystem_opportunity_agent.py`
+- `tests/unit/test_ecosystem_opportunity_contracts.py`
+- `tests/integration/test_ecosystem_opportunity_agent.py`
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：

@@ -1,8 +1,8 @@
 # 后端进度与前端适配说明
 
-> 更新时间：2026-08-10
+> 更新时间：2026-08-11
 >
-> 基线分支：`main`
+> 基线分支：`main`；设备能力图开发状态见 `docs/CODEX_HANDOFF.md`
 >
 > 基线提交：以 `main` 最新提交为准
 
@@ -25,13 +25,14 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 三个专家与综合审计、动态产品技术机会 Agent，以及产品候选缺口的资料恢复闭环已经完成；商业和红队等后续领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料链路、用户研究、竞品 A2A 与生态层综合、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约、设备能力图、AI 原生 Research Brief 及其多轮追问已经完成；Product Technical v1 仅处于主图迁移兼容期。真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
 
 ### 2.1 已完成并合并到 `main`
 
 | 模块 | 当前能力 | 对前端的意义 |
 |---|---|---|
-| 项目生命周期 | 创建/查询项目、Brief 人工审批、状态迁移、持久化事件 | 可以实现项目列表、Brief 确认页和审批面板 |
+| 项目生命周期 | 创建/查询项目、AI 原生家庭安防生态 Brief 人工审批、状态迁移、持久化事件；旧单品 Brief 被 422 拒绝 | 可以实现项目列表、生态 Brief 确认页和审批面板 |
+| Research Brief 追问 v2 | 项目创建前调用用户选择的模型逐轮追问，持久化部分草稿、缺失字段、问题、版本和 Token/成本；确定性校验通过后才返回完整 Brief | 可以实现 Deep Research 模糊输入、聊天式追问、草稿预览和最终确认；不能跳过确认直接研究 |
 | SSE 事件 | 历史事件回放、实时事件、断线续传游标、心跳 | 可以实现实时研究时间线和连接状态 |
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
 | 共享 Evidence 检索 | 所有现有领域 Agent 共用项目隔离、状态门禁、元数据/词法相关度、来源多样性、字符预算与 Context Hash；产品技术保留精确 Evidence ID 顺序 | 可以实现“Agent 使用了哪些资料”的证据抽屉；当前是可解释词法检索，不应标成向量语义 RAG |
@@ -54,10 +55,13 @@ http://localhost:8000/api/v1
 | 竞品资料发现与片段 Evidence | 按准确产品和研究维度发现候选资料，经 Gate、网页处理、路由、片段审核后晋级带血缘 Evidence | 可以统一展示“候选→已授权→已解析→已审核→可供 Agent 使用”，不能把搜索摘要直接当证据 |
 | 竞品价格渠道专家 | 从目标地区的受控价格、库存、卖家与促销 Evidence 中输出时间化价格和渠道观察；确定性校验产品、地区、Claim 类型、采集时间与引用 | 可以展示价格/库存快照、渠道和 Evidence IDs；不得显示为永久价、全网最低价或实时库存 |
 | 竞品用户评价专家 | 从受控 user_opinion Evidence 中提炼正负体验、事件、影响、矛盾与样本限制；重复主题由后端按 Evidence 和独立来源计算 | 可以展示单条反馈和跨来源重复主题；不得把单个作者或单一页面显示成普遍用户结论 |
-| 竞品综合与证据审计 | 三个专家均有发现后调用综合模型，输出逐产品优缺点、权衡、跨产品差异及待验证机会信号；后端审计 Evidence 范围、产品归属和专家维度 | 可以展示竞品画像、覆盖矩阵和证据审计；机会信号必须标注为 Product Technical Agent 待验证假设 |
-| 竞品主路径桥接 | 用户研究与竞品综合并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、合并 Evidence 和竞品缺口；产品机会页未来直接消费同一交接，不把“未覆盖”显示成“竞品没有” |
-| 产品技术机会 Agent | 从最新 `ResearchHandoff` 动态生成目标 3 个、最多 5 个未来产品候选；每个候选同时引用用户与竞品 Evidence，并由确定性 Event Understanding Gate、去重和引用边界校验 | 可以展示候选、Event Understanding、技术依赖、Gate 状态和补研问题；证据不足时显示更少候选，不能用固定门铃场景或 Mock 凑数 |
+| 竞品产品事实综合 | 三个专家均有发现后先调用产品事实综合模型，保留逐产品优缺点、权衡和准确 Evidence 血缘，供生态层继续使用 | 可以下钻查看生态结论来自哪些具体设备、价格或用户评价；该层不再直接作为新项目最终竞品结论 |
+| 竞品生态综合与证据审计 | 在产品事实之上调用生态综合模型，按 Brief 中目标/对照生态生成 12 维能力矩阵；后端审计生态范围、产品映射、专家维度和 Evidence | 可以展示 Ring、Google Nest、Arlo、eufy 等生态矩阵；未覆盖维度必须显示 `unknown` 与补研问题，不能显示成“竞品没有” |
+| 竞品主路径桥接 | 用户研究与竞品生态 Artifact 并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、生态/产品范围、12 维状态和缺口；下一步生态机会 Agent 消费同一交接 |
+| Product Technical v1 | 历史单品候选实现，主图迁移期间内部保留；不再定义新项目 Brief 或最终生态产物 | 前端不要新建单品入口；等待 `agent/ecosystem-opportunity` 的生态机会接口 |
 | 产品技术资料恢复 | 把指定候选组合的 `portfolio_gaps` 转换为结构化补充字段；用户确认后的内容生成带血缘 Evidence，并在下一版产品技术运行中进入受控上下文 | 可以按 `gap_id` 弹出“当前缺什么”的填写框，展示受影响候选和定向恢复范围；不要求用户盲目更换网站，也不会把填写内容伪装成官网证据 |
+| 生态机会公共契约 | 区分设备功能、设备产品和生态服务，表达跨设备蓝图、AI 必要性、降级、验证计划和 Evidence Gap；当前没有真实 Agent | 前端可以按目标 Schema 设计生态机会卡片，但不能展示为已生成的真实研究结果 |
+| 设备能力图 | 保存带 Evidence 的厂商设备能力、用户授权家庭快照和 `available/unavailable/unknown/conflict` 确定性查询；不保存家庭视频或序列号 | 可以实现“方案需要什么能力、已有设备能否支撑、还缺什么”的设备覆盖页；企业 API 未接入时不得显示实时设备状态 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
 
@@ -83,11 +87,16 @@ http://localhost:8000/api/v1
 18. Product Technical Adapter 已注册到统一 Runtime 和 Model Gateway；主路径及独立 HTTP 用例都消费同一上游 Artifact，输出版本化 `product_technical_opportunity_portfolio`。
 19. 产品技术 Artifact 的补研缺口具有稳定 ID；可创建统一 Source Recovery、生成 `user_declaration` Evidence，并把已解决 Evidence 注入下一版产品技术上下文。
 20. 用户研究、三个竞品专家和产品技术 Context Builder 已迁移到共享 Evidence Retrieval；后续商业与红队可以复用同一接口，不再建立各自知识副本。
+21. 生态机会契约已经定义新的跨设备候选结构；Product Technical v1 只处于主图迁移兼容期，当前尚未注册真实生态机会 Prompt/Adapter。
+22. Device Capability Graph 能够把厂商通用能力与家庭实例分开，拒绝不合格或跨项目 Evidence，保留冲突，并确定性回答方案能力覆盖。
+23. 新 Research Brief 已删除单品式字段，强制表达生态、安全目标、信号授权、隐私/干预边界和验证期望；全部项目创建测试已迁移。
+24. Research Brief Clarifier v2 已能通过 Model Gateway 动态追问；模型字段必须引用用户消息，完整性由后端检查，完成后仍进入现有 Brief Gate。
+25. 竞品生态链路复用候选发现、三个 A2A 事实专家和产品事实综合，再调用生态综合模型；确定性后端生成 12 维覆盖矩阵，拒绝跨生态、跨产品、跨专家 Evidence，并把 v2 Artifact 投影进 `ResearchHandoff`。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 商业和红队等后续业务 Prompt；
+- 真实 Ecosystem Opportunity、Technical Feasibility、Security Policy、商业 v2 和红队 Prompt；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 最终报告、Package Risk Demo 和飞书集成。
 
@@ -100,10 +109,15 @@ http://localhost:8000/api/v1
 | `GET` | `/health` | 可用 | 服务健康状态 |
 | `GET` | `/models` | 可用 | 模型选择器；返回安全模型目录和凭据可用状态 |
 | `GET` | `/runtimes` | 可用 | 外部 Agent 选择器；返回 CLI、凭据、版本和已验证能力状态，不返回本机路径与密钥信息 |
+| `POST` | `/research-brief-clarifications` | 可用 | 提交模糊研究目标和可选模型，开始项目外多轮追问 |
+| `GET` | `/research-brief-clarifications/{session_id}` | 可用 | 恢复对话、部分 Brief、缺失字段、问题和模型用量 |
+| `POST` | `/research-brief-clarifications/{session_id}/messages` | 可用 | 提交带版本的用户回答；只有完整校验通过才返回可确认 Brief |
 | `GET` | `/projects` | 可用 | 项目列表 |
 | `POST` | `/projects` | 可用 | 创建项目，提交 Brief 和可选模型策略 |
 | `GET` | `/projects/{project_id}` | 可用 | 项目详情、进度和待审批信息 |
 | `GET` | `/projects/{project_id}/agents` | 可用 | Agent Run 列表与模型调用审计摘要 |
+| `POST` | `/projects/{project_id}/agents/competitor-ecosystem` | 可用 | 运行三个竞品事实专家、产品事实综合和生态综合，返回带 Evidence 审计的 12 维生态矩阵 |
+| `GET` | `/projects/{project_id}/agents/competitor-ecosystem/artifacts` | 可用 | 查询版本化竞品生态 Artifact、覆盖矩阵、未知项与补研问题 |
 | `POST` | `/projects/{project_id}/agents/product-technical` | 可用 | 运行产品技术机会 Agent；目标 3 个、最多 5 个，证据不足时不补造候选 |
 | `GET` | `/projects/{project_id}/agents/product-technical/artifacts` | 可用 | 查询版本化候选组合、Gate 状态、Evidence IDs 和补研问题 |
 | `POST` | `/projects/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery` | 可用 | 把一个或多个候选证据缺口转换为前端补充弹窗契约，并保存定向恢复血缘 |
@@ -138,6 +152,10 @@ http://localhost:8000/api/v1
 | `POST` | `/projects/{project_id}/evidence/retrievals` | 可用 | 按 Agent 问题与元数据生成项目隔离 Evidence Context，返回相关度、匹配原因和 Context Hash |
 | `GET` | `/projects/{project_id}/claims` | 可用 | Claim 与支持/反对 Evidence IDs |
 | `GET` | `/projects/{project_id}/innovations` | 可用 | 候选机会、事件理解、评分和红队结果 |
+| `POST/GET` | `/projects/{project_id}/device-capabilities/catalog` | 可用 | 登记或查询带 Evidence 的厂商设备能力目录 |
+| `GET/PUT/DELETE` | `/projects/{project_id}/device-capabilities/catalog/{catalog_device_id}` | 可用 | 查询、替换或删除未被家庭快照引用的目录设备 |
+| `PUT/GET` | `/projects/{project_id}/device-capabilities/household-snapshot` | 可用 | 保存新版本或读取当前用户授权家庭设备快照 |
+| `POST` | `/projects/{project_id}/device-capabilities/queries` | 可用 | 确定性查询方案所需能力的 available/unavailable/unknown/conflict 与 Evidence IDs |
 
 查询接口只返回数据库中已经存在的记录。证据不足时会返回空列表或明确状态，不会自动生成占位 Evidence、Claim 或 Innovation。
 
@@ -151,7 +169,6 @@ http://localhost:8000/api/v1
 
 以下目标能力尚无当前 `/api/v1` 生产接口：
 
-- AI 连续追问和自动生成 Research Brief；
 - Package Risk Demo Result；
 - 最终报告和方法对照指标；
 - 飞书 Aily Skills、审批卡片和文档沉淀；
@@ -444,13 +461,15 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 
 ## 7. 验证状态与下一步后端计划
 
-最近一次后端完整验证：
+最近一次验证状态：
 
 ```text
-pytest: 233 passed
-ruff: passed
-mypy: passed（190 个源文件）
-Alembic: 当前迁移头为 0016_source_recovery_orchestration，已从空库完整升级验证
+AI 原生研究范围分支全量 Pytest：305 passed，1 个第三方 Starlette TestClient 弃用警告
+ruff: 全量通过
+mypy: 通过（207 个 app 源文件）
+Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空库升级到 head 并降级到 0018 通过
+OpenAPI: 3.1 YAML 解析通过
+git diff --check: 通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 价格渠道真实链路：同一授权 eufy 商品页经确定性 HTML 解析得到 372 个片段并审核晋级 2 条 Evidence；GLM 5.2 专家 completed（质量分 90），DeepSeek V4 Pro 返回契约有效的 partial（质量分 75），两次模型调用均 completed
 用户评价真实链路：公开 E340 第一人称实测页解析得到 377 个片段，人工式审核晋级 1 条 user_opinion；GLM 5.2 输出 4 个 single_report 主题并在首次结构化失败后重试成功，DeepSeek V4 Pro 一次完成并输出 2 个 single_report 主题；两者都按样本门禁保持 partial，没有伪造重复主题
@@ -459,26 +478,20 @@ Alembic: 当前迁移头为 0016_source_recovery_orchestration，已从空库完
 竞品发现与接入：真实 Tavily 返回 5 条 Ring 候选，DeepSeek V4 Pro 确认 Battery Doorbell Pro (2nd Gen)；HTTP 候选经逐跳 robots/页面安全校验跳转到 HTTPS，网页解析成功，自动确认 official_product + price_channel 路由，资料要求重评为 partial，Evidence 保持为 0
 ```
 
-接下来的后端开发顺序应先让资料准备度直接消费结构化接入血缘，再继续剩余竞品专家和领域分析：
+新方向接下来的后端开发顺序：
 
 ```text
-Search Discovery Connector（已完成）
-→ Competitor Discovery Agent & Candidate Gate（已完成）
-→ Competitor Source Onboarding（已完成）
-→ Automatic Web Processing & Source Requirements Re-evaluation（已完成）
-→ Onboarding Lineage Matching & Automatic Source Routing（已完成）
-→ Competitor Material Discovery（已完成）
-→ Fragment Evidence Pipeline（已完成）
-→ Competitor Price & Channel Specialist（已完成）
-→ Competitor User Review Specialist（已完成）
-→ Competitor Synthesis & Evidence Audit（已完成）
-→ Competitor Mainpath Bridge（已完成）
-→ Source Recovery Orchestration（已完成）
-→ Product Technical Agent（已完成）
-→ Shared Evidence Retrieval Foundation（已完成）
-→ Commercial Agent
-→ Red Team Revision
-→ Package Risk Demo
-→ Feishu Integration
-→ E2E Hardening
+Ecosystem Opportunity Contract（已完成）
+→ Device Capability Graph（已完成并合并）
+→ AI-native Home-safety Research Scope（已完成）
+→ Ecosystem Opportunity Agent
+→ AI Native Ecosystem Gate
+→ Technical Feasibility Agent
+→ Security Policy Compiler
+→ Security Policy Verification
+→ Commercial Evaluation v2
+→ Red Team Policy Revision
+→ Package Goal-to-Guard Demo
+→ Feishu Aily Integration
+→ E2E Ecosystem Hardening
 ```

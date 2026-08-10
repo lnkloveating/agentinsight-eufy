@@ -13,7 +13,6 @@ from app.infrastructure.database.a2a_repository import A2ATaskRepository
 from app.infrastructure.database.model_call_repository import ModelCallRepository
 from app.infrastructure.database.repositories import ProjectRepository
 from app.main import create_app
-from app.schemas.project import ResearchBrief
 from app.sources.web_connector import WebFetchResult
 from app.workflows.contracts import (
     AgentContext,
@@ -22,6 +21,7 @@ from app.workflows.contracts import (
     ResearchBudget,
     ResearchTask,
 )
+from tests.research_brief import home_safety_brief, home_safety_brief_payload
 
 
 class PricePageConnector:
@@ -129,13 +129,9 @@ def _approve_project(client: TestClient) -> str:
     created = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "What are the authorized US price and channel observations?",
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload(
+                "What are the authorized US ecosystem price and channel observations?"
+            )
         },
     )
     assert created.status_code == 201
@@ -259,13 +255,7 @@ def test_authorized_price_page_flows_to_bound_a2a_specialist(
                 task,
                 AgentContext(
                     project_id=project_id,
-                    brief=ResearchBrief(
-                        question="What are the authorized US price observations?",
-                        category="smart doorbell",
-                        target_user="US households",
-                        region="US",
-                        scenarios=["front door package"],
-                    ),
+                    brief=home_safety_brief(),
                     iteration=0,
                     evidence_context=evidence_context,
                 ),
@@ -288,7 +278,9 @@ def test_authorized_price_page_flows_to_bound_a2a_specialist(
     price_task = next(item for item in tasks if item.specialist_type == "price_channel")
     official_task = next(item for item in tasks if item.specialist_type == "official_product")
     user_task = next(item for item in tasks if item.specialist_type == "user_review")
-    assert artifact.status == "partial"
+    assert artifact.status == "blocked"
+    assert artifact.payload["schema_name"] == "competitor_ecosystem_analysis"
+    assert artifact.payload["synthesis_status"] == "blocked"
     assert price_task.status == "completed"
     assert official_task.status == "blocked"
     assert user_task.status == "blocked"

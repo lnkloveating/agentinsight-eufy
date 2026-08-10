@@ -21,6 +21,7 @@ from app.sources.search_discovery import (
     SearchDiscoveryProviderResponse,
     SearchDiscoveryRegistry,
 )
+from tests.research_brief import home_safety_brief_payload
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -35,17 +36,14 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
-def _create_project(client: TestClient, question: str = "How should eufy evolve?") -> str:
+def _create_project(
+    client: TestClient,
+    question: str = "How should the eufy home-safety ecosystem evolve?",
+) -> str:
     response = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": question,
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload(question)
         },
     )
     assert response.status_code == 201

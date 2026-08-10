@@ -23,6 +23,7 @@ from app.sources.search_discovery import (
 )
 from app.sources.web_connector import WebConnectorError, WebFetchResult
 from app.workflows.contracts import ResearchAgentType
+from tests.research_brief import home_safety_brief_payload
 
 
 @dataclass
@@ -159,17 +160,14 @@ def _configure(application: object) -> OnboardingWebConnector:
     return connector
 
 
-def _project(client: TestClient, question: str = "Which doorbells compete?") -> str:
+def _project(
+    client: TestClient,
+    question: str = "Which home-safety ecosystems should be compared?",
+) -> str:
     created = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": question,
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload(question)
         },
     )
     assert created.status_code == 201

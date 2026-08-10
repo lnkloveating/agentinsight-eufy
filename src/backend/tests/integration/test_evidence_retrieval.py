@@ -25,7 +25,7 @@ def _project(project_id: str) -> ProjectModel:
         current_stage="parallel_research",
         progress=20,
         brief_json={
-            "question": "分析家庭安防未来产品机会",
+            "question": "分析 AI 原生家庭安防生态机会",
             "category": "家庭安防",
             "target_user": "北美家庭用户",
             "region": "US",

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.12.0
+  version: 0.14.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -12,6 +12,7 @@ tags:
   - name: Models
   - name: Runtimes
   - name: Projects
+  - name: Research Brief
   - name: Research
   - name: Evidence
   - name: Innovations
@@ -59,6 +60,75 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalRuntimePage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /research-brief-clarifications:
+    post:
+      tags: [Research Brief]
+      summary: Start a pre-project Research Brief clarification dialogue
+      operationId: startResearchBriefClarification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BriefClarificationStart"
+      responses:
+        "201":
+          description: The model generated the first dynamic clarification questions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefClarificationSession"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /research-brief-clarifications/{session_id}:
+    get:
+      tags: [Research Brief]
+      summary: Read a persisted Research Brief clarification dialogue
+      operationId: getResearchBriefClarification
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Current dialogue, partial draft and deterministic missing fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefClarificationSession"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /research-brief-clarifications/{session_id}/messages:
+    post:
+      tags: [Research Brief]
+      summary: Answer the next Research Brief clarification questions
+      operationId: answerResearchBriefClarification
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BriefClarificationAnswer"
+      responses:
+        "200":
+          description: Updated dialogue; ready_for_confirmation only means full validation passed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefClarificationSession"
+        "409":
+          $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
 
@@ -156,6 +226,47 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/agents/competitor-ecosystem:
+    post:
+      tags: [Research]
+      summary: Run the evidence-bounded competitor ecosystem analysis Agent
+      description: |
+        Reuses confirmed competitor discovery and the official-product, price-channel and
+        user-review A2A fact specialists. The ecosystem synthesis compares only the target and
+        comparison ecosystems declared in the Research Brief. An uncovered capability remains
+        unknown and creates a research gap; it is never rewritten as an absent competitor feature.
+      operationId: runCompetitorEcosystemAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: A persisted version of the audited competitor ecosystem Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorEcosystemArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/competitor-ecosystem/artifacts:
+    get:
+      tags: [Research]
+      summary: List competitor ecosystem Artifact versions
+      operationId: listCompetitorEcosystemArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Competitor ecosystem Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompetitorEcosystemArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents/user-research/artifacts:
     get:
       tags: [Research]
@@ -245,14 +356,58 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/agents/ecosystem-opportunity:
+    post:
+      tags: [Research]
+      summary: Run the ecosystem opportunity Agent
+      description: |
+        Consumes the latest advancing user-research and competitor-ecosystem Artifacts, the shared
+        Evidence context and the evidence-backed Device Capability Graph. It generates solution
+        candidates typed as device_feature, device_product or ecosystem_service. Existing device
+        capabilities may only be asserted when the graph cites eligible Evidence; unknown or missing
+        capabilities remain hypotheses and portfolio gaps. Candidates are generated dynamically with
+        a target of three and hard maximum of five; fewer candidates are valid when research is
+        insufficient.
+      operationId: runEcosystemOpportunityAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: A persisted, evidence-bounded ecosystem opportunity portfolio Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcosystemOpportunityArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/ecosystem-opportunity/artifacts:
+    get:
+      tags: [Research]
+      summary: List ecosystem opportunity Artifact versions
+      operationId: listEcosystemOpportunityArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Ecosystem opportunity Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EcosystemOpportunityArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps:
     get:
       tags: [Research, Evidence]
       summary: List normalized recoverable gaps from an Agent Artifact
       description: |
         Deterministically projects native user-research, competitor-research, product-technical,
-        commercial-evaluation and red-team gap shapes into one frontend contract. No model call is
-        made and the source Artifact remains immutable.
+        ecosystem-opportunity, commercial-evaluation and red-team gap shapes into one frontend
+        contract. No model call is made and the source Artifact remains immutable.
       operationId: listAgentArtifactGaps
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -1314,6 +1469,165 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/device-capabilities/catalog:
+    post:
+      tags: [Evidence]
+      summary: 登记带 Evidence 血缘的厂商设备能力记录
+      description: |
+        保存当前研究项目能够证明的厂商设备、传感、动作、计算和连接能力。所有设备身份
+        与能力断言必须引用当前项目 verified 或 partially_verified 的 Evidence；不调用
+        LLM 补齐缺失能力，也不把用户家庭设备实例与厂商通用能力混为一谈。
+      operationId: createCatalogDevice
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogDeviceCreate"
+      responses:
+        "201":
+          description: Device capability record created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevice"
+        default:
+          $ref: "#/components/responses/Error"
+    get:
+      tags: [Evidence]
+      summary: 查询项目设备能力目录
+      operationId: listCatalogDevices
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project-scoped evidence-backed catalog devices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevicePage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/device-capabilities/catalog/{catalog_device_id}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+      - name: catalog_device_id
+        in: path
+        required: true
+        schema: { type: string, pattern: "^device_[A-Za-z0-9_-]+$" }
+    get:
+      tags: [Evidence]
+      summary: 查询单个厂商设备能力记录
+      operationId: getCatalogDevice
+      responses:
+        "200":
+          description: Evidence-backed catalog device.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevice"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [Evidence]
+      summary: 替换厂商设备能力记录
+      description: 替换后重新校验全部 Evidence，冲突断言会被保留并在查询时显式返回 conflict。
+      operationId: replaceCatalogDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogDeviceCreate"
+      responses:
+        "200":
+          description: Updated catalog device.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevice"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Evidence]
+      summary: 删除未被家庭快照引用的厂商设备记录
+      operationId: deleteCatalogDevice
+      responses:
+        "204": { description: Device deleted. }
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/device-capabilities/household-snapshot:
+    put:
+      tags: [Evidence]
+      summary: 保存用户授权的家庭设备快照新版本
+      description: |
+        只保存完成能力匹配所需的设备角色、粗粒度位置、在线状态和设备关系；不接收精确
+        地址、序列号、原始视频或生物识别数据。每次保存生成新版本，旧版本标记为 superseded。
+      operationId: replaceHouseholdDeviceSnapshot
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HouseholdSnapshotCreate"
+      responses:
+        "200":
+          description: Current household device snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdSnapshot"
+        default:
+          $ref: "#/components/responses/Error"
+    get:
+      tags: [Evidence]
+      summary: 查询当前家庭设备快照
+      operationId: getHouseholdDeviceSnapshot
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Current household device snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdSnapshot"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/device-capabilities/queries:
+    post:
+      tags: [Evidence]
+      summary: 查询家庭现有设备能否观察或执行生态方案所需能力
+      description: |
+        使用当前家庭快照和厂商能力断言做确定性匹配。支持与不支持的证据同时存在时返回
+        conflict；没有目录映射或证据时返回 unknown；离线、未授权或明确不可用时返回
+        unavailable，绝不调用模型猜测。
+      operationId: queryDeviceCapabilities
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCapabilityQuery"
+      responses:
+        "200":
+          description: Deterministic capability coverage result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCapabilityQueryResult"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/claims:
     get:
       tags: [Evidence]
@@ -1598,6 +1912,7 @@ components:
           - user_research
           - competitor_research
           - product_technical
+          - ecosystem_opportunity
           - commercial_evaluation
           - red_team
           - candidate_synthesis
@@ -1919,61 +2234,322 @@ components:
       type: string
       enum: [recommend, investigate, do_not_recommend]
 
-    ResearchConstraints:
+    ResearchScope:
+      type: string
+      enum: [home_safety_ecosystem]
+
+    HomeSafetyDomain:
+      type: string
+      enum:
+        - general_home_safety
+        - property_security
+        - personal_safety
+        - elder_safety
+        - child_safety
+        - perimeter_safety
+
+    AuthorizedSignalType:
+      type: string
+      enum:
+        - visual_event_metadata
+        - motion_event
+        - door_event
+        - device_status
+        - household_presence
+        - user_confirmation
+        - environment_context
+        - simulated_event
+
+    AllowedIntervention:
+      type: string
+      enum:
+        - continue_observing
+        - request_additional_signal
+        - local_prompt
+        - ask_user
+        - notify_authorized_contact
+        - preserve_evidence
+
+    ResearchDeliverable:
+      type: string
+      enum:
+        - ecosystem_opportunity_portfolio
+        - device_capability_gap
+        - policy_dry_run
+        - pilot_recommendation
+
+    ResearchSourcePermissions:
       type: object
       additionalProperties: false
-      required: [must_be_event_understanding, must_have_evidence, minimum_candidates, max_innovations]
+      required: [public_sources, user_uploaded_materials, enterprise_internal_materials, authorized_household_events]
       properties:
-        must_be_event_understanding: { type: boolean, const: true }
-        must_have_evidence: { type: boolean, const: true }
-        minimum_candidates: { type: integer, minimum: 3, default: 3 }
-        max_innovations: { type: integer, minimum: 3, maximum: 10, default: 5 }
-        max_research_iterations: { type: integer, minimum: 0, maximum: 5, default: 2 }
-        max_red_team_revisions: { type: integer, minimum: 0, maximum: 3, default: 1 }
+        public_sources: { type: boolean }
+        user_uploaded_materials: { type: boolean }
+        enterprise_internal_materials: { type: boolean }
+        authorized_household_events: { type: boolean }
+
+    ResearchPrivacyBoundary:
+      type: object
+      additionalProperties: false
+      required: [raw_media_allowed, restricted_zones, retention_policy, external_sharing_allowed]
+      properties:
+        raw_media_allowed: { type: boolean }
+        restricted_zones:
+          type: array
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 200 }
+        retention_policy: { type: string, minLength: 1, maxLength: 1000 }
+        external_sharing_allowed: { type: boolean }
+
+    ResearchInterventionBoundary:
+      type: object
+      additionalProperties: false
+      required: [allowed_interventions, prohibited_actions, high_impact_action_requires_human_approval]
+      properties:
+        allowed_interventions:
+          type: array
+          minItems: 1
+          maxItems: 6
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/AllowedIntervention"
+        prohibited_actions:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 300 }
+        high_impact_action_requires_human_approval: { type: boolean, const: true }
 
     ResearchBrief:
       type: object
       additionalProperties: false
       required:
         - question
+        - research_scope
+        - safety_domains
+        - target_ecosystems
+        - comparison_ecosystems
+        - target_users
         - markets
-        - categories
-        - target_user_segments
-        - brands
-        - data_sources
-        - time_range
-        - constraints
+        - time_horizon
+        - safety_goals
+        - risk_scenarios
+        - authorized_signal_types
+        - privacy_boundary
+        - intervention_boundary
+        - forbidden_inferences
+        - evaluation_dimensions
+        - validation_expectations
+        - source_permissions
+        - deliverables
       properties:
         question:
           type: string
           minLength: 5
           maxLength: 1000
+        research_scope:
+          $ref: "#/components/schemas/ResearchScope"
+        safety_domains:
+          type: array
+          minItems: 1
+          maxItems: 6
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/HomeSafetyDomain"
+        target_ecosystems:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { type: string, minLength: 1, maxLength: 120 }
+        comparison_ecosystems:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 120 }
+        target_users:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 240 }
         markets:
           type: array
           minItems: 1
-          items: { type: string }
-        categories:
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 120 }
+        time_horizon: { type: string, minLength: 1, maxLength: 120 }
+        safety_goals:
           type: array
           minItems: 1
-          items: { type: string }
-        target_user_segments:
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 500 }
+        risk_scenarios:
           type: array
           minItems: 1
-          items: { type: string }
-        brands:
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 500 }
+        authorized_signal_types:
           type: array
           minItems: 1
-          items: { type: string }
-        data_sources:
+          maxItems: 8
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/AuthorizedSignalType"
+        privacy_boundary:
+          $ref: "#/components/schemas/ResearchPrivacyBoundary"
+        intervention_boundary:
+          $ref: "#/components/schemas/ResearchInterventionBoundary"
+        forbidden_inferences:
           type: array
           minItems: 1
-          items: { type: string }
-        time_range: { type: string }
-        focus_dimensions:
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 300 }
+        evaluation_dimensions:
           type: array
+          minItems: 1
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 200 }
+        validation_expectations:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 500 }
+        source_permissions:
+          $ref: "#/components/schemas/ResearchSourcePermissions"
+        deliverables:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ResearchDeliverable"
+
+    BriefClarificationStart:
+      type: object
+      additionalProperties: false
+      required: [initial_question]
+      properties:
+        initial_question: { type: string, minLength: 5, maxLength: 1000 }
+        model_id: { type: [string, "null"], minLength: 3, maxLength: 120 }
+
+    BriefClarificationAnswer:
+      type: object
+      additionalProperties: false
+      required: [message, expected_version]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 8000 }
+        expected_version: { type: integer, minimum: 1 }
+
+    ClarificationMessage:
+      type: object
+      additionalProperties: false
+      required: [message_id, role, content, created_at]
+      properties:
+        message_id: { type: string }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string, minLength: 1, maxLength: 8000 }
+        created_at: { type: string, format: date-time }
+
+    ClarificationQuestion:
+      type: object
+      additionalProperties: false
+      required: [question_id, field_paths, prompt, choices]
+      properties:
+        question_id: { type: string, minLength: 1, maxLength: 80 }
+        field_paths:
+          type: array
+          minItems: 1
+          maxItems: 8
+          uniqueItems: true
           items: { type: string }
-        constraints:
-          $ref: "#/components/schemas/ResearchConstraints"
+        prompt: { type: string, minLength: 1, maxLength: 1000 }
+        choices:
+          type: array
+          maxItems: 12
+          uniqueItems: true
+          items: { type: string }
+
+    ResearchBriefDraft:
+      type: object
+      additionalProperties: false
+      description: Typed partial ResearchBrief; omitted fields are still unanswered.
+      properties:
+        question: { type: [string, "null"], minLength: 5, maxLength: 1000 }
+        research_scope:
+          oneOf:
+            - $ref: "#/components/schemas/ResearchScope"
+            - type: "null"
+        safety_domains:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/HomeSafetyDomain" }
+        target_ecosystems: { type: [array, "null"], items: { type: string } }
+        comparison_ecosystems: { type: [array, "null"], items: { type: string } }
+        target_users: { type: [array, "null"], items: { type: string } }
+        markets: { type: [array, "null"], items: { type: string } }
+        time_horizon: { type: [string, "null"] }
+        safety_goals: { type: [array, "null"], items: { type: string } }
+        risk_scenarios: { type: [array, "null"], items: { type: string } }
+        authorized_signal_types:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/AuthorizedSignalType" }
+        privacy_boundary:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            raw_media_allowed: { type: [boolean, "null"] }
+            restricted_zones: { type: [array, "null"], items: { type: string } }
+            retention_policy: { type: [string, "null"] }
+            external_sharing_allowed: { type: [boolean, "null"] }
+        intervention_boundary:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            allowed_interventions:
+              type: [array, "null"]
+              items: { $ref: "#/components/schemas/AllowedIntervention" }
+            prohibited_actions: { type: [array, "null"], items: { type: string } }
+            high_impact_action_requires_human_approval: { type: [boolean, "null"] }
+        forbidden_inferences: { type: [array, "null"], items: { type: string } }
+        evaluation_dimensions: { type: [array, "null"], items: { type: string } }
+        validation_expectations: { type: [array, "null"], items: { type: string } }
+        source_permissions:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            public_sources: { type: [boolean, "null"] }
+            user_uploaded_materials: { type: [boolean, "null"] }
+            enterprise_internal_materials: { type: [boolean, "null"] }
+            authorized_household_events: { type: [boolean, "null"] }
+        deliverables:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/ResearchDeliverable" }
+
+    BriefClarificationSession:
+      type: object
+      additionalProperties: false
+      required: [session_id, status, version, model_id, messages, draft, missing_fields, validation_issues, questions, completed_brief, input_tokens, output_tokens, estimated_cost_microusd, created_at, updated_at]
+      properties:
+        session_id: { type: string }
+        status: { type: string, enum: [awaiting_user, ready_for_confirmation, failed] }
+        version: { type: integer, minimum: 1 }
+        model_id: { type: string }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ClarificationMessage" }
+        draft: { $ref: "#/components/schemas/ResearchBriefDraft" }
+        missing_fields: { type: array, items: { type: string } }
+        validation_issues: { type: array, items: { type: string } }
+        questions:
+          type: array
+          maxItems: 6
+          items: { $ref: "#/components/schemas/ClarificationQuestion" }
+        completed_brief:
+          oneOf:
+            - $ref: "#/components/schemas/ResearchBrief"
+            - type: "null"
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        estimated_cost_microusd: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     ProjectCreate:
       type: object
@@ -2153,6 +2729,345 @@ components:
         evidence:
           $ref: "#/components/schemas/Evidence"
         created: { type: boolean }
+
+    EcosystemCapabilityAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        - assessment_id
+        - dimension
+        - status
+        - statement
+        - explanation
+        - source_dimensions
+        - evidence_ids
+        - confidence
+      properties:
+        assessment_id: { type: string, minLength: 1, maxLength: 100 }
+        dimension:
+          $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        status:
+          type: string
+          enum: [supported, limited, contradicted, unknown]
+        statement: { type: string, minLength: 1, maxLength: 2000 }
+        explanation: { type: string, minLength: 1, maxLength: 3000 }
+        source_dimensions:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum: [official_product, price_channel, user_review]
+        evidence_ids:
+          type: array
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        unknown_reason:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 1500
+
+    EcosystemCapabilityDimension:
+      type: string
+      enum:
+        - safety_goal_coverage
+        - cross_device_orchestration
+        - temporal_state_understanding
+        - active_perception
+        - uncertainty_handling
+        - intervention_ladder
+        - local_cloud_partition
+        - privacy_and_consent
+        - offline_fallback
+        - caregiver_workflow
+        - failure_recovery
+        - business_model
+
+    CompetitorEcosystemProfile:
+      type: object
+      additionalProperties: false
+      required: [ecosystem_label, role, product_scope_labels, assessments]
+      properties:
+        ecosystem_label: { type: string, minLength: 1, maxLength: 160 }
+        role: { type: string, enum: [target, comparison] }
+        product_scope_labels:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string }
+        assessments:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/EcosystemCapabilityAssessment"
+
+    EcosystemComparisonInsight:
+      type: object
+      additionalProperties: false
+      required: [insight_id, ecosystem_labels, dimension, statement, evidence_ids]
+      properties:
+        insight_id: { type: string, minLength: 1, maxLength: 100 }
+        ecosystem_labels:
+          type: array
+          minItems: 2
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string }
+        dimension:
+          $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        statement: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string }
+
+    EcosystemOpportunitySignal:
+      type: object
+      additionalProperties: false
+      required:
+        - signal_id
+        - ecosystem_labels
+        - gap_dimensions
+        - statement
+        - rationale
+        - validation_questions
+        - evidence_ids
+        - hypothesis_status
+      properties:
+        signal_id: { type: string, minLength: 1, maxLength: 100 }
+        ecosystem_labels:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string }
+        gap_dimensions:
+          type: array
+          minItems: 1
+          maxItems: 12
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        statement: { type: string, minLength: 1, maxLength: 2000 }
+        rationale: { type: string, minLength: 1, maxLength: 3000 }
+        validation_questions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string }
+        hypothesis_status:
+          type: string
+          const: requires_ecosystem_opportunity_validation
+
+    EcosystemResearchGap:
+      type: object
+      additionalProperties: false
+      required: [ecosystem_label, dimension, question, reason, severity]
+      properties:
+        ecosystem_label: { type: string, minLength: 1, maxLength: 160 }
+        dimension:
+          $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        severity: { type: string, enum: [low, medium, high] }
+
+    EcosystemDimensionCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - ecosystem_label
+        - dimension_statuses
+        - mapped_products
+        - evidence_ids
+        - evidence_backed_dimension_count
+        - unknown_dimension_count
+        - complete
+      properties:
+        ecosystem_label: { type: string }
+        dimension_statuses:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [supported, limited, contradicted, unknown]
+        mapped_products:
+          type: array
+          items: { type: string }
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        evidence_backed_dimension_count: { type: integer, minimum: 0, maximum: 12 }
+        unknown_dimension_count: { type: integer, minimum: 0, maximum: 12 }
+        complete: { type: boolean }
+
+    EcosystemDiscoveryProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - target_ecosystems
+        - comparison_ecosystems
+        - confirmed_product_scope
+        - represented_ecosystems
+        - unmapped_products
+      properties:
+        target_ecosystems:
+          type: array
+          items: { type: string }
+        comparison_ecosystems:
+          type: array
+          items: { type: string }
+        confirmed_product_scope:
+          type: array
+          items: { type: string }
+        represented_ecosystems:
+          type: array
+          items: { type: string }
+        unmapped_products:
+          type: array
+          items: { type: string }
+
+    CompetitorEcosystemEvidenceAudit:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - allowed_evidence_count
+        - cited_evidence_count
+        - specialist_output_count
+        - requested_ecosystem_count
+        - represented_ecosystem_count
+        - mapped_product_count
+        - evidence_backed_dimension_count
+        - unknown_dimension_count
+        - independent_source_count
+        - evidence_context_hash
+      properties:
+        status: { type: string, enum: [passed, passed_with_gaps] }
+        allowed_evidence_count: { type: integer, minimum: 0 }
+        cited_evidence_count: { type: integer, minimum: 0 }
+        specialist_output_count: { type: integer, minimum: 0 }
+        requested_ecosystem_count: { type: integer, minimum: 0 }
+        represented_ecosystem_count: { type: integer, minimum: 0 }
+        mapped_product_count: { type: integer, minimum: 0 }
+        evidence_backed_dimension_count: { type: integer, minimum: 0 }
+        unknown_dimension_count: { type: integer, minimum: 0 }
+        independent_source_count: { type: integer, minimum: 0 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    CompetitorEcosystemPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_name
+        - schema_version
+        - supervisor_mode
+        - specialist_outputs
+        - product_fact_synthesis
+        - discovery
+        - summary
+        - summary_evidence_ids
+        - ecosystem_profiles
+        - comparison_insights
+        - opportunity_signals
+        - research_gaps
+        - coverage_matrix
+        - evidence_audit
+        - synthesis_status
+      properties:
+        schema_name: { type: string, const: competitor_ecosystem_analysis }
+        schema_version: { type: string, const: "2.0" }
+        supervisor_mode:
+          type: string
+          const: candidate_discovery_then_three_a2a_facts_then_ecosystem_synthesis
+        specialist_outputs:
+          type: array
+          items: { type: object, additionalProperties: true }
+        product_fact_synthesis:
+          oneOf:
+            - { type: object, additionalProperties: true }
+            - { type: "null" }
+        discovery:
+          $ref: "#/components/schemas/EcosystemDiscoveryProjection"
+        summary: { type: string }
+        summary_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        ecosystem_profiles:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/CompetitorEcosystemProfile"
+        comparison_insights:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/EcosystemComparisonInsight"
+        opportunity_signals:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/EcosystemOpportunitySignal"
+        research_gaps:
+          type: array
+          maxItems: 360
+          items:
+            $ref: "#/components/schemas/EcosystemResearchGap"
+        coverage_matrix:
+          type: array
+          items:
+            $ref: "#/components/schemas/EcosystemDimensionCoverage"
+        evidence_audit:
+          $ref: "#/components/schemas/CompetitorEcosystemEvidenceAudit"
+        synthesis_status: { type: string, enum: [completed, partial, blocked] }
+
+    CompetitorEcosystemArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - agent_run_id
+        - version
+        - status
+        - schema_version
+        - payload
+        - evidence_ids
+        - unknowns
+        - quality_score
+        - errors
+      properties:
+        artifact_id: { type: string }
+        agent_run_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        status:
+          type: string
+          enum: [completed, partial, blocked, needs_revision]
+        schema_version: { type: string, const: "2.0" }
+        payload:
+          $ref: "#/components/schemas/CompetitorEcosystemPayload"
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          items: { type: string }
 
     UserResearchEventChain:
       type: object
@@ -2516,6 +3431,399 @@ components:
           type: array
           uniqueItems: true
           items: { type: string }
+        contradictions:
+          type: array
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          items: { type: string }
+
+    RequiredDeviceRole:
+      type: object
+      additionalProperties: false
+      required: [role_id, role_type, description, required_capabilities, optional, evidence_ids]
+      properties:
+        role_id: { type: string, minLength: 1, maxLength: 80 }
+        role_type:
+          type: string
+          enum:
+            - primary_perception
+            - context_sensor
+            - local_reasoning_hub
+            - user_approval_interface
+            - action_device
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        required_capabilities:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        optional: { type: boolean }
+        evidence_ids:
+          type: array
+          maxItems: 40
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    CrossDeviceInformationFlow:
+      type: object
+      additionalProperties: false
+      required: [flow_id, from_role_id, to_role_id, data_type, purpose, privacy_constraints, fallback]
+      properties:
+        flow_id: { type: string, minLength: 1, maxLength: 80 }
+        from_role_id: { type: string, minLength: 1, maxLength: 80 }
+        to_role_id: { type: string, minLength: 1, maxLength: 80 }
+        data_type: { type: string, minLength: 1, maxLength: 160 }
+        purpose: { type: string, minLength: 1, maxLength: 1000 }
+        privacy_constraints:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        fallback: { type: string, minLength: 1, maxLength: 1000 }
+
+    EcosystemBlueprint:
+      type: object
+      additionalProperties: false
+      description: |
+        Describes the device roles and capabilities the solution requires. It never asserts that a
+        specific real eufy model provides a capability; concrete device capabilities must come from
+        the evidence-backed Device Capability Graph in a later branch.
+      required:
+        - required_device_roles
+        - required_capabilities
+        - cross_device_information_flows
+        - deployment_target
+        - privacy_boundary
+        - permission_boundary
+        - offline_behavior
+        - fallback_behavior
+        - known_blind_spots
+      properties:
+        required_device_roles:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/RequiredDeviceRole"
+        required_capabilities:
+          type: array
+          maxItems: 40
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 200 }
+        cross_device_information_flows:
+          type: array
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/CrossDeviceInformationFlow"
+        deployment_target:
+          type: string
+          enum: [device, homebase, cloud, hybrid, unknown]
+        privacy_boundary: { type: string, minLength: 1, maxLength: 2000 }
+        permission_boundary: { type: string, minLength: 1, maxLength: 2000 }
+        offline_behavior: { type: string, minLength: 1, maxLength: 2000 }
+        fallback_behavior: { type: string, minLength: 1, maxLength: 2000 }
+        known_blind_spots:
+          type: array
+          maxItems: 40
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+
+    AIRemovalTest:
+      type: object
+      additionalProperties: false
+      required: [core_value_survives_without_ai, rationale, lost_capabilities_without_ai, evidence_ids]
+      properties:
+        core_value_survives_without_ai: { type: boolean }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+        lost_capabilities_without_ai:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        evidence_ids:
+          type: array
+          maxItems: 40
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    AINativeCase:
+      type: object
+      additionalProperties: false
+      required:
+        - open_ended_goal
+        - why_fixed_rules_are_insufficient
+        - model_responsibilities
+        - deterministic_responsibilities
+        - ai_removal_test
+        - learning_or_revision_loop
+        - safety_constraints
+      properties:
+        open_ended_goal: { type: string, minLength: 1, maxLength: 2000 }
+        why_fixed_rules_are_insufficient: { type: string, minLength: 1, maxLength: 2000 }
+        model_responsibilities:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        deterministic_responsibilities:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        ai_removal_test:
+          $ref: "#/components/schemas/AIRemovalTest"
+        learning_or_revision_loop:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        safety_constraints:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+
+    EcosystemValidationPlan:
+      type: object
+      additionalProperties: false
+      description: Only declares how the opportunity should be validated; it runs no simulation.
+      required:
+        - validation_goal
+        - required_scenario_types
+        - success_conditions
+        - failure_conditions
+        - required_data
+        - human_review_points
+      properties:
+        validation_goal: { type: string, minLength: 1, maxLength: 2000 }
+        required_scenario_types:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum: [normal, boundary, failure, adversarial]
+        success_conditions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        failure_conditions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        required_data:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        human_review_points:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+
+    EcosystemOpportunityCandidate:
+      type: object
+      additionalProperties: false
+      description: |
+        Full backend candidate. gate_status and gate_issues are backend-owned; the model output
+        schema must not contain them. AI Native semantic judgement is deferred to a later branch.
+      required:
+        - opportunity_id
+        - name
+        - scope_level
+        - target_user
+        - problem
+        - safety_goal
+        - ecosystem_blueprint
+        - ai_native_case
+        - competitor_gap_ids
+        - technical_hypotheses
+        - commercial_hypotheses
+        - validation_plan
+        - evidence_ids
+        - gate_status
+        - gate_issues
+      properties:
+        opportunity_id: { type: string, minLength: 1, maxLength: 80 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        scope_level:
+          type: string
+          enum: [device_feature, device_product, ecosystem_service]
+        target_user:
+          type: object
+          additionalProperties: false
+          required: [persona_ids, description]
+          properties:
+            persona_ids:
+              type: array
+              uniqueItems: true
+              items: { type: string }
+            description: { type: string, minLength: 1 }
+        problem:
+          type: object
+          additionalProperties: false
+          required: [pain_ids, description]
+          properties:
+            pain_ids:
+              type: array
+              uniqueItems: true
+              items: { type: string }
+            description: { type: string, minLength: 1 }
+        safety_goal: { type: string, minLength: 1, maxLength: 2000 }
+        ecosystem_blueprint:
+          $ref: "#/components/schemas/EcosystemBlueprint"
+        ai_native_case:
+          $ref: "#/components/schemas/AINativeCase"
+        competitor_gap_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        technical_hypotheses:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        commercial_hypotheses:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        validation_plan:
+          $ref: "#/components/schemas/EcosystemValidationPlan"
+        evidence_ids:
+          type: array
+          minItems: 2
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        gate_status:
+          type: string
+          enum: [passed, blocked]
+        gate_issues:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 1000 }
+
+    EcosystemOpportunityGap:
+      type: object
+      additionalProperties: false
+      required: [gap_id, question, reason, required_evidence_types, affected_opportunity_ids]
+      properties:
+        gap_id: { type: string, minLength: 1, maxLength: 80 }
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        required_evidence_types:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        affected_opportunity_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    EcosystemOpportunityCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - target_candidate_count
+        - maximum_candidate_count
+        - generated_candidate_count
+        - advancing_candidate_count
+        - ecosystem_service_count
+        - cited_user_evidence_count
+        - cited_competitor_evidence_count
+        - evidence_context_hash
+        - handoff_status
+      properties:
+        target_candidate_count: { type: integer, const: 3 }
+        maximum_candidate_count: { type: integer, const: 5 }
+        generated_candidate_count: { type: integer, minimum: 0, maximum: 5 }
+        advancing_candidate_count: { type: integer, minimum: 0, maximum: 5 }
+        ecosystem_service_count: { type: integer, minimum: 0, maximum: 5 }
+        cited_user_evidence_count: { type: integer, minimum: 0 }
+        cited_competitor_evidence_count: { type: integer, minimum: 0 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        handoff_status: { type: string, enum: [ready, ready_with_gaps, blocked] }
+
+    EcosystemOpportunityPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_name
+        - schema_version
+        - summary
+        - summary_evidence_ids
+        - opportunities
+        - portfolio_gaps
+        - coverage
+      properties:
+        schema_name: { type: string, const: ecosystem_opportunity_portfolio }
+        schema_version: { type: string, const: "1.0" }
+        summary: { type: string, minLength: 1, maxLength: 5000 }
+        summary_evidence_ids:
+          type: array
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        opportunities:
+          type: array
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/EcosystemOpportunityCandidate"
+        portfolio_gaps:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/EcosystemOpportunityGap"
+        coverage:
+          $ref: "#/components/schemas/EcosystemOpportunityCoverage"
+
+    EcosystemOpportunityArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - task_id
+        - artifact_type
+        - schema_version
+        - status
+        - payload
+        - evidence_ids
+        - contradictions
+        - unknowns
+        - quality_score
+        - errors
+      properties:
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        task_id: { type: string, minLength: 1, maxLength: 80 }
+        artifact_type: { type: string, const: ecosystem_opportunity }
+        schema_version: { type: string, const: "1.0" }
+        status:
+          type: string
+          enum: [completed, partial, blocked, needs_revision]
+        payload:
+          $ref: "#/components/schemas/EcosystemOpportunityPayload"
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
         contradictions:
           type: array
           items: { type: string }
@@ -4392,6 +5700,412 @@ components:
             $ref: "#/components/schemas/Evidence"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
+    DeviceCapabilityKind:
+      type: string
+      enum: [sensor, action, compute, storage, connectivity, context]
+
+    CapabilityAssertion:
+      type: string
+      enum: [supported, unsupported, unknown]
+
+    CapabilityAvailability:
+      type: string
+      enum: [available, unavailable, unknown]
+
+    DeviceDataScope:
+      type: string
+      enum: [device_local, homebase_local, cloud, hybrid, unknown]
+
+    OfflineSupport:
+      type: string
+      enum: [full, degraded, none, unknown]
+
+    DeviceCapabilityClaimInput:
+      type: object
+      additionalProperties: false
+      required:
+        - capability_key
+        - capability_name
+        - kind
+        - assertion
+        - availability
+        - confidence
+        - evidence_ids
+        - data_scope
+        - authorization_required
+        - offline_support
+      properties:
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        capability_name: { type: string, minLength: 1, maxLength: 160 }
+        kind:
+          $ref: "#/components/schemas/DeviceCapabilityKind"
+        assertion:
+          $ref: "#/components/schemas/CapabilityAssertion"
+        availability:
+          $ref: "#/components/schemas/CapabilityAvailability"
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        latency_ms_max: { type: [integer, "null"], minimum: 0, maximum: 3600000 }
+        data_scope:
+          $ref: "#/components/schemas/DeviceDataScope"
+        authorization_required: { type: boolean }
+        offline_support:
+          $ref: "#/components/schemas/OfflineSupport"
+        fallback: { type: [string, "null"], maxLength: 500 }
+
+    DeviceCapabilityClaim:
+      type: object
+      additionalProperties: false
+      required:
+        - capability_claim_id
+        - capability_key
+        - capability_name
+        - kind
+        - assertion
+        - availability
+        - confidence
+        - evidence_ids
+        - data_scope
+        - authorization_required
+        - offline_support
+      properties:
+        capability_claim_id: { type: string, pattern: "^cap_[A-Za-z0-9_-]+$" }
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        capability_name: { type: string, minLength: 1, maxLength: 160 }
+        kind:
+          $ref: "#/components/schemas/DeviceCapabilityKind"
+        assertion:
+          $ref: "#/components/schemas/CapabilityAssertion"
+        availability:
+          $ref: "#/components/schemas/CapabilityAvailability"
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        latency_ms_max: { type: [integer, "null"], minimum: 0, maximum: 3600000 }
+        data_scope:
+          $ref: "#/components/schemas/DeviceDataScope"
+        authorization_required: { type: boolean }
+        offline_support:
+          $ref: "#/components/schemas/OfflineSupport"
+        fallback: { type: [string, "null"], maxLength: 500 }
+
+    CatalogDeviceCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - manufacturer
+        - product_name
+        - model
+        - category
+        - lifecycle_status
+        - identity_evidence_ids
+        - capabilities
+      properties:
+        manufacturer: { type: string, minLength: 1, maxLength: 120 }
+        product_name: { type: string, minLength: 1, maxLength: 160 }
+        model: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1, maxLength: 120 }
+        lifecycle_status:
+          type: string
+          enum: [active, retired, unknown]
+        identity_evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityClaimInput"
+
+    CatalogDevice:
+      type: object
+      additionalProperties: false
+      required:
+        - catalog_device_id
+        - project_id
+        - manufacturer
+        - product_name
+        - model
+        - category
+        - lifecycle_status
+        - identity_evidence_ids
+        - capabilities
+        - created_at
+        - updated_at
+      properties:
+        catalog_device_id: { type: string, pattern: "^device_[A-Za-z0-9_-]+$" }
+        project_id: { type: string }
+        manufacturer: { type: string }
+        product_name: { type: string }
+        model: { type: string }
+        category: { type: string }
+        lifecycle_status:
+          type: string
+          enum: [active, retired, unknown]
+        identity_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityClaim"
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CatalogDevicePage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogDevice"
+        total: { type: integer, minimum: 0 }
+
+    HouseholdLocationInput:
+      type: object
+      additionalProperties: false
+      required: [location_id, label, location_type]
+      properties:
+        location_id: { type: string, pattern: "^[A-Za-z][A-Za-z0-9_-]{0,79}$" }
+        label: { type: string, minLength: 1, maxLength: 120 }
+        location_type:
+          type: string
+          enum: [entrance, exterior, interior, garage, yard, shared_area, other]
+
+    HouseholdDeviceInput:
+      type: object
+      additionalProperties: false
+      required:
+        - household_device_id
+        - display_name
+        - category
+        - location_id
+        - runtime_status
+        - authorization_status
+      properties:
+        household_device_id: { type: string, pattern: "^home_device_[A-Za-z0-9_-]+$" }
+        catalog_device_id: { type: [string, "null"], pattern: "^device_[A-Za-z0-9_-]+$" }
+        display_name: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1, maxLength: 120 }
+        model: { type: [string, "null"], maxLength: 120 }
+        location_id: { type: string, minLength: 1, maxLength: 80 }
+        runtime_status:
+          type: string
+          enum: [online, offline, unknown]
+        authorization_status:
+          type: string
+          enum: [authorized, denied, unknown]
+
+    HouseholdDeviceRelationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - relation_id
+        - source_household_device_id
+        - target_household_device_id
+        - relation_type
+        - verification_status
+        - evidence_ids
+      properties:
+        relation_id: { type: string, pattern: "^relation_[A-Za-z0-9_-]+$" }
+        source_household_device_id: { type: string }
+        target_household_device_id: { type: string }
+        relation_type:
+          type: string
+          enum: [connected_to, sends_events_to, controls, shares_context_with]
+        verification_status:
+          type: string
+          enum: [confirmed, user_declared, unknown]
+        evidence_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    HouseholdSnapshotCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+        - locations
+        - devices
+        - relations
+      properties:
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        locations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/HouseholdLocationInput"
+        devices:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceInput"
+        relations:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceRelationInput"
+
+    HouseholdSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - snapshot_id
+        - project_id
+        - version
+        - status
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+        - locations
+        - devices
+        - relations
+        - created_at
+      properties:
+        snapshot_id: { type: string, pattern: "^snapshot_[A-Za-z0-9_-]+$" }
+        project_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        status: { type: string, const: active }
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        locations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/HouseholdLocationInput"
+        devices:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceInput"
+        relations:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceRelationInput"
+        created_at: { type: string, format: date-time }
+
+    DeviceCapabilityRequirement:
+      type: object
+      additionalProperties: false
+      required: [capability_key]
+      properties:
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        location_id: { type: [string, "null"], maxLength: 80 }
+        kind:
+          oneOf:
+            - $ref: "#/components/schemas/DeviceCapabilityKind"
+            - type: "null"
+
+    DeviceCapabilityQuery:
+      type: object
+      additionalProperties: false
+      required: [requirements]
+      properties:
+        requirements:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityRequirement"
+
+    DeviceCapabilityMatch:
+      type: object
+      additionalProperties: false
+      required:
+        - household_device_id
+        - catalog_device_id
+        - display_name
+        - location_id
+        - capability_claim_ids
+        - evidence_ids
+      properties:
+        household_device_id: { type: string }
+        catalog_device_id: { type: string }
+        display_name: { type: string }
+        location_id: { type: string }
+        capability_claim_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    DeviceCapabilityRequirementResult:
+      type: object
+      additionalProperties: false
+      required: [requirement, status, matches, issues]
+      properties:
+        requirement:
+          $ref: "#/components/schemas/DeviceCapabilityRequirement"
+        status:
+          type: string
+          enum: [available, unavailable, unknown, conflict]
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityMatch"
+        issues:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    DeviceCapabilityQueryResult:
+      type: object
+      additionalProperties: false
+      required:
+        - project_id
+        - snapshot_id
+        - snapshot_version
+        - overall_status
+        - requirements
+        - cited_evidence_ids
+      properties:
+        project_id: { type: string }
+        snapshot_id: { type: string }
+        snapshot_version: { type: integer, minimum: 1 }
+        overall_status:
+          type: string
+          enum: [available, unavailable, unknown, conflict]
+        requirements:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityRequirementResult"
+        cited_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
 
     EvidenceRetrievalQuery:
       type: object

@@ -11,6 +11,7 @@ from app.infrastructure.database.source_requirement_repository import (
 )
 from app.main import create_app
 from app.sources.web_connector import WebFetchResult
+from tests.research_brief import home_safety_brief_payload
 
 
 class RequirementPageConnector:
@@ -46,13 +47,9 @@ def _create_project(client: TestClient) -> str:
     response = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "How should smart doorbell products evolve?",
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload(
+                "Which AI-native home-safety ecosystem capabilities should be validated?"
+            )
         },
     )
     assert response.status_code == 201

@@ -105,6 +105,12 @@ class ProjectModel(Base):
     a2a_tasks: Mapped[list["A2ATaskModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    catalog_devices: Mapped[list["DeviceCatalogModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    household_snapshots: Mapped[list["HouseholdSnapshotModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class AgentRunModel(Base):
@@ -153,6 +159,36 @@ class AgentRunModel(Base):
     model_calls: Mapped[list["ModelCallModel"]] = relationship(back_populates="agent_run")
 
 
+class BriefClarificationSessionModel(Base):
+    """Persisted pre-project clarification dialogue and deterministic draft state."""
+
+    __tablename__ = "brief_clarification_sessions"
+
+    session_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    messages_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    draft_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    missing_fields_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    validation_issues_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    questions_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_microusd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    model_calls: Mapped[list["ModelCallModel"]] = relationship(
+        back_populates="clarification_session", cascade="all, delete-orphan"
+    )
+
+
 class ModelCallModel(Base):
     """一次可审计的模型调用尝试，不保存原始 Prompt 或响应正文。"""
 
@@ -163,12 +199,17 @@ class ModelCallModel(Base):
     )
 
     model_call_id: Mapped[str] = mapped_column(String(40), primary_key=True)
-    project_id: Mapped[str] = mapped_column(
-        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=True, index=True
     )
-    agent_run_id: Mapped[str] = mapped_column(
+    agent_run_id: Mapped[str | None] = mapped_column(
         ForeignKey("agent_runs.agent_run_id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    clarification_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("brief_clarification_sessions.session_id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     trace_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
@@ -192,8 +233,11 @@ class ModelCallModel(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    project: Mapped[ProjectModel] = relationship(back_populates="model_calls")
-    agent_run: Mapped[AgentRunModel] = relationship(back_populates="model_calls")
+    project: Mapped[ProjectModel | None] = relationship(back_populates="model_calls")
+    agent_run: Mapped[AgentRunModel | None] = relationship(back_populates="model_calls")
+    clarification_session: Mapped[BriefClarificationSessionModel | None] = relationship(
+        back_populates="model_calls"
+    )
 
 
 class AgentArtifactModel(Base):
@@ -1236,3 +1280,198 @@ class InnovationModel(Base):
     )
 
     project: Mapped[ProjectModel] = relationship(back_populates="innovations")
+
+
+class DeviceCatalogModel(Base):
+    """项目内可追溯到 Evidence 的厂商通用设备能力记录。"""
+
+    __tablename__ = "device_catalog"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "manufacturer", "model", name="uq_device_catalog_project_model"
+        ),
+        Index("ix_device_catalog_project_category", "project_id", "category"),
+    )
+
+    catalog_device_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    manufacturer: Mapped[str] = mapped_column(String(120), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    category: Mapped[str] = mapped_column(String(120), nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    identity_evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="catalog_devices")
+    capability_claims: Mapped[list["DeviceCapabilityClaimModel"]] = relationship(
+        back_populates="catalog_device",
+        cascade="all, delete-orphan",
+        order_by="DeviceCapabilityClaimModel.capability_claim_id",
+    )
+    household_devices: Mapped[list["HouseholdDeviceModel"]] = relationship(
+        back_populates="catalog_device"
+    )
+
+
+class DeviceCapabilityClaimModel(Base):
+    """一个独立的能力断言；冲突断言并存而不是互相覆盖。"""
+
+    __tablename__ = "device_capability_claims"
+    __table_args__ = (
+        Index(
+            "ix_device_capability_project_key",
+            "project_id",
+            "capability_key",
+        ),
+        Index(
+            "ix_device_capability_catalog_key",
+            "catalog_device_id",
+            "capability_key",
+        ),
+    )
+
+    capability_claim_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    catalog_device_id: Mapped[str] = mapped_column(
+        ForeignKey("device_catalog.catalog_device_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    capability_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    capability_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    assertion: Mapped[str] = mapped_column(String(20), nullable=False)
+    availability: Mapped[str] = mapped_column(String(20), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    latency_ms_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    data_scope: Mapped[str] = mapped_column(String(30), nullable=False)
+    authorization_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    offline_support: Mapped[str] = mapped_column(String(20), nullable=False)
+    fallback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    catalog_device: Mapped[DeviceCatalogModel] = relationship(
+        back_populates="capability_claims"
+    )
+
+
+class HouseholdSnapshotModel(Base):
+    """用户授权保存的家庭设备清单版本；不保存原始家庭媒体。"""
+
+    __tablename__ = "household_device_snapshots"
+    __table_args__ = (
+        UniqueConstraint("project_id", "version", name="uq_household_snapshot_version"),
+        Index("ix_household_snapshot_project_status", "project_id", "status"),
+    )
+
+    snapshot_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    authorization_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    authorized_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    locations_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="household_snapshots")
+    devices: Mapped[list["HouseholdDeviceModel"]] = relationship(
+        back_populates="snapshot",
+        cascade="all, delete-orphan",
+        order_by="HouseholdDeviceModel.household_device_id",
+    )
+    relations: Mapped[list["HouseholdDeviceRelationModel"]] = relationship(
+        back_populates="snapshot",
+        cascade="all, delete-orphan",
+        order_by="HouseholdDeviceRelationModel.relation_id",
+    )
+
+
+class HouseholdDeviceModel(Base):
+    """家庭快照中的一个设备实例；不收集序列号和精确地址。"""
+
+    __tablename__ = "household_devices"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id", "household_device_id", name="uq_household_snapshot_device"
+        ),
+        Index("ix_household_device_project_location", "project_id", "location_id"),
+    )
+
+    household_device_record_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    household_device_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("household_device_snapshots.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    catalog_device_id: Mapped[str | None] = mapped_column(
+        ForeignKey("device_catalog.catalog_device_id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    category: Mapped[str] = mapped_column(String(120), nullable=False)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    location_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    runtime_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    authorization_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    snapshot: Mapped[HouseholdSnapshotModel] = relationship(back_populates="devices")
+    catalog_device: Mapped[DeviceCatalogModel | None] = relationship(
+        back_populates="household_devices", lazy="selectin"
+    )
+
+
+class HouseholdDeviceRelationModel(Base):
+    """家庭快照中的跨设备连接、事件或控制关系。"""
+
+    __tablename__ = "household_device_relations"
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "relation_id", name="uq_household_relation"),
+        Index("ix_household_relation_project_type", "project_id", "relation_type"),
+    )
+
+    relation_record_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    relation_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("household_device_snapshots.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_household_device_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_household_device_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    relation_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    snapshot: Mapped[HouseholdSnapshotModel] = relationship(back_populates="relations")

@@ -59,6 +59,16 @@ class ModelGateway:
     async def generate(self, request: ModelRequest) -> ModelResult:
         if request.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        project_scoped = bool(request.project_id and request.agent_run_id)
+        clarification_scoped = bool(request.clarification_session_id)
+        if project_scoped == clarification_scoped:
+            raise ValueError(
+                "model request must target either an agent run or a clarification session"
+            )
+        if clarification_scoped and (
+            request.project_id is not None or request.agent_run_id is not None
+        ):
+            raise ValueError("clarification model request cannot target a project or agent run")
         try:
             definition = self.catalog.require_enabled(request.model_id)
         except ModelCatalogError as exc:
@@ -231,6 +241,7 @@ class ModelGateway:
             model_call_id=f"model_call_{uuid4().hex[:16]}",
             project_id=request.project_id,
             agent_run_id=request.agent_run_id,
+            clarification_session_id=request.clarification_session_id,
             trace_id=request.trace_id,
             provider=provider,
             model_id=request.model_id,
@@ -243,7 +254,12 @@ class ModelGateway:
         )
         async with self.database.session() as session:
             repository = ModelCallRepository(session)
-            await repository.require_run(request.agent_run_id)
+            if request.agent_run_id is not None:
+                await repository.require_run(request.agent_run_id)
+            elif request.clarification_session_id is not None:
+                await repository.require_clarification_session(
+                    request.clarification_session_id
+                )
             await repository.add(model)
             await repository.commit()
         return model
@@ -251,7 +267,7 @@ class ModelGateway:
     async def _complete_call(
         self,
         model_call_id: str,
-        agent_run_id: str,
+        agent_run_id: str | None,
         request: ModelRequest,
         result: ProviderModelResult,
         cost: int,
@@ -262,7 +278,6 @@ class ModelGateway:
             model = await repository.get(model_call_id)
             if model is None:
                 raise RuntimeError("model call audit row is missing")
-            run = await repository.require_run(agent_run_id)
             model.status = "completed"
             model.input_tokens = result.usage.input_tokens
             model.output_tokens = result.usage.output_tokens
@@ -270,13 +285,22 @@ class ModelGateway:
             model.latency_ms = latency_ms
             model.provider_request_id = result.provider_request_id
             model.completed_at = datetime.now(UTC)
-            run.model_id = model.model_id
-            run.model_provider = model.provider
-            run.prompt_key = request.prompt_key
-            run.prompt_version = request.prompt_version
-            run.input_tokens += result.usage.input_tokens
-            run.output_tokens += result.usage.output_tokens
-            run.estimated_cost_microusd += cost
+            if agent_run_id is not None:
+                run = await repository.require_run(agent_run_id)
+                run.model_id = model.model_id
+                run.model_provider = model.provider
+                run.prompt_key = request.prompt_key
+                run.prompt_version = request.prompt_version
+                run.input_tokens += result.usage.input_tokens
+                run.output_tokens += result.usage.output_tokens
+                run.estimated_cost_microusd += cost
+            elif request.clarification_session_id is not None:
+                clarification = await repository.require_clarification_session(
+                    request.clarification_session_id
+                )
+                clarification.input_tokens += result.usage.input_tokens
+                clarification.output_tokens += result.usage.output_tokens
+                clarification.estimated_cost_microusd += cost
             await repository.commit()
 
     async def _fail_call(

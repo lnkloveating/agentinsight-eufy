@@ -14,6 +14,7 @@ from app.infrastructure.database.model_call_repository import ModelCallRepositor
 from app.infrastructure.database.repositories import ProjectRepository
 from app.main import create_app
 from app.sources.web_connector import WebFetchResult
+from tests.research_brief import home_safety_brief_payload
 
 
 class RoutingPageConnector:
@@ -116,13 +117,9 @@ def _project(client: TestClient) -> str:
     response = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "Which future opportunities exist in home security?",
-                "category": "home security",
-                "target_user": "North American households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            },
+            "brief": home_safety_brief_payload(
+                "Which AI-native ecosystem opportunities exist in home safety?"
+            ),
             "model_selection": {"default_model_id": "test:routing-model"},
         },
     )

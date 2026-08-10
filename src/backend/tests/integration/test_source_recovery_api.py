@@ -7,6 +7,7 @@ from app.core.config import Settings
 from app.infrastructure.database.models import EvidenceModel, SourceAssetModel
 from app.infrastructure.database.repositories import ProjectRepository
 from app.main import create_app
+from tests.research_brief import home_safety_brief_payload
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -25,13 +26,7 @@ def _project_and_failed_source(client: TestClient) -> tuple[str, str]:
     project = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "How should eufy smart doorbells evolve?",
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload('How should eufy smart doorbells evolve?')
         },
     )
     assert project.status_code == 201
@@ -236,13 +231,9 @@ def test_generic_agent_gap_can_recover_without_competitor_source_requirements(
         project = client.post(
             "/api/v1/projects",
             json={
-                "brief": {
-                    "question": "What future home security opportunity should eufy pursue?",
-                    "category": "home security",
-                    "target_user": "US households",
-                    "region": "US",
-                    "scenarios": ["front door"],
-                }
+                "brief": home_safety_brief_payload(
+                    "Which AI-native home-safety ecosystem opportunity should eufy validate?"
+                )
             },
         )
         project_id = project.json()["project_id"]

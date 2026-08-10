@@ -22,6 +22,7 @@ from app.sources.search_discovery import (
     SearchDiscoveryRegistry,
 )
 from app.sources.web_connector import WebFetchResult
+from tests.research_brief import home_safety_brief_payload
 
 
 @dataclass
@@ -98,13 +99,9 @@ def _project(client: TestClient) -> str:
     created = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "What should eufy build next for package security?",
-                "category": "smart doorbell",
-                "target_user": "US households",
-                "region": "US",
-                "scenarios": ["front door package"],
-            }
+            "brief": home_safety_brief_payload(
+                "Which ecosystem capabilities should eufy validate for package security?"
+            )
         },
     )
     assert created.status_code == 201

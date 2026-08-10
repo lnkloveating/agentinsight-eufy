@@ -7,14 +7,20 @@ from typing import Annotated, cast
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.competitor.ecosystem_context import (
+    CompetitorEcosystemEvidenceContextBuilder,
+)
+from app.agents.ecosystem_opportunity import EcosystemOpportunityContextBuilder
 from app.agents.product_technical import ProductTechnicalEvidenceContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
+from app.application.brief_clarification import BriefClarificationService
 from app.application.competitor_discovery import CompetitorDiscoveryService
 from app.application.competitor_material_discovery import CompetitorMaterialDiscoveryService
 from app.application.competitor_source_onboarding import (
     CompetitorSourceOnboardingService,
     CompetitorSourceProcessingDispatcher,
 )
+from app.application.device_capabilities import DeviceCapabilityService
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import (
     EvidenceService,
@@ -32,7 +38,12 @@ from app.application.model_gateway import (
 )
 from app.application.model_gateway.selection import ProjectModelSelectionResolver
 from app.application.projects import ProjectService
-from app.application.research import ProductTechnicalService, UserResearchService
+from app.application.research import (
+    CompetitorEcosystemAnalysisService,
+    EcosystemOpportunityService,
+    ProductTechnicalService,
+    UserResearchService,
+)
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
 from app.application.source_discovery import SearchDiscoveryService
 from app.application.source_recovery import SourceRecoveryService
@@ -41,6 +52,9 @@ from app.application.source_routing import SourceRoutingService
 from app.application.sources import SourceAssetService, SourceProcessingService
 from app.core.config import Settings
 from app.infrastructure.database import Database
+from app.infrastructure.database.device_capability_repository import (
+    DeviceCapabilityRepository,
+)
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.innovation_repository import InnovationRepository
 from app.infrastructure.database.repositories import ProjectRepository
@@ -76,6 +90,25 @@ def get_project_service(request: Request, session: SessionDependency) -> Project
 
 
 ProjectServiceDependency = Annotated[ProjectService, Depends(get_project_service)]
+
+
+def get_brief_clarification_service(
+    request: Request, session: SessionDependency
+) -> BriefClarificationService:
+    settings: Settings = request.app.state.settings
+    return BriefClarificationService(
+        session,
+        cast(ModelGateway, request.app.state.model_gateway),
+        cast(PromptRegistry, request.app.state.prompt_registry),
+        cast(ModelCatalog, request.app.state.model_catalog),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+        model_timeout_seconds=settings.brief_clarifier_model_timeout_seconds,
+    )
+
+
+BriefClarificationServiceDependency = Annotated[
+    BriefClarificationService, Depends(get_brief_clarification_service)
+]
 
 
 def get_event_service(request: Request) -> EventService:
@@ -431,6 +464,32 @@ def get_user_research_service(request: Request) -> UserResearchService:
 UserResearchServiceDependency = Annotated[UserResearchService, Depends(get_user_research_service)]
 
 
+def get_competitor_ecosystem_service(
+    request: Request,
+) -> CompetitorEcosystemAnalysisService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+    context_builder = CompetitorEcosystemEvidenceContextBuilder(
+        database,
+        max_items=settings.competitor_ecosystem_max_evidence_items,
+        max_excerpt_chars=settings.competitor_ecosystem_max_excerpt_chars,
+        max_total_chars=settings.competitor_ecosystem_max_total_evidence_chars,
+    )
+    return CompetitorEcosystemAnalysisService(database, runtime, context_builder)
+
+
+CompetitorEcosystemServiceDependency = Annotated[
+    CompetitorEcosystemAnalysisService, Depends(get_competitor_ecosystem_service)
+]
+
+
 def get_product_technical_service(request: Request) -> ProductTechnicalService:
     settings: Settings = request.app.state.settings
     database: Database = request.app.state.database
@@ -452,4 +511,44 @@ def get_product_technical_service(request: Request) -> ProductTechnicalService:
 
 ProductTechnicalServiceDependency = Annotated[
     ProductTechnicalService, Depends(get_product_technical_service)
+]
+
+
+def get_ecosystem_opportunity_service(request: Request) -> EcosystemOpportunityService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+    context_builder = EcosystemOpportunityContextBuilder(
+        database,
+        max_items=settings.ecosystem_opportunity_max_evidence_items,
+        max_excerpt_chars=settings.ecosystem_opportunity_max_excerpt_chars,
+        max_total_chars=settings.ecosystem_opportunity_max_total_evidence_chars,
+    )
+    return EcosystemOpportunityService(database, runtime, context_builder)
+
+
+EcosystemOpportunityServiceDependency = Annotated[
+    EcosystemOpportunityService, Depends(get_ecosystem_opportunity_service)
+]
+
+
+def get_device_capability_service(
+    request: Request, session: SessionDependency
+) -> DeviceCapabilityService:
+    return DeviceCapabilityService(
+        DeviceCapabilityRepository(session),
+        ProjectRepository(session),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+
+
+DeviceCapabilityServiceDependency = Annotated[
+    DeviceCapabilityService, Depends(get_device_capability_service)
 ]

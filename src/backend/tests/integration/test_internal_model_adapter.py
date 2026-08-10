@@ -34,6 +34,7 @@ from app.workflows.contracts import (
     ResearchAgentType,
     ResearchTask,
 )
+from tests.research_brief import home_safety_brief
 
 
 class ArtifactProvider:
@@ -88,12 +89,7 @@ def _catalog() -> ModelCatalog:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="Which event needs research?",
-        category="home security",
-        target_user="home users",
-        region="US",
-    )
+    return home_safety_brief()
 
 
 async def _database(tmp_path: Path) -> Database:
