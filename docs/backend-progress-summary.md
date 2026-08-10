@@ -1,6 +1,6 @@
 # 后端进度与前端适配说明
 
-> 更新时间：2026-08-10
+> 更新时间：2026-08-11
 >
 > 基线分支：`main`；设备能力图开发状态见 `docs/CODEX_HANDOFF.md`
 >
@@ -25,13 +25,14 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料链路、用户研究、竞品 A2A、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约、设备能力图和 AI 原生家庭安防 Research Brief 已经完成；Product Technical v1 仅处于主图迁移兼容期。真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
+> 项目生命周期、统一资料链路、用户研究、竞品 A2A、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约、设备能力图、AI 原生 Research Brief 及其多轮追问已经完成；Product Technical v1 仅处于主图迁移兼容期。竞品生态层综合、真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
 
 ### 2.1 已完成并合并到 `main`
 
 | 模块 | 当前能力 | 对前端的意义 |
 |---|---|---|
 | 项目生命周期 | 创建/查询项目、AI 原生家庭安防生态 Brief 人工审批、状态迁移、持久化事件；旧单品 Brief 被 422 拒绝 | 可以实现项目列表、生态 Brief 确认页和审批面板 |
+| Research Brief 追问 v2 | 项目创建前调用用户选择的模型逐轮追问，持久化部分草稿、缺失字段、问题、版本和 Token/成本；确定性校验通过后才返回完整 Brief | 可以实现 Deep Research 模糊输入、聊天式追问、草稿预览和最终确认；不能跳过确认直接研究 |
 | SSE 事件 | 历史事件回放、实时事件、断线续传游标、心跳 | 可以实现实时研究时间线和连接状态 |
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
 | 共享 Evidence 检索 | 所有现有领域 Agent 共用项目隔离、状态门禁、元数据/词法相关度、来源多样性、字符预算与 Context Hash；产品技术保留精确 Evidence ID 顺序 | 可以实现“Agent 使用了哪些资料”的证据抽屉；当前是可解释词法检索，不应标成向量语义 RAG |
@@ -88,10 +89,12 @@ http://localhost:8000/api/v1
 21. 生态机会契约已经定义新的跨设备候选结构；Product Technical v1 只处于主图迁移兼容期，当前尚未注册真实生态机会 Prompt/Adapter。
 22. Device Capability Graph 能够把厂商通用能力与家庭实例分开，拒绝不合格或跨项目 Evidence，保留冲突，并确定性回答方案能力覆盖。
 23. 新 Research Brief 已删除单品式字段，强制表达生态、安全目标、信号授权、隐私/干预边界和验证期望；全部项目创建测试已迁移。
+24. Research Brief Clarifier v2 已能通过 Model Gateway 动态追问；模型字段必须引用用户消息，完整性由后端检查，完成后仍进入现有 Brief Gate。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
+- 竞品生态发现与生态层综合；
 - 真实 Ecosystem Opportunity、Technical Feasibility、Security Policy、商业 v2 和红队 Prompt；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 最终报告、Package Risk Demo 和飞书集成。
@@ -105,6 +108,9 @@ http://localhost:8000/api/v1
 | `GET` | `/health` | 可用 | 服务健康状态 |
 | `GET` | `/models` | 可用 | 模型选择器；返回安全模型目录和凭据可用状态 |
 | `GET` | `/runtimes` | 可用 | 外部 Agent 选择器；返回 CLI、凭据、版本和已验证能力状态，不返回本机路径与密钥信息 |
+| `POST` | `/research-brief-clarifications` | 可用 | 提交模糊研究目标和可选模型，开始项目外多轮追问 |
+| `GET` | `/research-brief-clarifications/{session_id}` | 可用 | 恢复对话、部分 Brief、缺失字段、问题和模型用量 |
+| `POST` | `/research-brief-clarifications/{session_id}/messages` | 可用 | 提交带版本的用户回答；只有完整校验通过才返回可确认 Brief |
 | `GET` | `/projects` | 可用 | 项目列表 |
 | `POST` | `/projects` | 可用 | 创建项目，提交 Brief 和可选模型策略 |
 | `GET` | `/projects/{project_id}` | 可用 | 项目详情、进度和待审批信息 |
@@ -160,7 +166,6 @@ http://localhost:8000/api/v1
 
 以下目标能力尚无当前 `/api/v1` 生产接口：
 
-- AI 连续追问和自动生成 Research Brief；
 - Package Risk Demo Result；
 - 最终报告和方法对照指标；
 - 飞书 Aily Skills、审批卡片和文档沉淀；

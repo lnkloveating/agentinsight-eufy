@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.product_technical import ProductTechnicalEvidenceContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
+from app.application.brief_clarification import BriefClarificationService
 from app.application.competitor_discovery import CompetitorDiscoveryService
 from app.application.competitor_material_discovery import CompetitorMaterialDiscoveryService
 from app.application.competitor_source_onboarding import (
@@ -78,6 +79,25 @@ def get_project_service(request: Request, session: SessionDependency) -> Project
 
 
 ProjectServiceDependency = Annotated[ProjectService, Depends(get_project_service)]
+
+
+def get_brief_clarification_service(
+    request: Request, session: SessionDependency
+) -> BriefClarificationService:
+    settings: Settings = request.app.state.settings
+    return BriefClarificationService(
+        session,
+        cast(ModelGateway, request.app.state.model_gateway),
+        cast(PromptRegistry, request.app.state.prompt_registry),
+        cast(ModelCatalog, request.app.state.model_catalog),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+        model_timeout_seconds=settings.brief_clarifier_model_timeout_seconds,
+    )
+
+
+BriefClarificationServiceDependency = Annotated[
+    BriefClarificationService, Depends(get_brief_clarification_service)
+]
 
 
 def get_event_service(request: Request) -> EventService:

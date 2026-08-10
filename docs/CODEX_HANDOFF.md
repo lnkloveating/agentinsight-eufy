@@ -180,7 +180,8 @@ git diff --check：通过
 ```
 
 迁移测试遗留目录 `src/backend/device-capability-migration-1onkisii` 已清理，功能分支工作区在合并前保持干净。
-下一位开发者不需要重新实现设备能力图，应从 `agent/ecosystem-opportunity` 开始。
+下一位开发者不需要重新实现设备能力图或 Research Brief 追问，应从
+`agent/competitor-ecosystem-analysis` 开始。
 
 ### 3.3 旧商业草稿
 
@@ -416,7 +417,48 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 ## 6. 后续后端分支顺序
 
-### 下一分支：`agent/ecosystem-opportunity`
+### 已完成：`agent/research-brief-clarifier-v2`
+
+该分支已经把首页模糊输入和正式项目创建拆开：
+
+- 新增项目外持久化追问会话，不伪造不完整 Project；
+- 使用 Model Gateway、版本化 Prompt、结构化输出、重试及 Token/成本审计；
+- 模型生成动态问题和最小字段补丁，后端计算缺失字段并执行完整 `ResearchBrief` 校验；
+- 未经用户消息 ID 支持的模型字段不会写入草稿；
+- 隐私、家庭事件和干预授权没有明确回答时保持缺失；
+- 只有零缺失且完整 Schema 校验通过才返回 `ready_for_confirmation`；
+- 前端确认 `completed_brief` 后再调用现有 `POST /projects`，Brief Gate 仍然保留；
+- 新增会话读取、回答、并发版本冲突、模型审计和数据库迁移测试。
+
+接口和前端接法见 `docs/research-brief-clarifier-v2.md`。
+
+### 下一分支：`agent/competitor-ecosystem-analysis`
+
+目标：保留现有官方产品、价格渠道和用户评价三个事实专家，在其上增加生态发现和生态层综合，
+把竞品单位从“某一款门铃”提升为 Ring、Google Nest、Arlo、eufy 等家庭安防生态。
+
+必须完成：
+
+- 定义竞品生态 Artifact、生态能力矩阵和 Evidence 审计规则；
+- 新增生态发现 Agent，识别需要比较的生态和事实资料缺口；
+- 复用现有三个 A2A 专家作为具体设备、价格、订阅、评价和限制的 Evidence 来源；
+- 新增生态综合 Agent，分析跨设备协作、持续状态、跨时间理解、主动补证、不确定性处理、
+  本地/云分工、隐私授权、离线降级、照护者流程、失败修订和商业模式；
+- “未找到资料”保持 unknown/gap，不得写成“竞品没有该能力”；
+- 输出进入 `ResearchHandoff`，供后续 `agent/ecosystem-opportunity` 消费；
+- 不在本分支生成未来方案或商业可行性结论。
+
+验收示例：
+
+```text
+同一组具体产品 Evidence
+→ 三个事实专家提取设备/价格/评价
+→ 生态综合按 Ring、Nest、Arlo、eufy 形成能力矩阵
+→ 每个事实能下钻到 Evidence ID
+→ 缺少跨设备资料时显示 unknown 和补研要求
+```
+
+### 再下一分支：`agent/ecosystem-opportunity`
 
 目标：把用户研究、竞品综合、共享 Evidence 和设备能力图转换成多个生态级候选。
 
@@ -446,16 +488,17 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 ### 后续顺序
 
 ```text
-1. agent/ecosystem-opportunity
-2. workflow/ai-native-ecosystem-gate
-3. agent/technical-feasibility
-4. agent/security-policy-compiler
-5. workflow/security-policy-verification
-6. agent/commercial-evaluation-v2
-7. agent/redteam-policy-revision
-8. demo/package-goal-to-guard
-9. integration/feishu-aily
-10. backend/e2e-ecosystem-hardening
+1. agent/competitor-ecosystem-analysis
+2. agent/ecosystem-opportunity
+3. workflow/ai-native-ecosystem-gate
+4. agent/technical-feasibility
+5. agent/security-policy-compiler
+6. workflow/security-policy-verification
+7. agent/commercial-evaluation-v2
+8. agent/redteam-policy-revision
+9. demo/package-goal-to-guard
+10. integration/feishu-aily
+11. backend/e2e-ecosystem-hardening
 ```
 
 `integration/eufy-device-api` 是可选等待分支：只有企业明确提供授权流、设备列表、事件、动作、HomeBase 能力、隐私
@@ -532,7 +575,7 @@ git diff --stat
 已推送 main
 ```
 
-GitHub Actions 通过后再开始 `agent/ecosystem-opportunity`。
+GitHub Actions 通过后再开始 `agent/competitor-ecosystem-analysis`。
 
 ## 9. 密钥和本地环境
 

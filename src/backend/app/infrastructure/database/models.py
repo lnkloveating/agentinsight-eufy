@@ -159,6 +159,36 @@ class AgentRunModel(Base):
     model_calls: Mapped[list["ModelCallModel"]] = relationship(back_populates="agent_run")
 
 
+class BriefClarificationSessionModel(Base):
+    """Persisted pre-project clarification dialogue and deterministic draft state."""
+
+    __tablename__ = "brief_clarification_sessions"
+
+    session_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    messages_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    draft_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    missing_fields_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    validation_issues_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    questions_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_microusd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    model_calls: Mapped[list["ModelCallModel"]] = relationship(
+        back_populates="clarification_session", cascade="all, delete-orphan"
+    )
+
+
 class ModelCallModel(Base):
     """一次可审计的模型调用尝试，不保存原始 Prompt 或响应正文。"""
 
@@ -169,12 +199,17 @@ class ModelCallModel(Base):
     )
 
     model_call_id: Mapped[str] = mapped_column(String(40), primary_key=True)
-    project_id: Mapped[str] = mapped_column(
-        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=True, index=True
     )
-    agent_run_id: Mapped[str] = mapped_column(
+    agent_run_id: Mapped[str | None] = mapped_column(
         ForeignKey("agent_runs.agent_run_id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    clarification_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("brief_clarification_sessions.session_id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     trace_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
@@ -198,8 +233,11 @@ class ModelCallModel(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    project: Mapped[ProjectModel] = relationship(back_populates="model_calls")
-    agent_run: Mapped[AgentRunModel] = relationship(back_populates="model_calls")
+    project: Mapped[ProjectModel | None] = relationship(back_populates="model_calls")
+    agent_run: Mapped[AgentRunModel | None] = relationship(back_populates="model_calls")
+    clarification_session: Mapped[BriefClarificationSessionModel | None] = relationship(
+        back_populates="model_calls"
+    )
 
 
 class AgentArtifactModel(Base):

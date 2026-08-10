@@ -26,6 +26,7 @@ from app.agents.product_technical import (
 from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
+from app.application.brief_clarification import register_brief_clarifier_prompt
 from app.application.events import ProjectEventBroker
 from app.application.model_gateway import (
     EnvironmentCredentialResolver,
@@ -81,6 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             OpenAICompatibleProvider(provider_config.provider_id, provider_config.base_url)
         )
     prompt_registry = PromptRegistry()
+    register_brief_clarifier_prompt(prompt_registry)
     register_user_research_prompt(prompt_registry)
     register_product_technical_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)

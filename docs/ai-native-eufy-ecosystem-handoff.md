@@ -593,7 +593,50 @@ class SolutionScope(StrEnum):
 → 缺能力时返回 unknown/unavailable，而不是模型猜测
 ```
 
-### 分支 3：`agent/ecosystem-opportunity`
+### 分支 3：`agent/research-brief-clarifier-v2`
+
+目标：把模糊输入逐轮澄清为严格的 AI 原生家庭安防生态 Research Brief。
+
+任务：
+
+- 在正式项目创建前保存独立追问会话；
+- 使用 Model Gateway 和版本化 Prompt 动态生成问题；
+- 模型只提取有用户消息血缘的字段，后端检查缺失项和完整 Schema；
+- 不默认原始媒体、家庭事件、外部共享或高影响动作授权；
+- 完成后交给用户确认，再调用现有项目创建和 Brief Gate。
+
+验收：
+
+```text
+输入“研究 eufy 未来老人安防产品”
+→ 不直接生成方案或项目
+→ 动态追问生态范围、风险、信号、隐私、干预和交付物
+→ 所有字段校验通过后返回 completed_brief
+```
+
+### 分支 4：`agent/competitor-ecosystem-analysis`
+
+目标：在现有三个竞品事实专家之上增加生态发现和生态综合。
+
+任务：
+
+- 比较 Ring、Google Nest、Arlo、eufy 等生态，而不是只比较单款门铃；
+- 保留官方产品、价格渠道、用户评价专家作为事实和 Evidence 来源；
+- 分析跨设备协作、持续状态、跨时间理解、主动补证、不确定性、干预阶梯、
+  本地/云分工、隐私授权、离线降级、照护者流程、失败修订和商业模式；
+- 所有事实引用 Evidence ID，未发现保持 unknown/gap；
+- 把生态能力矩阵和缺口写回 ResearchHandoff。
+
+验收：
+
+```text
+具体设备资料进入三个事实专家
+→ 生态综合形成可下钻 Evidence 的能力矩阵
+→ 资料不足不写成“竞品没有”
+→ 生态缺口进入机会 Agent 上游
+```
+
+### 分支 5：`agent/ecosystem-opportunity`
 
 目标：把用户研究、竞品研究和能力证据转换成多个生态级机会。
 
@@ -621,7 +664,7 @@ class SolutionScope(StrEnum):
 → 不使用固定门铃模板凑数
 ```
 
-### 分支 4：`workflow/ai-native-ecosystem-gate`
+### 分支 6：`workflow/ai-native-ecosystem-gate`
 
 目标：阻止普通功能包装成“AI 原生生态方案”。
 
@@ -645,7 +688,7 @@ class SolutionScope(StrEnum):
 → 通过候选具有明确 AI 必要性和跨设备闭环
 ```
 
-### 分支 5：`agent/technical-feasibility`
+### 分支 7：`agent/technical-feasibility`
 
 目标：回答“现有 eufy 能力是否足以支撑该生态方案和首个 Demo”。
 
@@ -671,7 +714,7 @@ class SolutionScope(StrEnum):
 → 不因模型乐观描述直接判定可上线
 ```
 
-### 分支 6：`agent/security-policy-compiler`
+### 分支 8：`agent/security-policy-compiler`
 
 目标：把用户安全目标生成受限、可审计的跨设备策略草案。
 
@@ -696,7 +739,7 @@ class SolutionScope(StrEnum):
 → 策略可以展示、审计和版本对比
 ```
 
-### 分支 7：`workflow/security-policy-verification`
+### 分支 9：`workflow/security-policy-verification`
 
 目标：上线前动态生成并执行验证矩阵。
 
@@ -723,7 +766,7 @@ class SolutionScope(StrEnum):
 → 失败后修改策略并生成新版本差异
 ```
 
-### 分支 8：`agent/commercial-evaluation-v2`
+### 分支 10：`agent/commercial-evaluation-v2`
 
 目标：在技术和验证边界明确后判断是否值得继续上架验证。
 
@@ -754,7 +797,7 @@ do_not_recommend
 
 当前 `agent/commercial-evaluation` 分支的草稿只能作为参考，API 和输入必须按 v2 重做。
 
-### 分支 9：`agent/redteam-policy-revision`
+### 分支 11：`agent/redteam-policy-revision`
 
 目标：同时支持系统红队和用户质疑，并形成定向返工。
 
@@ -779,7 +822,7 @@ do_not_recommend
 → 展示前后差异
 ```
 
-### 分支 10：`demo/package-goal-to-guard`
+### 分支 12：`demo/package-goal-to-guard`
 
 目标：以包裹保护证明完整生态闭环，而不是只演示风险分类。
 
@@ -798,7 +841,7 @@ Demo 至少展示：
 
 当前阶段默认 dry-run，不得声称已经控制真实 eufy 设备。未来获得企业设备 API 后，再增加真实 Deployment Adapter。
 
-### 分支 11：`integration/eufy-device-api`
+### 分支 13：`integration/eufy-device-api`
 
 该分支必须等待企业明确提供接口和授权后再做。
 
@@ -817,7 +860,7 @@ Demo 至少展示：
 
 没有接口时必须使用 Capability Graph + dry-run，不得用 Mock 冒充真实联调成功。
 
-### 分支 12：`backend/e2e-ecosystem-hardening`
+### 分支 14：`backend/e2e-ecosystem-hardening`
 
 目标：完成生产主路径、最终报告、Trace、恢复和发布验收。
 
