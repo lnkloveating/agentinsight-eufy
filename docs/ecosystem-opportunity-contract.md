@@ -1,5 +1,9 @@
 # 生态机会契约（Ecosystem Opportunity Contract）
 
+> 历史说明：本文记录 `domain/ecosystem-opportunity-contract` 当时仅定义公共契约的边界。
+> 真实 Agent、Model Adapter、Device Capability Graph 投影和 `/api/v1` Route 现已由
+> `agent/ecosystem-opportunity` 完成；当前接入方式以 `docs/ecosystem-opportunity-agent.md` 为准。
+
 > 分支：`domain/ecosystem-opportunity-contract`
 >
 > 基线：`main`（合并交接文档后的最新提交）
