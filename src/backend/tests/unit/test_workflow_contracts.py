@@ -16,7 +16,7 @@ from app.workflows.contracts import (
 )
 from app.workflows.gates import build_gate_request, validate_stage_decision
 from app.workflows.graph import create_initial_state
-from app.workflows.planning import parse_task_plan
+from app.workflows.planning import PLANNED_AGENT_TYPES, parse_task_plan
 from app.workflows.runtime import AgentRuntimeNotBoundError, UnboundAgentRuntime
 from tests.integration.workflow_runtime import TestAgentRuntime
 
@@ -62,9 +62,8 @@ async def test_manager_plan_requires_all_roles_and_dependencies() -> None:
     )
 
     tasks = parse_task_plan(artifact, "proj_test")
-    assert {item.agent_type for item in tasks} == set(ResearchAgentType) - {
-        ResearchAgentType.RESEARCH_MANAGER
-    }
+    # 主路径计划覆盖 PLANNED_AGENT_TYPES；ECOSYSTEM_OPPORTUNITY 等新增枚举暂不进入主图。
+    assert {item.agent_type for item in tasks} == set(PLANNED_AGENT_TYPES)
 
     invalid_payload = deepcopy(artifact.model_dump(mode="json"))
     invalid_payload["payload"]["tasks"] = invalid_payload["payload"]["tasks"][:-1]

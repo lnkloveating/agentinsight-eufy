@@ -17,6 +17,7 @@ from app.workflows import (
     create_initial_state,
 )
 from app.workflows.contracts import GateRequest, WorkflowNodeError
+from app.workflows.planning import PLANNED_AGENT_TYPES
 
 from .workflow_runtime import TestAgentRuntime
 
@@ -114,7 +115,7 @@ async def test_complete_graph_pauses_at_three_gates_and_runs_all_agents() -> Non
 
     assert result["outcome"] == WorkflowOutcome.COMPLETED
     assert result["terminal_reason"] == "final_approved"
-    assert set(runtime.call_counts) == set(ResearchAgentType)
+    assert set(runtime.call_counts) == {ResearchAgentType.RESEARCH_MANAGER, *PLANNED_AGENT_TYPES}
     assert len(result["decision_history"]) == 3
 
 

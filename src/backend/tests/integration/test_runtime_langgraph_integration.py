@@ -27,6 +27,7 @@ from app.workflows import (
     create_initial_state,
 )
 from app.workflows.contracts import GateRequest
+from app.workflows.planning import PLANNED_AGENT_TYPES
 
 from .workflow_runtime import TestAgentRuntime
 
@@ -166,9 +167,11 @@ async def test_langgraph_runs_all_nodes_through_persistent_runtime_gateway(
             repository = ProjectRepository(session)
             runs = await repository.list_agent_runs(project_id)
             events = await repository.list_events(project_id, limit=200)
-        assert len(runs) == len(ResearchAgentType)
+        # 主图执行 RESEARCH_MANAGER 加上 PLANNED_AGENT_TYPES；新增枚举暂不接入主图。
+        main_path_types = {ResearchAgentType.RESEARCH_MANAGER, *PLANNED_AGENT_TYPES}
+        assert len(runs) == len(main_path_types)
         assert all(run.output_artifact_id is not None for run in runs)
-        assert {run.agent_type for run in runs} == {item.value for item in ResearchAgentType}
+        assert {run.agent_type for run in runs} == {item.value for item in main_path_types}
         assert [event.sequence_number for event in events] == list(
             range(1, len(events) + 1)
         )
