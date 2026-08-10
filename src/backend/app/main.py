@@ -19,6 +19,10 @@ from app.agents.competitor import (
     register_official_product_prompt,
     register_price_channel_prompt,
 )
+from app.agents.product_technical import (
+    ProductTechnicalModelAgentAdapter,
+    register_product_technical_prompt,
+)
 from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
@@ -78,6 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     prompt_registry = PromptRegistry()
     register_user_research_prompt(prompt_registry)
+    register_product_technical_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
     register_competitor_synthesis_prompt(prompt_registry)
     register_competitor_user_review_prompt(prompt_registry)
@@ -208,6 +213,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     model_timeout_seconds=(
                         resolved_settings.competitor_synthesis_model_timeout_seconds
                     ),
+                ),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.PRODUCT_TECHNICAL,
+            ProductTechnicalModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.product_technical_model_timeout_seconds
                 ),
             ),
         )

@@ -92,6 +92,22 @@ class AgentRuntimeRepository:
         )
         return cast(AgentArtifactModel | None, await self.session.scalar(statement))
 
+    async def latest_project_artifact_by_type(
+        self,
+        project_id: str,
+        artifact_type: str,
+    ) -> AgentArtifactModel | None:
+        statement = (
+            select(AgentArtifactModel)
+            .where(
+                AgentArtifactModel.project_id == project_id,
+                AgentArtifactModel.artifact_type == artifact_type,
+            )
+            .order_by(AgentArtifactModel.created_at.desc(), AgentArtifactModel.version.desc())
+            .limit(1)
+        )
+        return cast(AgentArtifactModel | None, await self.session.scalar(statement))
+
     async def commit(self) -> None:
         await self.session.commit()
 

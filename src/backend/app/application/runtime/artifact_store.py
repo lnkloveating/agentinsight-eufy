@@ -29,6 +29,17 @@ class ArtifactStore:
             models = await AgentRuntimeRepository(session).list_task_artifacts(project_id, task_id)
         return [self._to_stored_artifact(model) for model in models]
 
+    async def latest_by_type(
+        self,
+        project_id: str,
+        artifact_type: str,
+    ) -> StoredArtifact | None:
+        async with self.database.session() as session:
+            model = await AgentRuntimeRepository(session).latest_project_artifact_by_type(
+                project_id, artifact_type
+            )
+        return self._to_stored_artifact(model) if model is not None else None
+
     @staticmethod
     def _to_stored_artifact(model: AgentArtifactModel) -> StoredArtifact:
         artifact = ResearchArtifact.model_validate(
