@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.12.0
+  version: 0.13.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -12,6 +12,7 @@ tags:
   - name: Models
   - name: Runtimes
   - name: Projects
+  - name: Research Brief
   - name: Research
   - name: Evidence
   - name: Innovations
@@ -59,6 +60,75 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalRuntimePage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /research-brief-clarifications:
+    post:
+      tags: [Research Brief]
+      summary: Start a pre-project Research Brief clarification dialogue
+      operationId: startResearchBriefClarification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BriefClarificationStart"
+      responses:
+        "201":
+          description: The model generated the first dynamic clarification questions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefClarificationSession"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /research-brief-clarifications/{session_id}:
+    get:
+      tags: [Research Brief]
+      summary: Read a persisted Research Brief clarification dialogue
+      operationId: getResearchBriefClarification
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Current dialogue, partial draft and deterministic missing fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefClarificationSession"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /research-brief-clarifications/{session_id}/messages:
+    post:
+      tags: [Research Brief]
+      summary: Answer the next Research Brief clarification questions
+      operationId: answerResearchBriefClarification
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BriefClarificationAnswer"
+      responses:
+        "200":
+          description: Updated dialogue; ready_for_confirmation only means full validation passed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefClarificationSession"
+        "409":
+          $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
 
@@ -2310,6 +2380,135 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ResearchDeliverable"
+
+    BriefClarificationStart:
+      type: object
+      additionalProperties: false
+      required: [initial_question]
+      properties:
+        initial_question: { type: string, minLength: 5, maxLength: 1000 }
+        model_id: { type: [string, "null"], minLength: 3, maxLength: 120 }
+
+    BriefClarificationAnswer:
+      type: object
+      additionalProperties: false
+      required: [message, expected_version]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 8000 }
+        expected_version: { type: integer, minimum: 1 }
+
+    ClarificationMessage:
+      type: object
+      additionalProperties: false
+      required: [message_id, role, content, created_at]
+      properties:
+        message_id: { type: string }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string, minLength: 1, maxLength: 8000 }
+        created_at: { type: string, format: date-time }
+
+    ClarificationQuestion:
+      type: object
+      additionalProperties: false
+      required: [question_id, field_paths, prompt, choices]
+      properties:
+        question_id: { type: string, minLength: 1, maxLength: 80 }
+        field_paths:
+          type: array
+          minItems: 1
+          maxItems: 8
+          uniqueItems: true
+          items: { type: string }
+        prompt: { type: string, minLength: 1, maxLength: 1000 }
+        choices:
+          type: array
+          maxItems: 12
+          uniqueItems: true
+          items: { type: string }
+
+    ResearchBriefDraft:
+      type: object
+      additionalProperties: false
+      description: Typed partial ResearchBrief; omitted fields are still unanswered.
+      properties:
+        question: { type: [string, "null"], minLength: 5, maxLength: 1000 }
+        research_scope:
+          oneOf:
+            - $ref: "#/components/schemas/ResearchScope"
+            - type: "null"
+        safety_domains:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/HomeSafetyDomain" }
+        target_ecosystems: { type: [array, "null"], items: { type: string } }
+        comparison_ecosystems: { type: [array, "null"], items: { type: string } }
+        target_users: { type: [array, "null"], items: { type: string } }
+        markets: { type: [array, "null"], items: { type: string } }
+        time_horizon: { type: [string, "null"] }
+        safety_goals: { type: [array, "null"], items: { type: string } }
+        risk_scenarios: { type: [array, "null"], items: { type: string } }
+        authorized_signal_types:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/AuthorizedSignalType" }
+        privacy_boundary:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            raw_media_allowed: { type: [boolean, "null"] }
+            restricted_zones: { type: [array, "null"], items: { type: string } }
+            retention_policy: { type: [string, "null"] }
+            external_sharing_allowed: { type: [boolean, "null"] }
+        intervention_boundary:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            allowed_interventions:
+              type: [array, "null"]
+              items: { $ref: "#/components/schemas/AllowedIntervention" }
+            prohibited_actions: { type: [array, "null"], items: { type: string } }
+            high_impact_action_requires_human_approval: { type: [boolean, "null"] }
+        forbidden_inferences: { type: [array, "null"], items: { type: string } }
+        evaluation_dimensions: { type: [array, "null"], items: { type: string } }
+        validation_expectations: { type: [array, "null"], items: { type: string } }
+        source_permissions:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            public_sources: { type: [boolean, "null"] }
+            user_uploaded_materials: { type: [boolean, "null"] }
+            enterprise_internal_materials: { type: [boolean, "null"] }
+            authorized_household_events: { type: [boolean, "null"] }
+        deliverables:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/ResearchDeliverable" }
+
+    BriefClarificationSession:
+      type: object
+      additionalProperties: false
+      required: [session_id, status, version, model_id, messages, draft, missing_fields, validation_issues, questions, completed_brief, input_tokens, output_tokens, estimated_cost_microusd, created_at, updated_at]
+      properties:
+        session_id: { type: string }
+        status: { type: string, enum: [awaiting_user, ready_for_confirmation, failed] }
+        version: { type: integer, minimum: 1 }
+        model_id: { type: string }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ClarificationMessage" }
+        draft: { $ref: "#/components/schemas/ResearchBriefDraft" }
+        missing_fields: { type: array, items: { type: string } }
+        validation_issues: { type: array, items: { type: string } }
+        questions:
+          type: array
+          maxItems: 6
+          items: { $ref: "#/components/schemas/ClarificationQuestion" }
+        completed_brief:
+          oneOf:
+            - $ref: "#/components/schemas/ResearchBrief"
+            - type: "null"
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        estimated_cost_microusd: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     ProjectCreate:
       type: object

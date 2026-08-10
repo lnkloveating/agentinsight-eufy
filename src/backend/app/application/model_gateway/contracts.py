@@ -142,8 +142,8 @@ class ModelMessage:
 
 @dataclass(frozen=True)
 class ModelRequest:
-    project_id: str
-    agent_run_id: str
+    project_id: str | None
+    agent_run_id: str | None
     trace_id: str
     model_id: str
     prompt_key: str
@@ -153,6 +153,7 @@ class ModelRequest:
     timeout_seconds: float = 60.0
     max_output_tokens: int | None = None
     provider_options: Mapping[str, Any] = field(default_factory=dict)
+    clarification_session_id: str | None = None
 
 
 @dataclass(frozen=True)

@@ -3,7 +3,11 @@
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.database.models import AgentRunModel, ModelCallModel
+from app.infrastructure.database.models import (
+    AgentRunModel,
+    BriefClarificationSessionModel,
+    ModelCallModel,
+)
 
 
 class ModelCallRepository:
@@ -30,6 +34,14 @@ class ModelCallRepository:
         if run is None:
             raise ValueError("agent run does not exist")
         return run
+
+    async def require_clarification_session(
+        self, session_id: str
+    ) -> BriefClarificationSessionModel:
+        clarification = await self.session.get(BriefClarificationSessionModel, session_id)
+        if clarification is None:
+            raise ValueError("brief clarification session does not exist")
+        return clarification
 
     async def commit(self) -> None:
         await self.session.commit()
