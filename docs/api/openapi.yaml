@@ -5049,13 +5049,44 @@ components:
         fallback: { type: [string, "null"], maxLength: 500 }
 
     DeviceCapabilityClaim:
-      allOf:
-        - $ref: "#/components/schemas/DeviceCapabilityClaimInput"
-        - type: object
-          additionalProperties: false
-          required: [capability_claim_id]
-          properties:
-            capability_claim_id: { type: string, pattern: "^cap_[A-Za-z0-9_-]+$" }
+      type: object
+      additionalProperties: false
+      required:
+        - capability_claim_id
+        - capability_key
+        - capability_name
+        - kind
+        - assertion
+        - availability
+        - confidence
+        - evidence_ids
+        - data_scope
+        - authorization_required
+        - offline_support
+      properties:
+        capability_claim_id: { type: string, pattern: "^cap_[A-Za-z0-9_-]+$" }
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        capability_name: { type: string, minLength: 1, maxLength: 160 }
+        kind:
+          $ref: "#/components/schemas/DeviceCapabilityKind"
+        assertion:
+          $ref: "#/components/schemas/CapabilityAssertion"
+        availability:
+          $ref: "#/components/schemas/CapabilityAvailability"
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        latency_ms_max: { type: [integer, "null"], minimum: 0, maximum: 3600000 }
+        data_scope:
+          $ref: "#/components/schemas/DeviceDataScope"
+        authorization_required: { type: boolean }
+        offline_support:
+          $ref: "#/components/schemas/OfflineSupport"
+        fallback: { type: [string, "null"], maxLength: 500 }
 
     CatalogDeviceCreate:
       type: object
@@ -5230,17 +5261,46 @@ components:
             $ref: "#/components/schemas/HouseholdDeviceRelationInput"
 
     HouseholdSnapshot:
-      allOf:
-        - $ref: "#/components/schemas/HouseholdSnapshotCreate"
-        - type: object
-          additionalProperties: false
-          required: [snapshot_id, project_id, version, status, created_at]
-          properties:
-            snapshot_id: { type: string, pattern: "^snapshot_[A-Za-z0-9_-]+$" }
-            project_id: { type: string }
-            version: { type: integer, minimum: 1 }
-            status: { type: string, const: active }
-            created_at: { type: string, format: date-time }
+      type: object
+      additionalProperties: false
+      required:
+        - snapshot_id
+        - project_id
+        - version
+        - status
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+        - locations
+        - devices
+        - relations
+        - created_at
+      properties:
+        snapshot_id: { type: string, pattern: "^snapshot_[A-Za-z0-9_-]+$" }
+        project_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        status: { type: string, const: active }
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        locations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/HouseholdLocationInput"
+        devices:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceInput"
+        relations:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceRelationInput"
+        created_at: { type: string, format: date-time }
 
     DeviceCapabilityRequirement:
       type: object

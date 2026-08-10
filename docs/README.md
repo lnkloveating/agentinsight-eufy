@@ -2,12 +2,13 @@
 
 ## Current implementation status
 
+- `CODEX_HANDOFF.md` is the current cross-account and cross-developer source of truth: product outcome, live branch state, backend roadmap, verification commands, and the complete expected frontend flow.
 - `backend-progress-summary.md` records the backend baseline currently merged to `main`, the real `/api/v1` availability boundary, and the frontend adaptation checklist. Read it before integrating frontend pages with backend data.
 - `ai-native-eufy-ecosystem-handoff.md` records the 2026-08-10 product-direction change from device-level future-product candidates to evidence-bounded, verifiable eufy ecosystem safety strategies. It also records the exact unfinished branch state and the required backend migration order.
 
 ## Product and research
 
-1. `ai-native-eufy-ecosystem-handoff.md` is the current product-direction handoff and migration plan. New implementation work must preserve evidence boundaries while following its ecosystem-level Goal-to-Guard direction.
+1. `CODEX_HANDOFF.md` is the current implementation handoff. `ai-native-eufy-ecosystem-handoff.md` preserves the original direction-change rationale and detailed migration design.
 2. `research-flow.md` describes the existing bridge from industry opportunity research to candidate comparison, Feishu approval and the selected scenario Demo; sections that assume a single future hardware product must be migrated according to the handoff.
 3. `agent-contracts.md` defines six Agent roles, structured artifacts, dependencies, quality scoring and mandatory rework.
 4. `state-machine.md` defines project states, terminal meanings and the three Human in the Loop gates.
@@ -23,6 +24,8 @@
 7. `competitor-discovery-agent.md` defines exact-model candidate classification, deterministic validation and the human Candidate Gate.
 8. `competitor-source-onboarding.md` defines confirmed-candidate authorization, atomic Source Asset creation and lineage boundaries.
 9. `source-recovery.md` defines the global user-input fallback when an authorized source fails or contains too little useful information.
+10. `ecosystem-opportunity-contract.md` defines the new ecosystem-level opportunity vocabulary without claiming a real Agent exists yet.
+11. `device-capability-graph.md` defines the Evidence-bounded device catalog, authorized household snapshot and deterministic capability coverage query.
 
 ## Supporting documents
 

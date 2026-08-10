@@ -539,6 +539,7 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - 未映射目录的家庭设备或未找到对应能力时返回 `unknown`；设备离线、未授权或能力明确不可用时返回
   `unavailable`；满足能力、证据和运行状态时才返回 `available`；
 - 查询结果返回准确的 Capability Claim ID 和 Evidence ID，供生态机会、技术可行性和前端证据下钻复用；
+- 查询时重新检查 Evidence 当前状态；已经 outdated/invalid/移除的历史 Evidence 不得继续生成 `available` 结论；
 - 删除仍被任何家庭快照引用的目录设备时返回冲突，不级联删除用户快照；
 - 企业 eufy Device API 未配置时不创建假 Adapter、不声明已联调成功，后续可以在不改变公共查询契约的前提下接入；
 - 新增 OpenAPI、数据库迁移、领域/服务单元测试和 HTTP 集成测试。
