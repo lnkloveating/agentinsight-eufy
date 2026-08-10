@@ -28,6 +28,7 @@ from app.infrastructure.database.source_requirement_repository import (
     SourceRequirementRepository,
 )
 from app.schemas.evidence import EvidenceClaimType
+from app.schemas.project import ResearchBrief
 from app.schemas.source_requirements import (
     CompetitorResearchDimension,
     ProductReference,
@@ -276,7 +277,7 @@ class SourceRequirementService:
         return SourceRequirementAssessment(
             project_id=project_id,
             status=status,
-            region=str(snapshot.brief_json.get("region", "")),
+            region=ResearchBrief.model_validate(snapshot.brief_json).primary_market,
             scope=scope,
             requirements=requirements,
             required_count=len(required),
@@ -484,8 +485,8 @@ class SourceRequirementService:
     ) -> bool:
         if spec.dimension is not CompetitorResearchDimension.PRICE_CHANNEL:
             return True
-        region = brief_json.get("region")
-        if not isinstance(region, str) or not region.strip() or not evidence.region:
+        region = ResearchBrief.model_validate(brief_json).primary_market
+        if not evidence.region:
             return False
         return SourceRequirementService._normalize(evidence.region) == (
             SourceRequirementService._normalize(region)

@@ -86,7 +86,7 @@ def build_competitor_evidence_requests(
 
     task = invocation.task
     brief = invocation.context.brief
-    product_scope = _product_scope(task.scope, brief.category)
+    product_scope = _product_scope(task.scope, " / ".join(brief.target_ecosystems))
     definitions = (
         (
             CompetitorSpecialistType.OFFICIAL_PRODUCT,
@@ -134,7 +134,7 @@ def build_competitor_evidence_requests(
             specialist_type=specialist_type,
             research_questions=questions,
             product_scope=product_scope,
-            region=brief.region,
+            region=brief.primary_market,
             evidence_types=evidence_types,
             allowed_claim_types=claim_types,
             minimum_independent_domains=minimum_independent_domains,

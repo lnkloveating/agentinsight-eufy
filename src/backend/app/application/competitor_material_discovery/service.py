@@ -40,6 +40,7 @@ from app.schemas.competitor_material_discovery import (
     CompetitorMaterialProductSelection,
     CompetitorMaterialSelection,
 )
+from app.schemas.project import ResearchBrief
 from app.schemas.search_discovery import (
     SearchDiscoveryCandidate,
     SearchDiscoveryCreate,
@@ -431,7 +432,7 @@ class CompetitorMaterialDiscoveryService:
         scope_hash = sha256(
             json.dumps(canonical, ensure_ascii=False, sort_keys=True).encode()
         ).hexdigest()
-        region = str(project.brief_json.get("region") or "global")
+        region = ResearchBrief.model_validate(project.brief_json).primary_market
         return requested, dimensions, scope_hash, region
 
     @staticmethod

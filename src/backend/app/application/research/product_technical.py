@@ -41,6 +41,7 @@ class ProductTechnicalService:
 
     async def run(self, project_id: str) -> ProductTechnicalArtifact:
         project = await self._require_runnable_project(project_id)
+        brief = ResearchBrief.model_validate(project.brief_json)
         previous = await self.artifact_store.list_versions(project_id, PRODUCT_TECHNICAL_TASK_ID)
         upstream = {}
         for agent_type in (ResearchAgentType.USER_RESEARCH, ResearchAgentType.COMPETITOR_RESEARCH):
@@ -70,9 +71,13 @@ class ProductTechnicalService:
                 "证据不足时输出更少候选和明确补研问题。"
             ),
             scope={
-                "category": project.brief_json.get("category"),
-                "target_user": project.brief_json.get("target_user"),
-                "region": project.brief_json.get("region"),
+                "research_scope": brief.research_scope.value,
+                "safety_domains": [item.value for item in brief.safety_domains],
+                "target_ecosystems": brief.target_ecosystems,
+                "target_users": brief.target_users,
+                "markets": brief.markets,
+                "safety_goals": brief.safety_goals,
+                "risk_scenarios": brief.risk_scenarios,
             },
             required_artifacts=[
                 ResearchAgentType.USER_RESEARCH.value,
@@ -93,7 +98,7 @@ class ProductTechnicalService:
         )
         context = AgentContext(
             project_id=project_id,
-            brief=ResearchBrief.model_validate(project.brief_json),
+            brief=brief,
             iteration=len(previous),
             upstream_artifacts=upstream,
             evidence_context=evidence_context,
