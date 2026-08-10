@@ -34,6 +34,16 @@
 `gap_id` 由 `ecosystem_opportunity_gap_id(question, opportunity_ids)` 确定性生成（与顺序无关），
 模型不能自行生成不稳定 ID。
 
+契约还提供以下确定性一致性保证：
+
+- 设备角色和 AI 移除测试中的 Evidence ID 必须同时出现在候选顶层 Evidence 允许集合中，统一审计不会
+  遗漏嵌套引用；
+- `schema_name`、`schema_version`、`artifact_type` 和可发布状态与 OpenAPI 常量保持一致；
+- Artifact 级 Evidence ID、Gate Issue 和其他标识列表保持唯一；
+- Coverage 数量必须与实际候选、通过 Gate 的候选及生态服务候选相等；
+- `portfolio_gaps` 只能定向到当前组合中真实存在的 Opportunity；
+- 少于目标三个候选时必须保留至少一个组合缺口，不能只降低数量而不解释原因。
+
 主要类型：`SolutionScope`、`EcosystemDeploymentTarget`、`EcosystemScenarioType`、`DeviceRoleType`、
 `RequiredDeviceRole`、`CrossDeviceInformationFlow`、`EcosystemBlueprint`、`AIRemovalTest`、`AINativeCase`、
 `EcosystemValidationPlan`、`EcosystemOpportunityModelCandidate` / `EcosystemOpportunityCandidate`、

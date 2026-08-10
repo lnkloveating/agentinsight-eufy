@@ -502,9 +502,13 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
   确定性判定，由 `extra="forbid"` 在结构层强制；`gate_status` 与稳定 `gap_id` 属于后端；
 - 确定性校验覆盖：未知 `scope_level`、重复 `opportunity_id` / `role_id` / `flow_id` / Evidence ID /
   `competitor_gap_ids` / `summary_evidence_ids` / `affected_opportunity_ids`、信息流引用不存在的角色、
-  `generated_candidate_count` 超过 5、`advancing_candidate_count` 或 `ecosystem_service_count` 超过生成数、
-  未知字段；
-- Evidence 不足时允许零个或少于三个候选，但必须能够表达 `portfolio_gaps`，不得用固定模板凑数；
+  `generated_candidate_count` 超过 5、未知字段，以及 OpenAPI 字符串长度边界；
+- 设备角色和 AI 移除测试中的嵌套 Evidence ID 必须属于候选顶层 `evidence_ids`，并进入统一引用审计集合；
+- `schema_name`、`schema_version`、`artifact_type`、可发布状态和 Artifact Evidence 唯一性必须与
+  OpenAPI 保持一致，内部不得生成公共 API 无法表达的 Artifact；
+- Coverage 的生成数、晋级数和生态服务数必须分别等于真实候选、`passed` 候选和
+  `ecosystem_service` 候选数量；Gap 不得引用当前组合中不存在的 Opportunity；
+- Evidence 不足时允许零个或少于三个候选，但必须包含 `portfolio_gaps`，不得用固定模板凑数；
 - `EcosystemOpportunityArtifact` 与通用 `ResearchArtifact` 双向转换，并在缺失 `gap_id` 时确定性回填；
 - 新增 `ECOSYSTEM_OPPORTUNITY` 枚举后，旧 `ProductTechnicalArtifact` 与 Product Technical v1 API 仍可解析，
   现有 LangGraph 主路径计划与运行测试不受影响（主路径以 `PLANNED_AGENT_TYPES` 为准）；
