@@ -9,11 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
     CompetitorDiscoveryModelAgentAdapter,
+    CompetitorEcosystemModelAdapter,
     CompetitorSynthesisModelAdapter,
     CompetitorUserReviewModelSpecialistAdapter,
     OfficialProductModelSpecialistAdapter,
     PriceChannelModelSpecialistAdapter,
     register_competitor_discovery_prompt,
+    register_competitor_ecosystem_prompt,
     register_competitor_synthesis_prompt,
     register_competitor_user_review_prompt,
     register_official_product_prompt,
@@ -86,6 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_user_research_prompt(prompt_registry)
     register_product_technical_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
+    register_competitor_ecosystem_prompt(prompt_registry)
     register_competitor_synthesis_prompt(prompt_registry)
     register_competitor_user_review_prompt(prompt_registry)
     register_official_product_prompt(prompt_registry)
@@ -214,6 +217,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     ProjectModelSelectionResolver(database),
                     model_timeout_seconds=(
                         resolved_settings.competitor_synthesis_model_timeout_seconds
+                    ),
+                ),
+                CompetitorEcosystemModelAdapter(
+                    application.state.model_gateway,
+                    prompt_registry,
+                    ProjectModelSelectionResolver(database),
+                    model_timeout_seconds=(
+                        resolved_settings.competitor_ecosystem_model_timeout_seconds
                     ),
                 ),
             ),

@@ -78,6 +78,41 @@ class _CompetitorSynthesisPayloadView(BaseModel):
     evidence_audit: _EvidenceAuditView
 
 
+class _EcosystemAssessmentView(_CitedView):
+    dimension: str
+
+
+class _EcosystemProfileView(BaseModel):
+    ecosystem_label: str
+    product_scope_labels: list[str]
+    assessments: list[_EcosystemAssessmentView]
+
+
+class _EcosystemResearchGapView(BaseModel):
+    ecosystem_label: str
+    dimension: str
+    question: str
+
+
+class _EcosystemCoverageRowView(_CitedView):
+    ecosystem_label: str
+    dimension_statuses: dict[str, str]
+    mapped_products: list[str]
+
+
+class _CompetitorEcosystemPayloadView(BaseModel):
+    schema_name: str
+    synthesis_status: str
+    summary_evidence_ids: list[str]
+    specialist_outputs: list[dict[str, object]]
+    ecosystem_profiles: list[_EcosystemProfileView]
+    comparison_insights: list[_CitedView]
+    opportunity_signals: list[_OpportunitySignalView]
+    research_gaps: list[_EcosystemResearchGapView]
+    coverage_matrix: list[_EcosystemCoverageRowView]
+    evidence_audit: _EvidenceAuditView
+
+
 def build_research_handoff(
     artifacts: dict[str, ResearchArtifact],
 ) -> ResearchHandoff:
@@ -100,27 +135,39 @@ def build_research_handoff(
             if unsupported:
                 issues.append("user_research_payload_evidence_outside_artifact")
 
-    competitor_payload: _CompetitorSynthesisPayloadView | None = None
+    competitor_payload: (
+        _CompetitorSynthesisPayloadView | _CompetitorEcosystemPayloadView | None
+    ) = None
     if (
         competitor is not None
         and competitor.status in ADVANCING_STATUSES
         and competitor.evidence_ids
     ):
+        schema_name = competitor.payload.get("schema_name")
+        payload_type = (
+            _CompetitorEcosystemPayloadView
+            if schema_name == "competitor_ecosystem_analysis"
+            else _CompetitorSynthesisPayloadView
+        )
         try:
-            competitor_payload = _CompetitorSynthesisPayloadView.model_validate(
-                competitor.payload
-            )
+            competitor_payload = payload_type.model_validate(competitor.payload)
         except ValidationError:
             issues.append("invalid_competitor_synthesis_artifact")
         else:
-            if competitor_payload.schema_name != "competitor_synthesis_intelligence":
+            if competitor_payload.schema_name not in {
+                "competitor_synthesis_intelligence",
+                "competitor_ecosystem_analysis",
+            }:
                 issues.append("invalid_competitor_synthesis_schema")
             if competitor_payload.evidence_audit.status not in COMPETITOR_AUDIT_STATUSES:
                 issues.append(
                     "competitor_evidence_audit_not_passed:"
                     f"{competitor_payload.evidence_audit.status}"
                 )
-            if not competitor_payload.product_profiles:
+            if isinstance(competitor_payload, _CompetitorEcosystemPayloadView):
+                if not competitor_payload.ecosystem_profiles:
+                    issues.append("competitor_synthesis_has_no_ecosystem_profiles")
+            elif not competitor_payload.product_profiles:
                 issues.append("competitor_synthesis_has_no_product_profiles")
             if (
                 len(competitor_payload.specialist_outputs) != 3
@@ -137,18 +184,34 @@ def build_research_handoff(
                 and competitor_payload.synthesis_status != "completed"
             ):
                 issues.append("competitor_status_mismatch")
-            profile_scope = {
-                profile.scope_label for profile in competitor_payload.product_profiles
-            }
-            coverage_scope = {
-                row.scope_label for row in competitor_payload.coverage_matrix
-            }
-            if profile_scope != coverage_scope:
-                issues.append("competitor_coverage_scope_mismatch")
-            unsupported = sorted(
-                _competitor_payload_evidence(competitor_payload)
-                - set(competitor.evidence_ids)
+            if isinstance(competitor_payload, _CompetitorEcosystemPayloadView):
+                profile_scope = {
+                    profile.ecosystem_label
+                    for profile in competitor_payload.ecosystem_profiles
+                }
+                coverage_scope = {
+                    row.ecosystem_label for row in competitor_payload.coverage_matrix
+                }
+            else:
+                profile_scope = {
+                    profile.scope_label for profile in competitor_payload.product_profiles
+                }
+                coverage_scope = {
+                    row.scope_label for row in competitor_payload.coverage_matrix
+                }
+            scope_mismatch = (
+                not profile_scope.issubset(coverage_scope)
+                if isinstance(competitor_payload, _CompetitorEcosystemPayloadView)
+                else profile_scope != coverage_scope
             )
+            if scope_mismatch:
+                issues.append("competitor_coverage_scope_mismatch")
+            payload_evidence = (
+                _competitor_ecosystem_payload_evidence(competitor_payload)
+                if isinstance(competitor_payload, _CompetitorEcosystemPayloadView)
+                else _competitor_payload_evidence(competitor_payload)
+            )
+            unsupported = sorted(payload_evidence - set(competitor.evidence_ids))
             if unsupported:
                 issues.append("competitor_payload_evidence_outside_artifact")
 
@@ -166,7 +229,11 @@ def build_research_handoff(
     assert user is not None
     assert competitor is not None
     assert competitor_payload is not None
-    competitor_projection = _competitor_projection(competitor_payload)
+    competitor_projection = (
+        _competitor_ecosystem_projection(competitor_payload)
+        if isinstance(competitor_payload, _CompetitorEcosystemPayloadView)
+        else _competitor_projection(competitor_payload)
+    )
     has_gaps = (
         user.status is ResearchTaskStatus.PARTIAL
         or competitor.status is ResearchTaskStatus.PARTIAL
@@ -278,6 +345,47 @@ def _competitor_projection(
     )
 
 
+def _competitor_ecosystem_projection(
+    payload: _CompetitorEcosystemPayloadView,
+) -> CompetitorResearchProjection:
+    gaps_by_scope: dict[str, CompetitorGapProjection] = {}
+    statuses: dict[str, dict[str, str]] = {}
+    product_scope: list[str] = []
+    for row in payload.coverage_matrix:
+        statuses[row.ecosystem_label] = row.dimension_statuses
+        product_scope.extend(row.mapped_products)
+        missing = [
+            dimension
+            for dimension, status in row.dimension_statuses.items()
+            if status == "unknown"
+        ]
+        if missing:
+            gaps_by_scope[row.ecosystem_label] = CompetitorGapProjection(
+                scope_label=row.ecosystem_label,
+                missing_dimensions=missing,
+            )
+    for gap in payload.research_gaps:
+        projected = gaps_by_scope.setdefault(
+            gap.ecosystem_label,
+            CompetitorGapProjection(scope_label=gap.ecosystem_label),
+        )
+        if gap.dimension not in projected.missing_dimensions:
+            projected.missing_dimensions.append(gap.dimension)
+        projected.research_questions.append(gap.question)
+    return CompetitorResearchProjection(
+        schema_name=payload.schema_name,
+        synthesis_status=payload.synthesis_status,
+        evidence_audit_status=payload.evidence_audit.status,
+        product_scope=list(dict.fromkeys(product_scope)),
+        ecosystem_scope=[row.ecosystem_label for row in payload.coverage_matrix],
+        ecosystem_dimension_statuses=statuses,
+        opportunity_signal_ids=[
+            signal.signal_id for signal in payload.opportunity_signals
+        ],
+        gaps=list(gaps_by_scope.values()),
+    )
+
+
 def _merged_evidence(
     user: ResearchArtifact | None,
     competitor: ResearchArtifact | None,
@@ -318,4 +426,18 @@ def _competitor_payload_evidence(
         citations.update(row.official_product_evidence_ids)
         citations.update(row.price_channel_evidence_ids)
         citations.update(row.user_review_evidence_ids)
+    return citations
+
+
+def _competitor_ecosystem_payload_evidence(
+    payload: _CompetitorEcosystemPayloadView,
+) -> set[str]:
+    citations = set(payload.summary_evidence_ids)
+    for profile in payload.ecosystem_profiles:
+        for assessment in profile.assessments:
+            citations.update(assessment.evidence_ids)
+    for item in [*payload.comparison_insights, *payload.opportunity_signals]:
+        citations.update(item.evidence_ids)
+    for row in payload.coverage_matrix:
+        citations.update(row.evidence_ids)
     return citations
