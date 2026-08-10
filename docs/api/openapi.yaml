@@ -295,8 +295,8 @@ paths:
       summary: List normalized recoverable gaps from an Agent Artifact
       description: |
         Deterministically projects native user-research, competitor-research, product-technical,
-        commercial-evaluation and red-team gap shapes into one frontend contract. No model call is
-        made and the source Artifact remains immutable.
+        ecosystem-opportunity, commercial-evaluation and red-team gap shapes into one frontend
+        contract. No model call is made and the source Artifact remains immutable.
       operationId: listAgentArtifactGaps
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -2821,7 +2821,7 @@ components:
           type: array
           maxItems: 50
           uniqueItems: true
-          items: { type: string }
+          items: { type: string, minLength: 1, maxLength: 80 }
         technical_hypotheses:
           type: array
           maxItems: 20
@@ -2839,13 +2839,15 @@ components:
           minItems: 2
           maxItems: 60
           uniqueItems: true
-          items: { type: string }
+          items: { type: string, minLength: 1, maxLength: 80 }
         gate_status:
           type: string
           enum: [passed, blocked]
         gate_issues:
           type: array
-          items: { type: string }
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 1000 }
 
     EcosystemOpportunityGap:
       type: object
@@ -2909,7 +2911,7 @@ components:
           type: array
           maxItems: 60
           uniqueItems: true
-          items: { type: string }
+          items: { type: string, minLength: 1, maxLength: 80 }
         opportunities:
           type: array
           maxItems: 5
@@ -2939,8 +2941,8 @@ components:
         - quality_score
         - errors
       properties:
-        artifact_id: { type: string }
-        task_id: { type: string }
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        task_id: { type: string, minLength: 1, maxLength: 80 }
         artifact_type: { type: string, const: ecosystem_opportunity }
         schema_version: { type: string, const: "1.0" }
         status:
@@ -2951,7 +2953,7 @@ components:
         evidence_ids:
           type: array
           uniqueItems: true
-          items: { type: string }
+          items: { type: string, minLength: 1, maxLength: 80 }
         contradictions:
           type: array
           items: { type: string }

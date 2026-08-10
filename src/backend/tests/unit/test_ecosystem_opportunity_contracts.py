@@ -199,6 +199,49 @@ def test_duplicate_evidence_ids_are_rejected() -> None:
         EcosystemOpportunityModelCandidate.model_validate(candidate)
 
 
+def test_nested_evidence_must_belong_to_candidate_evidence_scope() -> None:
+    candidate = _model_candidate()
+    candidate["ecosystem_blueprint"]["required_device_roles"][0]["evidence_ids"] = [
+        "ev_out_of_scope"
+    ]
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityModelCandidate.model_validate(candidate)
+
+
+def test_cited_evidence_collects_nested_role_and_ai_removal_references() -> None:
+    candidate = _model_candidate()
+    candidate["evidence_ids"].extend(["ev_role", "ev_ai_removal"])
+    candidate["ecosystem_blueprint"]["required_device_roles"][0]["evidence_ids"] = [
+        "ev_role"
+    ]
+    candidate["ai_native_case"]["ai_removal_test"]["evidence_ids"] = ["ev_ai_removal"]
+    output = EcosystemOpportunityModelOutput.model_validate(
+        {
+            "summary": "nested evidence stays auditable",
+            "summary_evidence_ids": ["ev_summary"],
+            "opportunities": [candidate],
+            "portfolio_gaps": [],
+            "unknowns": [],
+        }
+    )
+    assert output.cited_evidence_ids() == {
+        "ev_summary",
+        "ev_user_1",
+        "ev_comp_1",
+        "ev_role",
+        "ev_ai_removal",
+    }
+
+
+def test_openapi_item_boundaries_are_enforced_by_python_contract() -> None:
+    candidate = _model_candidate()
+    candidate["ecosystem_blueprint"]["required_device_roles"][0][
+        "required_capabilities"
+    ] = [""]
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityModelCandidate.model_validate(candidate)
+
+
 # 8. 模型输出不能包含 gate_status。
 def test_model_candidate_cannot_carry_gate_status() -> None:
     candidate = _model_candidate()
@@ -244,6 +287,7 @@ def _gated_candidate() -> EcosystemOpportunityCandidate:
 
 
 def _artifact(status: str = "completed") -> EcosystemOpportunityArtifact:
+    gap_question = "还需要哪些证据来形成三个候选？"
     payload = EcosystemOpportunityPayload.model_validate(
         {
             "schema_name": "ecosystem_opportunity_portfolio",
@@ -251,7 +295,15 @@ def _artifact(status: str = "completed") -> EcosystemOpportunityArtifact:
             "summary": "one advancing ecosystem opportunity",
             "summary_evidence_ids": ["ev_user_1"],
             "opportunities": [_gated_candidate().model_dump(mode="json")],
-            "portfolio_gaps": [],
+            "portfolio_gaps": [
+                {
+                    "gap_id": ecosystem_opportunity_gap_id(gap_question, ["eco_guard"]),
+                    "question": gap_question,
+                    "reason": "当前只有一个受支持候选",
+                    "required_evidence_types": ["ecosystem_opportunity_evidence"],
+                    "affected_opportunity_ids": ["eco_guard"],
+                }
+            ],
             "coverage": _coverage(),
         }
     )
@@ -278,6 +330,70 @@ def test_research_artifact_round_trips() -> None:
     assert research.artifact_type == "ecosystem_opportunity"
     restored = EcosystemOpportunityArtifact.from_research_artifact(research)
     assert restored.model_dump() == artifact.model_dump()
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("artifact_type", "product_technical"),
+        ("schema_version", "9.9"),
+        ("status", "running"),
+    ],
+)
+def test_artifact_discriminators_match_openapi(
+    field_name: str, invalid_value: str
+) -> None:
+    data = _artifact().model_dump(mode="json")
+    data[field_name] = invalid_value
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityArtifact.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("schema_name", "wrong_schema"),
+        ("schema_version", "9.9"),
+    ],
+)
+def test_payload_discriminators_match_openapi(
+    field_name: str, invalid_value: str
+) -> None:
+    data = _artifact().payload.model_dump(mode="json")
+    data[field_name] = invalid_value
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityPayload.model_validate(data)
+
+
+def test_artifact_rejects_duplicate_evidence_ids() -> None:
+    data = _artifact().model_dump(mode="json")
+    data["evidence_ids"] = ["ev_dup", "ev_dup"]
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityArtifact.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("generated_candidate_count", 2),
+        ("advancing_candidate_count", 0),
+        ("ecosystem_service_count", 0),
+    ],
+)
+def test_payload_coverage_must_match_actual_candidates(
+    field_name: str, invalid_value: int
+) -> None:
+    data = _artifact().payload.model_dump(mode="json")
+    data["coverage"][field_name] = invalid_value
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityPayload.model_validate(data)
+
+
+def test_portfolio_gap_cannot_reference_unknown_opportunity() -> None:
+    data = _artifact().payload.model_dump(mode="json")
+    data["portfolio_gaps"][0]["affected_opportunity_ids"] = ["eco_missing"]
+    with pytest.raises(ValidationError):
+        EcosystemOpportunityPayload.model_validate(data)
 
 
 def test_from_research_artifact_backfills_missing_gap_id() -> None:
@@ -405,7 +521,17 @@ def test_insufficient_evidence_allows_few_candidates_with_gaps() -> None:
                 {**_gated_candidate().model_dump(mode="json"), "opportunity_id": "eco_a"},
                 {**_gated_candidate().model_dump(mode="json"), "opportunity_id": "eco_b"},
             ],
-            "portfolio_gaps": [],
+            "portfolio_gaps": [
+                {
+                    "gap_id": ecosystem_opportunity_gap_id(
+                        "还缺少第三个受证据支持的候选", []
+                    ),
+                    "question": "还缺少第三个受证据支持的候选",
+                    "reason": "当前证据只支持两个候选",
+                    "required_evidence_types": ["ecosystem_opportunity_evidence"],
+                    "affected_opportunity_ids": [],
+                }
+            ],
             "coverage": _coverage(
                 generated_candidate_count=2,
                 advancing_candidate_count=2,
