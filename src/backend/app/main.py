@@ -21,6 +21,10 @@ from app.agents.competitor import (
     register_official_product_prompt,
     register_price_channel_prompt,
 )
+from app.agents.ecosystem_opportunity import (
+    EcosystemOpportunityModelAgentAdapter,
+    register_ecosystem_opportunity_prompt,
+)
 from app.agents.product_technical import (
     ProductTechnicalModelAgentAdapter,
     register_product_technical_prompt,
@@ -87,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_brief_clarifier_prompt(prompt_registry)
     register_user_research_prompt(prompt_registry)
     register_product_technical_prompt(prompt_registry)
+    register_ecosystem_opportunity_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
     register_competitor_ecosystem_prompt(prompt_registry)
     register_competitor_synthesis_prompt(prompt_registry)
@@ -237,6 +242,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ProjectModelSelectionResolver(database),
                 model_timeout_seconds=(
                     resolved_settings.product_technical_model_timeout_seconds
+                ),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
+            EcosystemOpportunityModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.ecosystem_opportunity_model_timeout_seconds
                 ),
             ),
         )
