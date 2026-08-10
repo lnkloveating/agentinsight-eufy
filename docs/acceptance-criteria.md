@@ -311,6 +311,27 @@ Asset 和 Evidence IDs。它不能被标记成官网或第三方来源，重复 
 - `tests/unit/test_source_recovery_workflow.py`
 - `tests/integration/test_source_recovery_api.py`
 
+## AC-04I 项目级共享 Evidence 检索
+
+用户研究、竞品官方产品、竞品价格渠道、竞品用户评价和产品技术 Agent 必须通过同一共享检索
+服务构建 `AgentEvidenceContext`。检索只能返回当前项目中状态为 `verified` 或
+`partially_verified` 的 Evidence；其他项目、未审核、过期、Mock 或无效记录不得进入 Context。
+
+共享服务必须支持 Claim、来源、Source Asset、产品、地区、用户分群和精确 Evidence ID 过滤，
+并统一执行字符预算、来源多样性和稳定 Context Hash。带问题的检索使用可解释的确定性词法
+相关度；产品技术等上游边界不得扩大的阶段必须保留明确 Evidence ID 顺序。空 Source Route
+不得退化成读取项目全部 Evidence。相关度只用于检索排序，不能替代 Evidence 状态或 Claim Gate。
+
+第一版不得声称具有向量语义检索能力，也不得调用生成模型补写检索结果。公共检索接口必须
+返回策略、查询 Hash、候选数、精确 Evidence ID、命中词和匹配原因，便于前端解释 Agent 使用
+了哪些资料。
+
+自动化映射：
+
+- `tests/unit/test_evidence_retrieval_contracts.py`
+- `tests/integration/test_evidence_retrieval.py`
+- 用户研究、三个竞品专家和产品技术 Agent 的既有集成测试
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

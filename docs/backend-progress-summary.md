@@ -34,6 +34,7 @@ http://localhost:8000/api/v1
 | 项目生命周期 | 创建/查询项目、Brief 人工审批、状态迁移、持久化事件 | 可以实现项目列表、Brief 确认页和审批面板 |
 | SSE 事件 | 历史事件回放、实时事件、断线续传游标、心跳 | 可以实现实时研究时间线和连接状态 |
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
+| 共享 Evidence 检索 | 所有现有领域 Agent 共用项目隔离、状态门禁、元数据/词法相关度、来源多样性、字符预算与 Context Hash；产品技术保留精确 Evidence ID 顺序 | 可以实现“Agent 使用了哪些资料”的证据抽屉；当前是可解释词法检索，不应标成向量语义 RAG |
 | Source Ingestion | 用户/企业授权文件上传、公开链接登记、项目隔离存储、哈希去重、授权审计、删除与 Collection Job | 可以实现真实资料输入页和资料资产列表 |
 | Source Processing | 文档/网页确定性解析；音视频容器探测、标准化音轨、关键帧、衍生产物 Hash；失败/重试/取消、媒体人工复核与受控 Evidence 入湖 | 可以展示网页和媒体处理状态、可回溯片段、保留音轨/帧及审核操作；未配置 ASR/视觉 Connector 时媒体语义阶段明确 blocked |
 | Source Routing | 可解释规则、必要时模型辅助、多标签 route、置信度、人工确认/拒绝、模型审计、项目事件 | 可以提供统一资料中心的“自动识别”，用户不再为每个 Agent 重复上传或必须理解 claim_type |
@@ -81,6 +82,7 @@ http://localhost:8000/api/v1
 17. LangGraph 能够把用户研究与竞品综合写入强类型 `ResearchHandoff`；经过审计的 partial 缺口可进入产品技术阶段，无效竞品结果只重跑竞品节点，Checkpoint 不重复执行用户研究。
 18. Product Technical Adapter 已注册到统一 Runtime 和 Model Gateway；主路径及独立 HTTP 用例都消费同一上游 Artifact，输出版本化 `product_technical_opportunity_portfolio`。
 19. 产品技术 Artifact 的补研缺口具有稳定 ID；可创建统一 Source Recovery、生成 `user_declaration` Evidence，并把已解决 Evidence 注入下一版产品技术上下文。
+20. 用户研究、三个竞品专家和产品技术 Context Builder 已迁移到共享 Evidence Retrieval；后续商业与红队可以复用同一接口，不再建立各自知识副本。
 
 当前仍缺少：
 
@@ -133,6 +135,7 @@ http://localhost:8000/api/v1
 | `POST` | `/projects/{project_id}/sources/{source_asset_id}/fragments/{source_fragment_id}/review` | 可用 | 对照保留媒体审核 derived 片段；只有 verified 可进入 Evidence |
 | `GET` | `/projects/{project_id}/sources/{source_asset_id}/media-artifacts/{media_artifact_id}` | 可用 | 项目内读取供审核的 WAV 音轨或 PNG 关键帧，不暴露本地路径 |
 | `GET` | `/projects/{project_id}/evidence` | 可用 | Evidence 分页、状态/来源筛选 |
+| `POST` | `/projects/{project_id}/evidence/retrievals` | 可用 | 按 Agent 问题与元数据生成项目隔离 Evidence Context，返回相关度、匹配原因和 Context Hash |
 | `GET` | `/projects/{project_id}/claims` | 可用 | Claim 与支持/反对 Evidence IDs |
 | `GET` | `/projects/{project_id}/innovations` | 可用 | 候选机会、事件理解、评分和红队结果 |
 
@@ -471,7 +474,8 @@ Search Discovery Connector（已完成）
 → Competitor Synthesis & Evidence Audit（已完成）
 → Competitor Mainpath Bridge（已完成）
 → Source Recovery Orchestration（已完成）
-→ Product Technical Agent
+→ Product Technical Agent（已完成）
+→ Shared Evidence Retrieval Foundation（已完成）
 → Commercial Agent
 → Red Team Revision
 → Package Risk Demo
