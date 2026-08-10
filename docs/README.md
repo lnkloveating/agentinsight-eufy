@@ -3,12 +3,14 @@
 ## Current implementation status
 
 - `backend-progress-summary.md` records the backend baseline currently merged to `main`, the real `/api/v1` availability boundary, and the frontend adaptation checklist. Read it before integrating frontend pages with backend data.
+- `ai-native-eufy-ecosystem-handoff.md` records the 2026-08-10 product-direction change from device-level future-product candidates to evidence-bounded, verifiable eufy ecosystem safety strategies. It also records the exact unfinished branch state and the required backend migration order.
 
 ## Product and research
 
-1. `research-flow.md` is the canonical bridge from industry opportunity research to candidate comparison, Feishu approval and the selected scenario Demo.
-2. `agent-contracts.md` defines six Agent roles, structured artifacts, dependencies, quality scoring and mandatory rework.
-3. `state-machine.md` defines project states, terminal meanings and the three Human in the Loop gates.
+1. `ai-native-eufy-ecosystem-handoff.md` is the current product-direction handoff and migration plan. New implementation work must preserve evidence boundaries while following its ecosystem-level Goal-to-Guard direction.
+2. `research-flow.md` describes the existing bridge from industry opportunity research to candidate comparison, Feishu approval and the selected scenario Demo; sections that assume a single future hardware product must be migrated according to the handoff.
+3. `agent-contracts.md` defines six Agent roles, structured artifacts, dependencies, quality scoring and mandatory rework.
+4. `state-machine.md` defines project states, terminal meanings and the three Human in the Loop gates.
 
 ## Engineering contracts
 
