@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料链路、用户研究、竞品 A2A、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约、设备能力图、AI 原生 Research Brief 及其多轮追问已经完成；Product Technical v1 仅处于主图迁移兼容期。竞品生态层综合、真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
+> 项目生命周期、统一资料链路、用户研究、竞品 A2A 与生态层综合、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约、设备能力图、AI 原生 Research Brief 及其多轮追问已经完成；Product Technical v1 仅处于主图迁移兼容期。真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -55,8 +55,9 @@ http://localhost:8000/api/v1
 | 竞品资料发现与片段 Evidence | 按准确产品和研究维度发现候选资料，经 Gate、网页处理、路由、片段审核后晋级带血缘 Evidence | 可以统一展示“候选→已授权→已解析→已审核→可供 Agent 使用”，不能把搜索摘要直接当证据 |
 | 竞品价格渠道专家 | 从目标地区的受控价格、库存、卖家与促销 Evidence 中输出时间化价格和渠道观察；确定性校验产品、地区、Claim 类型、采集时间与引用 | 可以展示价格/库存快照、渠道和 Evidence IDs；不得显示为永久价、全网最低价或实时库存 |
 | 竞品用户评价专家 | 从受控 user_opinion Evidence 中提炼正负体验、事件、影响、矛盾与样本限制；重复主题由后端按 Evidence 和独立来源计算 | 可以展示单条反馈和跨来源重复主题；不得把单个作者或单一页面显示成普遍用户结论 |
-| 竞品综合与证据审计 | 三个专家均有发现后调用综合模型，输出逐产品优缺点、权衡、跨产品差异及待验证机会信号；后端审计 Evidence 范围、产品归属和专家维度 | 可以展示竞品画像、覆盖矩阵和证据审计；机会信号必须标注为 Product Technical Agent 待验证假设 |
-| 竞品主路径桥接 | 用户研究与竞品综合并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、合并 Evidence 和竞品缺口；产品机会页未来直接消费同一交接，不把“未覆盖”显示成“竞品没有” |
+| 竞品产品事实综合 | 三个专家均有发现后先调用产品事实综合模型，保留逐产品优缺点、权衡和准确 Evidence 血缘，供生态层继续使用 | 可以下钻查看生态结论来自哪些具体设备、价格或用户评价；该层不再直接作为新项目最终竞品结论 |
+| 竞品生态综合与证据审计 | 在产品事实之上调用生态综合模型，按 Brief 中目标/对照生态生成 12 维能力矩阵；后端审计生态范围、产品映射、专家维度和 Evidence | 可以展示 Ring、Google Nest、Arlo、eufy 等生态矩阵；未覆盖维度必须显示 `unknown` 与补研问题，不能显示成“竞品没有” |
+| 竞品主路径桥接 | 用户研究与竞品生态 Artifact 并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、生态/产品范围、12 维状态和缺口；下一步生态机会 Agent 消费同一交接 |
 | Product Technical v1 | 历史单品候选实现，主图迁移期间内部保留；不再定义新项目 Brief 或最终生态产物 | 前端不要新建单品入口；等待 `agent/ecosystem-opportunity` 的生态机会接口 |
 | 产品技术资料恢复 | 把指定候选组合的 `portfolio_gaps` 转换为结构化补充字段；用户确认后的内容生成带血缘 Evidence，并在下一版产品技术运行中进入受控上下文 | 可以按 `gap_id` 弹出“当前缺什么”的填写框，展示受影响候选和定向恢复范围；不要求用户盲目更换网站，也不会把填写内容伪装成官网证据 |
 | 生态机会公共契约 | 区分设备功能、设备产品和生态服务，表达跨设备蓝图、AI 必要性、降级、验证计划和 Evidence Gap；当前没有真实 Agent | 前端可以按目标 Schema 设计生态机会卡片，但不能展示为已生成的真实研究结果 |
@@ -90,11 +91,11 @@ http://localhost:8000/api/v1
 22. Device Capability Graph 能够把厂商通用能力与家庭实例分开，拒绝不合格或跨项目 Evidence，保留冲突，并确定性回答方案能力覆盖。
 23. 新 Research Brief 已删除单品式字段，强制表达生态、安全目标、信号授权、隐私/干预边界和验证期望；全部项目创建测试已迁移。
 24. Research Brief Clarifier v2 已能通过 Model Gateway 动态追问；模型字段必须引用用户消息，完整性由后端检查，完成后仍进入现有 Brief Gate。
+25. 竞品生态链路复用候选发现、三个 A2A 事实专家和产品事实综合，再调用生态综合模型；确定性后端生成 12 维覆盖矩阵，拒绝跨生态、跨产品、跨专家 Evidence，并把 v2 Artifact 投影进 `ResearchHandoff`。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 竞品生态发现与生态层综合；
 - 真实 Ecosystem Opportunity、Technical Feasibility、Security Policy、商业 v2 和红队 Prompt；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 最终报告、Package Risk Demo 和飞书集成。
@@ -115,6 +116,8 @@ http://localhost:8000/api/v1
 | `POST` | `/projects` | 可用 | 创建项目，提交 Brief 和可选模型策略 |
 | `GET` | `/projects/{project_id}` | 可用 | 项目详情、进度和待审批信息 |
 | `GET` | `/projects/{project_id}/agents` | 可用 | Agent Run 列表与模型调用审计摘要 |
+| `POST` | `/projects/{project_id}/agents/competitor-ecosystem` | 可用 | 运行三个竞品事实专家、产品事实综合和生态综合，返回带 Evidence 审计的 12 维生态矩阵 |
+| `GET` | `/projects/{project_id}/agents/competitor-ecosystem/artifacts` | 可用 | 查询版本化竞品生态 Artifact、覆盖矩阵、未知项与补研问题 |
 | `POST` | `/projects/{project_id}/agents/product-technical` | 可用 | 运行产品技术机会 Agent；目标 3 个、最多 5 个，证据不足时不补造候选 |
 | `GET` | `/projects/{project_id}/agents/product-technical/artifacts` | 可用 | 查询版本化候选组合、Gate 状态、Evidence IDs 和补研问题 |
 | `POST` | `/projects/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery` | 可用 | 把一个或多个候选证据缺口转换为前端补充弹窗契约，并保存定向恢复血缘 |
