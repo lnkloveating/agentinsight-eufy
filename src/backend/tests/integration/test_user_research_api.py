@@ -12,6 +12,7 @@ from app.application.model_gateway import (
 from app.core.config import Settings
 from app.main import create_app
 from app.sources.web_connector import WebFetchResult
+from tests.research_brief import home_safety_brief_payload
 
 
 class TwoPageWebConnector:
@@ -130,15 +131,9 @@ def _approve_project(client: TestClient) -> str:
     created = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "Which unmet needs exist around eufy package alerts?",
-                "category": "home security",
-                "target_user": "North American smart doorbell users",
-                "region": "US",
-                "scenarios": ["package delivery"],
-                "constraints": ["privacy first"],
-                "focus_dimensions": ["user pain", "unmet needs"],
-            }
+            "brief": home_safety_brief_payload(
+                "Which unmet safety needs require more than event notifications?"
+            )
         },
     )
     assert created.status_code == 201

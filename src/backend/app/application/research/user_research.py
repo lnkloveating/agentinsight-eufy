@@ -37,6 +37,7 @@ class UserResearchService:
 
     async def run(self, project_id: str) -> UserResearchArtifact:
         project = await self._require_runnable_project(project_id)
+        brief = ResearchBrief.model_validate(project.brief_json)
         previous = await self.artifact_store.list_versions(project_id, USER_RESEARCH_TASK_ID)
         evidence_context = await self.context_builder.build(project_id)
         task = ResearchTask(
@@ -48,9 +49,13 @@ class UserResearchService:
                 "未满足需求、样本偏差与补研缺口。"
             ),
             scope={
-                "category": project.brief_json.get("category"),
-                "target_user": project.brief_json.get("target_user"),
-                "region": project.brief_json.get("region"),
+                "research_scope": brief.research_scope.value,
+                "safety_domains": [item.value for item in brief.safety_domains],
+                "target_ecosystems": brief.target_ecosystems,
+                "target_users": brief.target_users,
+                "markets": brief.markets,
+                "safety_goals": brief.safety_goals,
+                "risk_scenarios": brief.risk_scenarios,
             },
             required_artifacts=["evidence_context"],
             evidence_rules=EvidenceRules(
@@ -70,7 +75,7 @@ class UserResearchService:
         )
         context = AgentContext(
             project_id=project_id,
-            brief=ResearchBrief.model_validate(project.brief_json),
+            brief=brief,
             iteration=len(previous),
             evidence_context=evidence_context,
         )

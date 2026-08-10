@@ -35,6 +35,7 @@ from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.evidence import EvidenceClaimType, EvidenceIngest, EvidenceStatus
 from app.schemas.project import ProjectStatus, ResearchBrief
 from app.workflows.contracts import ResearchAgentType
+from tests.research_brief import home_safety_brief
 
 
 def test_user_research_runtime_error_is_exposed_as_safe_api_error() -> None:
@@ -114,13 +115,7 @@ class UserResearchProvider:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="调研 eufy 家庭安防未来产品机会",
-        category="家庭安防",
-        target_user="北美家庭安防用户",
-        region="US",
-        scenarios=["门前包裹"],
-    )
+    return home_safety_brief()
 
 
 def _evidence(url: str, excerpt: str) -> EvidenceIngest:

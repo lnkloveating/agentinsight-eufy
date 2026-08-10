@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_app
+from tests.research_brief import home_safety_brief_payload
 
 
 @pytest.fixture
@@ -60,12 +61,7 @@ def test_project_persists_selected_model_and_run_audit_fields(
     response = model_client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": "哪些家庭事件值得进一步研究？",
-                "category": "家庭安防",
-                "target_user": "北美家庭用户",
-                "region": "北美",
-            },
+            "brief": home_safety_brief_payload('哪些家庭事件值得进一步研究？'),
             "model_selection": {
                 "default_model_id": "test:model-a",
                 "agent_overrides": {"red_team": "test:model-a"},
@@ -91,12 +87,7 @@ def test_project_persists_selected_model_and_run_audit_fields(
 def test_project_rejects_unknown_model_and_agent_override(
     model_client: TestClient,
 ) -> None:
-    brief = {
-        "question": "哪些家庭事件值得进一步研究？",
-        "category": "家庭安防",
-        "target_user": "北美家庭用户",
-        "region": "北美",
-    }
+    brief = home_safety_brief_payload("哪些家庭安全目标值得进一步研究？")
     unknown_model = model_client.post(
         "/api/v1/projects",
         json={

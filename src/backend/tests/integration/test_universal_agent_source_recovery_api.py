@@ -15,6 +15,7 @@ from app.infrastructure.database.models import (
 )
 from app.infrastructure.database.repositories import ProjectRepository
 from app.main import create_app
+from tests.research_brief import home_safety_brief_payload
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -37,13 +38,9 @@ def test_user_agent_gap_accepts_processed_evidence_and_targets_only_affected_tas
         created = client.post(
             "/api/v1/projects",
             json={
-                "brief": {
-                    "question": "What future package-safety product should eufy build?",
-                    "category": "home security",
-                    "target_user": "US households",
-                    "region": "US",
-                    "scenarios": ["front door package"],
-                }
+                "brief": home_safety_brief_payload(
+                    "Which cross-device package-safety policy should eufy validate?"
+                )
             },
         )
         assert created.status_code == 201

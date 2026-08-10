@@ -42,6 +42,7 @@ from app.workflows.contracts import (
     ResearchTask,
     ResearchTaskStatus,
 )
+from tests.research_brief import home_safety_brief
 
 
 class StaticArtifactAdapter:
@@ -145,13 +146,7 @@ class ProductOpportunityProvider:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="分析动态设备品类未来产品机会",
-        category="动态设备",
-        target_user="动态设备用户",
-        region="US",
-        scenarios=[],
-    )
+    return home_safety_brief()
 
 
 def _evidence(claim_type: EvidenceClaimType, url: str, excerpt: str) -> EvidenceIngest:
@@ -396,7 +391,7 @@ async def test_product_technical_service_runs_model_and_persists_lineage() -> No
             if stored_id is not None
         }
         assert len(provider.requests) == 1
-        assert "动态设备" in provider.requests[0].messages[1].content
+        assert "eufy Security" in provider.requests[0].messages[1].content
         assert "local-test-secret" not in provider.requests[0].messages[1].content
     finally:
         await database.dispose()

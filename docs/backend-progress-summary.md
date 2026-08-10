@@ -25,13 +25,13 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料链路、用户研究、竞品 A2A 全链路、旧 Product Technical v1、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约和证据约束的设备能力图已经完成；真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
+> 项目生命周期、统一资料链路、用户研究、竞品 A2A、通用资料恢复、共享 Evidence Retrieval、生态机会公共契约、设备能力图和 AI 原生家庭安防 Research Brief 已经完成；Product Technical v1 仅处于主图迁移兼容期。真实生态机会 Agent、AI Native Gate、技术可行性、策略编译/验证、商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
 
 ### 2.1 已完成并合并到 `main`
 
 | 模块 | 当前能力 | 对前端的意义 |
 |---|---|---|
-| 项目生命周期 | 创建/查询项目、Brief 人工审批、状态迁移、持久化事件 | 可以实现项目列表、Brief 确认页和审批面板 |
+| 项目生命周期 | 创建/查询项目、AI 原生家庭安防生态 Brief 人工审批、状态迁移、持久化事件；旧单品 Brief 被 422 拒绝 | 可以实现项目列表、生态 Brief 确认页和审批面板 |
 | SSE 事件 | 历史事件回放、实时事件、断线续传游标、心跳 | 可以实现实时研究时间线和连接状态 |
 | Evidence Foundation | Evidence、Collection Job、Claim、去重、跨项目隔离、Claim Gate、失败记录 | 可以实现 Evidence Center 和 Claim-Evidence 关系展示 |
 | 共享 Evidence 检索 | 所有现有领域 Agent 共用项目隔离、状态门禁、元数据/词法相关度、来源多样性、字符预算与 Context Hash；产品技术保留精确 Evidence ID 顺序 | 可以实现“Agent 使用了哪些资料”的证据抽屉；当前是可解释词法检索，不应标成向量语义 RAG |
@@ -56,7 +56,7 @@ http://localhost:8000/api/v1
 | 竞品用户评价专家 | 从受控 user_opinion Evidence 中提炼正负体验、事件、影响、矛盾与样本限制；重复主题由后端按 Evidence 和独立来源计算 | 可以展示单条反馈和跨来源重复主题；不得把单个作者或单一页面显示成普遍用户结论 |
 | 竞品综合与证据审计 | 三个专家均有发现后调用综合模型，输出逐产品优缺点、权衡、跨产品差异及待验证机会信号；后端审计 Evidence 范围、产品归属和专家维度 | 可以展示竞品画像、覆盖矩阵和证据审计；机会信号必须标注为 Product Technical Agent 待验证假设 |
 | 竞品主路径桥接 | 用户研究与竞品综合并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、合并 Evidence 和竞品缺口；产品机会页未来直接消费同一交接，不把“未覆盖”显示成“竞品没有” |
-| 产品技术机会 Agent | 从最新 `ResearchHandoff` 动态生成目标 3 个、最多 5 个未来产品候选；每个候选同时引用用户与竞品 Evidence，并由确定性 Event Understanding Gate、去重和引用边界校验 | 可以展示候选、Event Understanding、技术依赖、Gate 状态和补研问题；证据不足时显示更少候选，不能用固定门铃场景或 Mock 凑数 |
+| Product Technical v1 | 历史单品候选实现，主图迁移期间内部保留；不再定义新项目 Brief 或最终生态产物 | 前端不要新建单品入口；等待 `agent/ecosystem-opportunity` 的生态机会接口 |
 | 产品技术资料恢复 | 把指定候选组合的 `portfolio_gaps` 转换为结构化补充字段；用户确认后的内容生成带血缘 Evidence，并在下一版产品技术运行中进入受控上下文 | 可以按 `gap_id` 弹出“当前缺什么”的填写框，展示受影响候选和定向恢复范围；不要求用户盲目更换网站，也不会把填写内容伪装成官网证据 |
 | 生态机会公共契约 | 区分设备功能、设备产品和生态服务，表达跨设备蓝图、AI 必要性、降级、验证计划和 Evidence Gap；当前没有真实 Agent | 前端可以按目标 Schema 设计生态机会卡片，但不能展示为已生成的真实研究结果 |
 | 设备能力图 | 保存带 Evidence 的厂商设备能力、用户授权家庭快照和 `available/unavailable/unknown/conflict` 确定性查询；不保存家庭视频或序列号 | 可以实现“方案需要什么能力、已有设备能否支撑、还缺什么”的设备覆盖页；企业 API 未接入时不得显示实时设备状态 |
@@ -85,8 +85,9 @@ http://localhost:8000/api/v1
 18. Product Technical Adapter 已注册到统一 Runtime 和 Model Gateway；主路径及独立 HTTP 用例都消费同一上游 Artifact，输出版本化 `product_technical_opportunity_portfolio`。
 19. 产品技术 Artifact 的补研缺口具有稳定 ID；可创建统一 Source Recovery、生成 `user_declaration` Evidence，并把已解决 Evidence 注入下一版产品技术上下文。
 20. 用户研究、三个竞品专家和产品技术 Context Builder 已迁移到共享 Evidence Retrieval；后续商业与红队可以复用同一接口，不再建立各自知识副本。
-21. 生态机会契约已经定义新的跨设备候选结构，并保持旧 Product Technical v1 兼容；当前尚未注册真实生态机会 Prompt/Adapter。
+21. 生态机会契约已经定义新的跨设备候选结构；Product Technical v1 只处于主图迁移兼容期，当前尚未注册真实生态机会 Prompt/Adapter。
 22. Device Capability Graph 能够把厂商通用能力与家庭实例分开，拒绝不合格或跨项目 Evidence，保留冲突，并确定性回答方案能力覆盖。
+23. 新 Research Brief 已删除单品式字段，强制表达生态、安全目标、信号授权、隐私/干预边界和验证期望；全部项目创建测试已迁移。
 
 当前仍缺少：
 
@@ -455,7 +456,7 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次验证状态：
 
 ```text
-设备能力图合并前全量 Pytest：294 passed，1 个第三方 Starlette TestClient 弃用警告
+AI 原生研究范围分支全量 Pytest：305 passed，1 个第三方 Starlette TestClient 弃用警告
 ruff: 全量通过
 mypy: 通过（207 个 app 源文件）
 Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空库升级到 head 并降级到 0018 通过
@@ -474,6 +475,7 @@ git diff --check: 通过
 ```text
 Ecosystem Opportunity Contract（已完成）
 → Device Capability Graph（已完成并合并）
+→ AI-native Home-safety Research Scope（已完成）
 → Ecosystem Opportunity Agent
 → AI Native Ecosystem Gate
 → Technical Feasibility Agent

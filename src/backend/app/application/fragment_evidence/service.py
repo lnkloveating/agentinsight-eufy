@@ -53,6 +53,7 @@ from app.schemas.fragment_evidence import (
     FragmentEvidencePromotionStatus,
     FragmentEvidenceQualityPrior,
 )
+from app.schemas.project import ResearchBrief
 from app.schemas.source import SourceAssetStatus
 from app.schemas.source_processing import (
     CollectionJobStatus,
@@ -605,7 +606,7 @@ class FragmentEvidencePipelineService:
             )
             suggested = self._suggested_claim_type(dimensions, allowed)
             region = (
-                str(project.brief_json.get("region") or "") or None
+                ResearchBrief.model_validate(project.brief_json).primary_market
                 if set(dimensions)
                 & {
                     CompetitorResearchDimension.PRICE_CHANNEL,
