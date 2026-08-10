@@ -136,6 +136,92 @@ def _artifacts(user=None, competitor=None):
     }
 
 
+def _ecosystem_competitor_artifact() -> ResearchArtifact:
+    dimensions = {
+        "safety_goal_coverage": "supported",
+        "cross_device_orchestration": "unknown",
+        "temporal_state_understanding": "unknown",
+        "active_perception": "unknown",
+        "uncertainty_handling": "unknown",
+        "intervention_ladder": "unknown",
+        "local_cloud_partition": "unknown",
+        "privacy_and_consent": "unknown",
+        "offline_fallback": "unknown",
+        "caregiver_workflow": "unknown",
+        "failure_recovery": "unknown",
+        "business_model": "unknown",
+    }
+    return ResearchArtifact(
+        artifact_id="artifact_ecosystem_competitor",
+        task_id="task_competitor_ecosystem",
+        artifact_type=ResearchAgentType.COMPETITOR_RESEARCH,
+        schema_version="2.0",
+        status=ResearchTaskStatus.PARTIAL,
+        payload={
+            "schema_name": "competitor_ecosystem_analysis",
+            "synthesis_status": "partial",
+            "summary_evidence_ids": ["ev_competitor"],
+            "specialist_outputs": [
+                {"specialist_type": "official_product"},
+                {"specialist_type": "price_channel"},
+                {"specialist_type": "user_review"},
+            ],
+            "ecosystem_profiles": [
+                {
+                    "ecosystem_label": "eufy Security",
+                    "product_scope_labels": ["Target Doorbell"],
+                    "assessments": [
+                        {
+                            "dimension": "safety_goal_coverage",
+                            "evidence_ids": ["ev_competitor"],
+                        },
+                        {
+                            "dimension": "temporal_state_understanding",
+                            "evidence_ids": [],
+                        },
+                    ],
+                }
+            ],
+            "comparison_insights": [],
+            "opportunity_signals": [
+                {
+                    "signal_id": "signal_temporal_state",
+                    "evidence_ids": ["ev_competitor"],
+                }
+            ],
+            "research_gaps": [
+                {
+                    "ecosystem_label": "eufy Security",
+                    "dimension": "temporal_state_understanding",
+                    "question": "Which evidence establishes continuous state?",
+                }
+            ],
+            "coverage_matrix": [
+                {
+                    "ecosystem_label": "eufy Security",
+                    "dimension_statuses": dimensions,
+                    "mapped_products": ["Target Doorbell"],
+                    "evidence_ids": ["ev_competitor"],
+                },
+                {
+                    "ecosystem_label": "Ring",
+                    "dimension_statuses": {
+                        dimension: "unknown" for dimension in dimensions
+                    },
+                    "mapped_products": [],
+                    "evidence_ids": [],
+                },
+            ],
+            "evidence_audit": {
+                "status": "passed_with_gaps",
+                "specialist_output_count": 3,
+            },
+        },
+        evidence_ids=["ev_competitor"],
+        quality_score=70,
+    )
+
+
 def test_completed_research_builds_ready_handoff() -> None:
     handoff = build_research_handoff(_artifacts())
 
@@ -165,6 +251,25 @@ def test_partial_competitor_with_audited_gaps_can_advance() -> None:
     assert handoff.competitor_projection.gaps[0].research_questions == [
         "Which recurring owner opinions remain missing?"
     ]
+
+
+def test_ecosystem_v2_artifact_projects_ecosystem_scope_and_unknown_dimensions() -> None:
+    handoff = build_research_handoff(
+        _artifacts(competitor=_ecosystem_competitor_artifact())
+    )
+
+    assert handoff.status is ResearchHandoffStatus.READY_WITH_GAPS
+    assert handoff.ready_for_product_technical is True
+    assert handoff.competitor_projection is not None
+    assert handoff.competitor_projection.schema_name == "competitor_ecosystem_analysis"
+    assert handoff.competitor_projection.product_scope == ["Target Doorbell"]
+    assert handoff.competitor_projection.ecosystem_scope == ["eufy Security", "Ring"]
+    assert handoff.competitor_projection.ecosystem_dimension_statuses[
+        "eufy Security"
+    ]["safety_goal_coverage"] == "supported"
+    assert "Ring" in {
+        gap.scope_label for gap in handoff.competitor_projection.gaps
+    }
 
 
 def test_foundation_or_unbounded_competitor_artifact_is_blocked() -> None:
