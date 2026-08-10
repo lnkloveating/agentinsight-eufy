@@ -17,6 +17,7 @@ class ResearchAgentType(StrEnum):
     USER_RESEARCH = "user_research"
     COMPETITOR_RESEARCH = "competitor_research"
     PRODUCT_TECHNICAL = "product_technical"
+    ECOSYSTEM_OPPORTUNITY = "ecosystem_opportunity"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
     CANDIDATE_SYNTHESIS = "candidate_synthesis"
