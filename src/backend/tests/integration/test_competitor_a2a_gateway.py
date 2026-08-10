@@ -29,16 +29,11 @@ from app.workflows.contracts import (
     ResearchAgentType,
     ResearchTaskStatus,
 )
+from tests.research_brief import home_safety_brief
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="Research a future opportunity in home security products",
-        category="home security",
-        target_user="households",
-        region="US",
-        scenarios=["front door"],
-    )
+    return home_safety_brief()
 
 
 def _evidence(

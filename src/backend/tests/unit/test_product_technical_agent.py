@@ -10,7 +10,6 @@ from app.agents.product_technical import (
 )
 from app.core.config import Settings
 from app.main import create_app
-from app.schemas.project import ResearchBrief
 from app.workflows.contracts import (
     AgentContext,
     ResearchAgentType,
@@ -20,6 +19,7 @@ from app.workflows.contracts import (
     ResearchTaskStatus,
 )
 from app.workflows.handoff import build_research_handoff
+from tests.research_brief import home_safety_brief
 
 
 def _user_artifact() -> ResearchArtifact:
@@ -127,13 +127,7 @@ def _context() -> AgentContext:
     }
     return AgentContext(
         project_id="proj_dynamic",
-        brief=ResearchBrief(
-            question="分析当前品类未来产品机会",
-            category="动态品类",
-            target_user="目标用户",
-            region="US",
-            scenarios=[],
-        ),
+        brief=home_safety_brief(),
         iteration=0,
         upstream_artifacts=upstream,
         research_handoff=build_research_handoff(upstream),

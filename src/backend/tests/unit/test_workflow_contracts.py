@@ -19,15 +19,11 @@ from app.workflows.graph import create_initial_state
 from app.workflows.planning import PLANNED_AGENT_TYPES, parse_task_plan
 from app.workflows.runtime import AgentRuntimeNotBoundError, UnboundAgentRuntime
 from tests.integration.workflow_runtime import TestAgentRuntime
+from tests.research_brief import home_safety_brief
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="北美家庭安防中有哪些值得验证的事件理解机会？",
-        category="家庭安防",
-        target_user="北美家庭安防用户",
-        region="北美",
-    )
+    return home_safety_brief()
 
 
 @pytest.mark.asyncio

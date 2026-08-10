@@ -25,6 +25,7 @@ from app.infrastructure.database.models import ProjectModel
 from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.project import ProjectStatus, ResearchBrief
 from app.workflows.contracts import AgentContext, EvidenceRules, ResearchAgentType, ResearchTask
+from tests.research_brief import home_safety_brief
 
 
 class CompetitorDiscoveryProvider:
@@ -66,12 +67,7 @@ class CompetitorDiscoveryProvider:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="Which products compete with eufy E340?",
-        category="smart doorbell",
-        target_user="US households",
-        region="US",
-    )
+    return home_safety_brief()
 
 
 @pytest.mark.asyncio

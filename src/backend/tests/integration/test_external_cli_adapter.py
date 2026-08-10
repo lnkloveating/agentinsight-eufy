@@ -23,6 +23,7 @@ from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.project import ProjectStatus, ResearchBrief
 from app.schemas.runtime import RuntimeCapability
 from app.workflows.contracts import AgentContext, ResearchAgentType, ResearchTask
+from tests.research_brief import home_safety_brief
 
 
 class PythonArtifactDriver:
@@ -82,12 +83,7 @@ class PythonArtifactDriver:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="Which authorized source should be researched?",
-        category="home security",
-        target_user="households",
-        region="US",
-    )
+    return home_safety_brief()
 
 
 async def _database(tmp_path: Path) -> Database:

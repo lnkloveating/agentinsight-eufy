@@ -3,9 +3,9 @@ from pathlib import Path
 
 from app.application.runtime import AgentInvocation, CancellationToken, OpenCodeCliDriver
 from app.application.runtime.external_workspace import ExternalCliWorkspaceManager
-from app.schemas.project import ResearchBrief
 from app.schemas.runtime import RuntimeCapability
 from app.workflows.contracts import AgentContext, ResearchAgentType, ResearchTask
+from tests.research_brief import home_safety_brief
 
 
 def _invocation(project_id: str = "proj_driver") -> AgentInvocation:
@@ -23,12 +23,7 @@ def _invocation(project_id: str = "proj_driver") -> AgentInvocation:
         ),
         context=AgentContext(
             project_id=project_id,
-            brief=ResearchBrief(
-                question="Which local source needs research?",
-                category="home security",
-                target_user="households",
-                region="US",
-            ),
+            brief=home_safety_brief(),
             iteration=0,
         ),
         cancellation_token=CancellationToken(),

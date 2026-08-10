@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.core.config import Settings
 from app.infrastructure.database.models import EvidenceModel, HouseholdSnapshotModel
 from app.main import create_app
+from tests.research_brief import home_safety_brief_payload
 
 
 def _settings() -> Settings:
@@ -23,13 +24,7 @@ def _project(client: TestClient, question: str) -> str:
     response = client.post(
         "/api/v1/projects",
         json={
-            "brief": {
-                "question": question,
-                "category": "eufy home security ecosystem",
-                "target_user": "households",
-                "region": "US",
-                "scenarios": ["package protection"],
-            }
+            "brief": home_safety_brief_payload(question)
         },
     )
     assert response.status_code == 201

@@ -28,6 +28,7 @@ from app.workflows import (
 )
 from app.workflows.contracts import GateRequest
 from app.workflows.planning import PLANNED_AGENT_TYPES
+from tests.research_brief import home_safety_brief
 
 from .workflow_runtime import TestAgentRuntime
 
@@ -43,12 +44,7 @@ class WorkflowAdapter:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="北美家庭安防中有哪些值得验证的事件理解机会？",
-        category="家庭安防",
-        target_user="北美家庭安防用户",
-        region="北美",
-    )
+    return home_safety_brief()
 
 
 def _request(result: dict[str, Any]) -> GateRequest:

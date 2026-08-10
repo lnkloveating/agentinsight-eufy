@@ -8,19 +8,12 @@ from app.infrastructure.database.models import (
     ClaimModel,
     EvidenceModel,
 )
+from tests.research_brief import home_safety_brief_payload
 
 
 def _project_payload() -> dict[str, object]:
     return {
-        "brief": {
-            "question": "智能门铃是否应该理解包裹风险？",
-            "category": "家庭安防",
-            "target_user": "智能门铃用户",
-            "region": "北美",
-            "scenarios": ["包裹送达"],
-            "constraints": ["隐私优先"],
-            "focus_dimensions": ["证据", "技术"],
-        }
+        "brief": home_safety_brief_payload('智能门铃是否应该理解包裹风险？')
     }
 
 

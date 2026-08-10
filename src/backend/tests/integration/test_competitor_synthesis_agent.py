@@ -22,6 +22,7 @@ from app.workflows.contracts import (
     ResearchBudget,
     ResearchTask,
 )
+from tests.research_brief import home_safety_brief
 
 PRODUCT = "Target Doorbell"
 
@@ -235,13 +236,7 @@ def _settings(tmp_path: Path) -> Settings:
 
 
 def _brief() -> ResearchBrief:
-    return ResearchBrief(
-        question="What future home-security opportunity should be validated?",
-        category="smart doorbell",
-        target_user="US households",
-        region="US",
-        scenarios=["front door package"],
-    )
+    return home_safety_brief()
 
 
 def _evidence_context() -> AgentEvidenceContext:
