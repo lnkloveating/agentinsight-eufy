@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 三个专家与综合审计，以及动态产品技术机会 Agent 已经完成；商业和红队等后续领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 三个专家与综合审计、动态产品技术机会 Agent，以及产品候选缺口的资料恢复闭环已经完成；商业和红队等后续领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -56,6 +56,7 @@ http://localhost:8000/api/v1
 | 竞品综合与证据审计 | 三个专家均有发现后调用综合模型，输出逐产品优缺点、权衡、跨产品差异及待验证机会信号；后端审计 Evidence 范围、产品归属和专家维度 | 可以展示竞品画像、覆盖矩阵和证据审计；机会信号必须标注为 Product Technical Agent 待验证假设 |
 | 竞品主路径桥接 | 用户研究与竞品综合并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、合并 Evidence 和竞品缺口；产品机会页未来直接消费同一交接，不把“未覆盖”显示成“竞品没有” |
 | 产品技术机会 Agent | 从最新 `ResearchHandoff` 动态生成目标 3 个、最多 5 个未来产品候选；每个候选同时引用用户与竞品 Evidence，并由确定性 Event Understanding Gate、去重和引用边界校验 | 可以展示候选、Event Understanding、技术依赖、Gate 状态和补研问题；证据不足时显示更少候选，不能用固定门铃场景或 Mock 凑数 |
+| 产品技术资料恢复 | 把指定候选组合的 `portfolio_gaps` 转换为结构化补充字段；用户确认后的内容生成带血缘 Evidence，并在下一版产品技术运行中进入受控上下文 | 可以按 `gap_id` 弹出“当前缺什么”的填写框，展示受影响候选和定向恢复范围；不要求用户盲目更换网站，也不会把填写内容伪装成官网证据 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
 
@@ -79,6 +80,7 @@ http://localhost:8000/api/v1
 16. 竞品主管能够在三个专家均产生发现后调用综合模型，并确定性拒绝虚构 Evidence、跨产品引用和跨专家维度引用；资料不足时不调用综合模型。
 17. LangGraph 能够把用户研究与竞品综合写入强类型 `ResearchHandoff`；经过审计的 partial 缺口可进入产品技术阶段，无效竞品结果只重跑竞品节点，Checkpoint 不重复执行用户研究。
 18. Product Technical Adapter 已注册到统一 Runtime 和 Model Gateway；主路径及独立 HTTP 用例都消费同一上游 Artifact，输出版本化 `product_technical_opportunity_portfolio`。
+19. 产品技术 Artifact 的补研缺口具有稳定 ID；可创建统一 Source Recovery、生成 `user_declaration` Evidence，并把已解决 Evidence 注入下一版产品技术上下文。
 
 当前仍缺少：
 
@@ -102,6 +104,7 @@ http://localhost:8000/api/v1
 | `GET` | `/projects/{project_id}/agents` | 可用 | Agent Run 列表与模型调用审计摘要 |
 | `POST` | `/projects/{project_id}/agents/product-technical` | 可用 | 运行产品技术机会 Agent；目标 3 个、最多 5 个，证据不足时不补造候选 |
 | `GET` | `/projects/{project_id}/agents/product-technical/artifacts` | 可用 | 查询版本化候选组合、Gate 状态、Evidence IDs 和补研问题 |
+| `POST` | `/projects/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery` | 可用 | 把一个或多个候选证据缺口转换为前端补充弹窗契约，并保存定向恢复血缘 |
 | `GET` | `/projects/{project_id}/events` | 可用 | SSE 实时事件和历史回放 |
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
 | `GET` | `/projects/{project_id}/source-requirements` | 可用 | 实时查询目标/竞品范围和各研究维度的资料准备度、缺口与补充动作 |

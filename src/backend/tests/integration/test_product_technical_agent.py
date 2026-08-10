@@ -23,12 +23,18 @@ from app.application.model_gateway import (
 )
 from app.application.research import ProductTechnicalService
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ArtifactStore
+from app.application.source_recovery import SourceRecoveryService
 from app.infrastructure.database import Database
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.models import ProjectModel
 from app.infrastructure.database.repositories import ProjectRepository
 from app.schemas.evidence import EvidenceClaimType, EvidenceIngest, EvidenceStatus
 from app.schemas.project import ProjectStatus, ResearchBrief
+from app.schemas.source import SourceAuthorizationBasis
+from app.schemas.source_recovery import (
+    ProductTechnicalSourceRecoveryCreate,
+    SourceRecoverySubmissionCreate,
+)
 from app.workflows.contracts import (
     AgentContext,
     ResearchAgentType,
@@ -56,14 +62,23 @@ class StaticArtifactAdapter:
 class ProductOpportunityProvider:
     provider_id = "product-test"
 
-    def __init__(self, user_evidence_id: str, competitor_evidence_id: str) -> None:
+    def __init__(
+        self,
+        user_evidence_id: str,
+        competitor_evidence_id: str,
+        *,
+        candidate_count: int = 3,
+    ) -> None:
         self.user_evidence_id = user_evidence_id
         self.competitor_evidence_id = competitor_evidence_id
+        self.candidate_count = candidate_count
         self.requests: list[ProviderModelRequest] = []
 
     async def generate(self, request: ProviderModelRequest) -> ProviderModelResult:
         self.requests.append(request)
-        candidates = [self._candidate(index) for index in range(1, 4)]
+        candidates = [
+            self._candidate(index) for index in range(1, self.candidate_count + 1)
+        ]
         return ProviderModelResult(
             output={
                 "summary": "动态设备品类存在三个有证据支持的事件理解机会。",
@@ -236,6 +251,58 @@ async def _persist_upstream(
     )
 
 
+def _product_service(
+    database: Database,
+    broker: ProjectEventBroker,
+    provider: ProductOpportunityProvider,
+) -> ProductTechnicalService:
+    providers = ModelProviderRegistry()
+    providers.register(provider)
+    catalog = ModelCatalog.from_json(
+        json.dumps(
+            [
+                {
+                    "model_id": "product-test:opportunity-model",
+                    "provider": "product-test",
+                    "provider_model": "opportunity-model",
+                    "display_name": "Product opportunity model",
+                    "credential_env": "PRODUCT_TEST_KEY",
+                    "capabilities": ["text", "structured_output"],
+                }
+            ]
+        ),
+        default_model_id="product-test:opportunity-model",
+    )
+    gateway = ModelGateway(
+        database,
+        catalog,
+        EnvironmentCredentialResolver({"PRODUCT_TEST_KEY": "local-test-secret"}),
+        providers,
+        max_retries=0,
+    )
+    prompts = PromptRegistry()
+    register_product_technical_prompt(prompts)
+    registry = AgentRegistry()
+    registry.bind(
+        ResearchAgentType.PRODUCT_TECHNICAL,
+        ProductTechnicalModelAgentAdapter(
+            gateway,
+            prompts,
+            ProjectModelSelectionResolver(database),
+        ),
+    )
+    return ProductTechnicalService(
+        database,
+        AgentRuntimeGateway(database, registry, broker, "trace_product_runtime"),
+        ProductTechnicalEvidenceContextBuilder(
+            database,
+            max_items=10,
+            max_excerpt_chars=2_000,
+            max_total_chars=20_000,
+        ),
+    )
+
+
 @pytest.mark.asyncio
 async def test_product_technical_service_runs_model_and_persists_lineage() -> None:
     database = Database("sqlite+aiosqlite:///:memory:")
@@ -300,51 +367,7 @@ async def test_product_technical_service_runs_model_and_persists_lineage() -> No
         )
 
         provider = ProductOpportunityProvider(user_id, competitor_id)
-        providers = ModelProviderRegistry()
-        providers.register(provider)
-        catalog = ModelCatalog.from_json(
-            json.dumps(
-                [
-                    {
-                        "model_id": "product-test:opportunity-model",
-                        "provider": "product-test",
-                        "provider_model": "opportunity-model",
-                        "display_name": "Product opportunity model",
-                        "credential_env": "PRODUCT_TEST_KEY",
-                        "capabilities": ["text", "structured_output"],
-                    }
-                ]
-            ),
-            default_model_id="product-test:opportunity-model",
-        )
-        gateway = ModelGateway(
-            database,
-            catalog,
-            EnvironmentCredentialResolver({"PRODUCT_TEST_KEY": "local-test-secret"}),
-            providers,
-            max_retries=0,
-        )
-        prompts = PromptRegistry()
-        register_product_technical_prompt(prompts)
-        registry = AgentRegistry()
-        registry.bind(
-            ResearchAgentType.PRODUCT_TECHNICAL,
-            ProductTechnicalModelAgentAdapter(
-                gateway,
-                prompts,
-                ProjectModelSelectionResolver(database),
-            ),
-        )
-        service = ProductTechnicalService(
-            database,
-            AgentRuntimeGateway(database, registry, broker, "trace_product_runtime"),
-            ProductTechnicalEvidenceContextBuilder(
-                database,
-                max_items=10,
-                max_excerpt_chars=2_000,
-                max_total_chars=20_000,
-            ),
-        )
+        service = _product_service(database, broker, provider)
 
         artifact = await service.run("proj_product_agent")
         versions = await service.list_artifacts("proj_product_agent")
@@ -375,5 +398,147 @@ async def test_product_technical_service_runs_model_and_persists_lineage() -> No
         assert len(provider.requests) == 1
         assert "动态设备" in provider.requests[0].messages[1].content
         assert "local-test-secret" not in provider.requests[0].messages[1].content
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_product_gap_recovery_creates_evidence_and_feeds_next_model_context() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    await database.create_schema()
+    broker = ProjectEventBroker()
+    project_id = "proj_product_recovery"
+    try:
+        now = datetime.now(UTC)
+        async with database.session() as session:
+            session.add(
+                ProjectModel(
+                    project_id=project_id,
+                    status=ProjectStatus.RESEARCHING,
+                    current_stage="product_technical",
+                    progress=50,
+                    brief_json=_brief().model_dump(mode="json"),
+                    model_selection_json={
+                        "default_model_id": "product-test:opportunity-model",
+                        "agent_overrides": {},
+                    },
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            await session.commit()
+            evidence_service = EvidenceService(
+                EvidenceRepository(session),
+                ProjectRepository(session),
+                "trace_recovery_evidence",
+                broker,
+            )
+            user = await evidence_service.ingest(
+                project_id,
+                _evidence(
+                    EvidenceClaimType.USER_OPINION,
+                    "https://users.example/recovery",
+                    "Users need help interpreting device events.",
+                ),
+            )
+            competitor = await evidence_service.ingest(
+                project_id,
+                _evidence(
+                    EvidenceClaimType.VENDOR_CLAIM,
+                    "https://vendor.example/recovery",
+                    "Current products provide isolated notifications.",
+                ),
+            )
+        user_id = user.evidence.evidence_id
+        competitor_id = competitor.evidence.evidence_id
+        await _persist_upstream(
+            database,
+            broker,
+            project_id,
+            ResearchAgentType.USER_RESEARCH,
+            _user_artifact(user_id),
+        )
+        await _persist_upstream(
+            database,
+            broker,
+            project_id,
+            ResearchAgentType.COMPETITOR_RESEARCH,
+            _competitor_artifact(competitor_id),
+        )
+
+        first_provider = ProductOpportunityProvider(
+            user_id, competitor_id, candidate_count=1
+        )
+        first_artifact = await _product_service(
+            database, broker, first_provider
+        ).run(project_id)
+        assert first_artifact.status is ResearchTaskStatus.PARTIAL
+        gap = first_artifact.payload.portfolio_gaps[-1]
+
+        recovery_service = SourceRecoveryService(
+            database, broker, "trace_product_recovery"
+        )
+        recovery = await recovery_service.create_from_product_technical(
+            project_id,
+            first_artifact.artifact_id,
+            ProductTechnicalSourceRecoveryCreate(
+                gap_ids=[gap.gap_id],
+                requested_by="research-lead",
+                reason="补齐候选所需的用户、竞品和上下文事实。",
+            ),
+        )
+
+        assert recovery.source_artifact_id == first_artifact.artifact_id
+        assert recovery.source_gap_ids == [gap.gap_id]
+        assert len(recovery.requested_fields) == 3
+        assert set(recovery.affected_agent_types) == {
+            "user_research",
+            "competitor_research",
+            "product_technical",
+        }
+        assert set(recovery.affected_task_ids) == {
+            "task_user_upstream",
+            "task_competitor_upstream",
+            "task_product_technical",
+        }
+
+        submitted = await recovery_service.submit(
+            project_id,
+            recovery.source_recovery_id,
+            SourceRecoverySubmissionCreate.model_validate(
+                {
+                    "request_id": "product-gap-recovery-0001",
+                    "answers": [
+                        {
+                            "field_id": field.field_id,
+                            "value": (
+                                "Enterprise confirms Home Mode API is available after "
+                                f"explicit user authorization ({field.evidence_type_hint})."
+                            ),
+                            "source_note": "Confirmed by the authorized product owner.",
+                        }
+                        for field in recovery.requested_fields
+                    ],
+                    "actor": "product-owner",
+                    "authorization_basis": SourceAuthorizationBasis.ENTERPRISE_AUTHORIZED,
+                    "authorization_confirmed": True,
+                    "accuracy_confirmed": True,
+                }
+            ),
+        )
+
+        assert submitted.status == "resolved"
+        assert submitted.resume_directive.ready is True
+        assert submitted.resume_directive.mode == "targeted_retry"
+        assert len(submitted.submissions[0].evidence_ids) == 3
+
+        second_provider = ProductOpportunityProvider(user_id, competitor_id)
+        second_artifact = await _product_service(
+            database, broker, second_provider
+        ).run(project_id)
+
+        assert second_artifact.status is ResearchTaskStatus.COMPLETED
+        assert len(second_provider.requests) == 1
+        assert "Home Mode API is available" in second_provider.requests[0].messages[1].content
     finally:
         await database.dispose()

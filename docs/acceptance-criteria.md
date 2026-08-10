@@ -380,6 +380,10 @@ Base Event
 - 每个候选必须同时引用用户研究和竞品研究 Evidence，且引用范围不能越过 `ResearchHandoff`；
 - 后端按候选独立执行 Event Understanding Gate，并区分生成数量与可晋级数量；
 - 少于 3 个可晋级候选时返回 `partial` 或 `blocked`，同时生成可交给资料恢复流程的补研问题；
+- 每个补研问题具有稳定 `gap_id`，可以从指定产品技术 Artifact 创建结构化资料恢复任务；
+- 恢复任务必须返回证据类型提示、受影响候选、受影响 Agent 和任务，供前端展示精确补充弹窗；
+- 用户补充内容必须保存为 `user_declaration` Evidence，并保留 Artifact、Gap、Submission 与 Evidence 的血缘；
+- 已解决补研 Evidence 必须进入下一版产品技术 Agent 的受控上下文，未受影响任务不得被无差别重跑；
 - 候选名称或事件签名重复、虚构 Evidence ID、虚构竞品机会信号 ID 时确定性失败。
 
 ## AC-08 红队真实影响结果

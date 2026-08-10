@@ -3,10 +3,13 @@ from copy import deepcopy
 import pytest
 
 from app.agents.product_technical import (
+    ProductTechnicalArtifact,
     ProductTechnicalModelOutput,
     ProductTechnicalOutputValidator,
     ProductTechnicalValidationError,
 )
+from app.core.config import Settings
+from app.main import create_app
 from app.schemas.project import ResearchBrief
 from app.workflows.contracts import (
     AgentContext,
@@ -265,3 +268,25 @@ def test_duplicate_candidate_event_signature_is_rejected() -> None:
         ProductTechnicalOutputValidator().validate(
             _task(), _context(), _output([_candidate(1), duplicate])
         )
+
+
+def test_gap_ids_are_stable_and_legacy_artifacts_are_upgraded_on_read() -> None:
+    artifact = ProductTechnicalOutputValidator().validate(
+        _task(), _context(), _output([_candidate(1)])
+    )
+    data = artifact.model_dump(mode="json")
+    first_gap_id = data["payload"]["portfolio_gaps"][0].pop("gap_id")
+    legacy = ResearchArtifact.model_validate(data)
+
+    restored = ProductTechnicalArtifact.from_research_artifact(legacy)
+
+    assert restored.payload.portfolio_gaps[0].gap_id == first_gap_id
+
+
+def test_product_gap_recovery_api_is_registered() -> None:
+    schema = create_app(Settings(_env_file=None)).openapi()
+
+    assert (
+        "/api/v1/projects/{project_id}/agents/product-technical/artifacts/"
+        "{artifact_id}/source-recovery"
+    ) in schema["paths"]
