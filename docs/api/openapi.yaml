@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.10.0
+  version: 0.11.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -213,6 +213,35 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ProductTechnicalArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery:
+    post:
+      tags: [Research, Evidence]
+      summary: Create a user-input recovery task from product opportunity gaps
+      description: |
+        Converts selected portfolio gaps from a persisted Product Technical Artifact into
+        structured fields for a frontend recovery dialog. The resulting user declaration is
+        reviewed, persisted as Evidence, and resumes only the affected upstream research tasks
+        plus Product Technical. No failed URL or source asset is required.
+      operationId: createProductTechnicalSourceRecovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ArtifactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductTechnicalSourceRecoveryCreate"
+      responses:
+        "201":
+          description: A structured recovery task suitable for a frontend dialog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1416,6 +1445,13 @@ components:
       schema:
         type: string
         pattern: "^proj_[A-Za-z0-9_-]+$"
+    ArtifactId:
+      name: artifact_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^artifact_[A-Za-z0-9_-]+$"
     Cursor:
       name: cursor
       in: query
@@ -2171,8 +2207,9 @@ components:
     ProductTechnicalGap:
       type: object
       additionalProperties: false
-      required: [question, reason, required_evidence_types, affected_candidate_ids]
+      required: [gap_id, question, reason, required_evidence_types, affected_candidate_ids]
       properties:
+        gap_id: { type: string, minLength: 1, maxLength: 80 }
         question: { type: string, minLength: 1, maxLength: 1500 }
         reason: { type: string, minLength: 1, maxLength: 1500 }
         required_evidence_types:
@@ -3002,6 +3039,20 @@ components:
         requested_by: { type: string, minLength: 1, maxLength: 120 }
         reason: { type: string, minLength: 1, maxLength: 1000 }
 
+    ProductTechnicalSourceRecoveryCreate:
+      type: object
+      additionalProperties: false
+      required: [gap_ids, requested_by, reason]
+      properties:
+        gap_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          description: Empty means all gaps in the selected Product Technical Artifact.
+          items: { type: string, minLength: 1, maxLength: 80 }
+        requested_by: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
     SourceRecoveryRequestedField:
       type: object
       additionalProperties: false
@@ -3013,6 +3064,8 @@ components:
         - question
         - required
         - claim_type
+        - evidence_type_hint
+        - affected_candidate_ids
         - product
         - region
         - route
@@ -3025,6 +3078,12 @@ components:
         required: { type: boolean }
         claim_type:
           $ref: "#/components/schemas/EvidenceClaimType"
+        evidence_type_hint: { type: [string, "null"], maxLength: 120 }
+        affected_candidate_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
         product:
           oneOf:
             - $ref: "#/components/schemas/ProductReference"
@@ -3130,6 +3189,8 @@ components:
         - reason_message
         - failed_source_asset_id
         - failed_collection_job_id
+        - source_artifact_id
+        - source_gap_ids
         - requirement_ids
         - requested_fields
         - affected_task_ids
@@ -3155,6 +3216,11 @@ components:
         reason_message: { type: string }
         failed_source_asset_id: { type: [string, "null"] }
         failed_collection_job_id: { type: [string, "null"] }
+        source_artifact_id: { type: [string, "null"] }
+        source_gap_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
         requirement_ids:
           type: array
           uniqueItems: true

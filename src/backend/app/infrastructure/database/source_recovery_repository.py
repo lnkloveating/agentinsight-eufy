@@ -1,5 +1,6 @@
 """资料恢复记录的项目隔离查询与持久化。"""
 
+from collections.abc import Sequence
 from typing import cast
 
 from sqlalchemy import select
@@ -79,6 +80,38 @@ class SourceRecoveryRepository:
             .order_by(SourceRecoveryModel.created_at.desc())
         )
         return cast(SourceRecoveryModel | None, await self.session.scalar(statement))
+
+    async def list_open_for_artifact(
+        self, project_id: str, artifact_id: str
+    ) -> Sequence[SourceRecoveryModel]:
+        statement = (
+            select(SourceRecoveryModel)
+            .options(selectinload(SourceRecoveryModel.submissions))
+            .where(
+                SourceRecoveryModel.project_id == project_id,
+                SourceRecoveryModel.source_artifact_id == artifact_id,
+                SourceRecoveryModel.status.in_(
+                    ("waiting_for_user_input", "needs_more_information")
+                ),
+            )
+            .order_by(SourceRecoveryModel.created_at.desc())
+        )
+        return list(await self.session.scalars(statement))
+
+    async def list_resolved_for_artifact(
+        self, project_id: str, artifact_id: str
+    ) -> Sequence[SourceRecoveryModel]:
+        statement = (
+            select(SourceRecoveryModel)
+            .options(selectinload(SourceRecoveryModel.submissions))
+            .where(
+                SourceRecoveryModel.project_id == project_id,
+                SourceRecoveryModel.source_artifact_id == artifact_id,
+                SourceRecoveryModel.status == "resolved",
+            )
+            .order_by(SourceRecoveryModel.created_at.asc())
+        )
+        return list(await self.session.scalars(statement))
 
     async def get_submission_by_request(
         self, source_recovery_id: str, request_id: str

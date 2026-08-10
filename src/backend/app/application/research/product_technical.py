@@ -13,6 +13,7 @@ from app.application.runtime import (
 from app.core.errors import AppError
 from app.infrastructure.database.models import ProjectModel
 from app.infrastructure.database.session import Database
+from app.infrastructure.database.source_recovery_repository import SourceRecoveryRepository
 from app.schemas.project import ProjectStatus, ResearchBrief
 from app.workflows.contracts import (
     AgentContext,
@@ -47,6 +48,14 @@ class ProductTechnicalService:
             if stored is not None:
                 upstream[agent_type.value] = stored.artifact
         handoff = build_research_handoff(upstream)
+        supplemental_evidence_ids = await self._resolved_supplemental_evidence_ids(
+            project_id,
+            [item.artifact.artifact_id for item in previous],
+        )
+        if supplemental_evidence_ids:
+            handoff = handoff.model_copy(
+                update={"supplemental_evidence_ids": supplemental_evidence_ids}
+            )
         evidence_context = (
             await self.context_builder.build(project_id, handoff)
             if handoff.ready_for_product_technical
@@ -100,6 +109,23 @@ class ProductTechnicalService:
         await self._require_project(project_id)
         versions = await self.artifact_store.list_versions(project_id, PRODUCT_TECHNICAL_TASK_ID)
         return [ProductTechnicalArtifact.from_research_artifact(item.artifact) for item in versions]
+
+    async def _resolved_supplemental_evidence_ids(
+        self,
+        project_id: str,
+        artifact_ids: list[str],
+    ) -> list[str]:
+        evidence_ids: list[str] = []
+        async with self.database.session() as session:
+            repository = SourceRecoveryRepository(session)
+            for artifact_id in artifact_ids:
+                recoveries = await repository.list_resolved_for_artifact(
+                    project_id, artifact_id
+                )
+                for recovery in recoveries:
+                    for submission in recovery.submissions:
+                        evidence_ids.extend(submission.evidence_ids_json)
+        return list(dict.fromkeys(evidence_ids))
 
     async def _require_runnable_project(self, project_id: str) -> ProjectModel:
         project = await self._require_project(project_id)

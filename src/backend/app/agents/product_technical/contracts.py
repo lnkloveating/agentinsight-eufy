@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from enum import StrEnum
 from typing import Literal
 
@@ -15,7 +17,7 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ProductTechnicalGap(StrictModel):
+class ProductTechnicalModelGap(StrictModel):
     question: str = Field(min_length=1, max_length=1_500)
     reason: str = Field(min_length=1, max_length=1_500)
     required_evidence_types: list[str] = Field(default_factory=list, max_length=20)
@@ -55,7 +57,7 @@ class ProductTechnicalModelOutput(StrictModel):
     summary: str = Field(min_length=1, max_length=5_000)
     summary_evidence_ids: list[str] = Field(default_factory=list, max_length=60)
     candidates: list[ProductOpportunityModelCandidate] = Field(default_factory=list, max_length=5)
-    portfolio_gaps: list[ProductTechnicalGap] = Field(default_factory=list, max_length=30)
+    portfolio_gaps: list[ProductTechnicalModelGap] = Field(default_factory=list, max_length=30)
     unknowns: list[str] = Field(default_factory=list, max_length=100)
 
     @field_validator("summary_evidence_ids")
@@ -91,6 +93,10 @@ class CandidateGateStatus(StrEnum):
 class ProductOpportunityCandidate(ProductOpportunityModelCandidate):
     gate_status: CandidateGateStatus
     gate_issues: list[str] = Field(default_factory=list)
+
+
+class ProductTechnicalGap(ProductTechnicalModelGap):
+    gap_id: str = Field(min_length=1, max_length=80)
 
 
 class ProductTechnicalCoverage(StrictModel):
@@ -129,7 +135,34 @@ class ProductTechnicalArtifact(StrictModel):
 
     @classmethod
     def from_research_artifact(cls, artifact: ResearchArtifact) -> ProductTechnicalArtifact:
-        return cls.model_validate(artifact.model_dump(mode="json"))
+        data = artifact.model_dump(mode="json")
+        payload = data.get("payload")
+        if isinstance(payload, dict):
+            gaps = payload.get("portfolio_gaps")
+            if isinstance(gaps, list):
+                for gap in gaps:
+                    if isinstance(gap, dict) and not gap.get("gap_id"):
+                        gap["gap_id"] = product_technical_gap_id(
+                            str(gap.get("question", "")),
+                            [
+                                str(item)
+                                for item in gap.get("affected_candidate_ids", [])
+                            ],
+                        )
+        return cls.model_validate(data)
 
     def to_research_artifact(self) -> ResearchArtifact:
         return ResearchArtifact.model_validate(self.model_dump(mode="json"))
+
+
+def product_technical_gap_id(question: str, candidate_ids: list[str]) -> str:
+    canonical = json.dumps(
+        {
+            "question": question.casefold().strip(),
+            "candidate_ids": sorted(candidate_ids),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return f"gap_{hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:16]}"

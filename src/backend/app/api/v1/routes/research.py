@@ -1,10 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
 from app.agents.product_technical import ProductTechnicalArtifact
 from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
     ProductTechnicalServiceDependency,
+    SourceRecoveryServiceDependency,
     UserResearchServiceDependency,
+)
+from app.schemas.source_recovery import (
+    ProductTechnicalSourceRecoveryCreate,
+    SourceRecovery,
 )
 
 router = APIRouter()
@@ -63,3 +68,20 @@ async def list_product_technical_artifacts(
     service: ProductTechnicalServiceDependency,
 ) -> list[ProductTechnicalArtifact]:
     return await service.list_artifacts(project_id)
+
+
+@router.post(
+    "/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery",
+    response_model=SourceRecovery,
+    status_code=status.HTTP_201_CREATED,
+    summary="把产品技术缺口转换为用户补研任务",
+)
+async def create_product_technical_source_recovery(
+    project_id: str,
+    artifact_id: str,
+    payload: ProductTechnicalSourceRecoveryCreate,
+    service: SourceRecoveryServiceDependency,
+) -> SourceRecovery:
+    return await service.create_from_product_technical(
+        project_id, artifact_id, payload
+    )

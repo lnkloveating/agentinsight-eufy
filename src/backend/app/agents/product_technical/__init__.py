@@ -8,8 +8,10 @@ from app.agents.product_technical.contracts import (
     ProductTechnicalAssessment,
     ProductTechnicalCoverage,
     ProductTechnicalGap,
+    ProductTechnicalModelGap,
     ProductTechnicalModelOutput,
     ProductTechnicalPayload,
+    product_technical_gap_id,
 )
 from app.agents.product_technical.prompt import register_product_technical_prompt
 from app.agents.product_technical.validation import (
@@ -26,10 +28,12 @@ __all__ = [
     "ProductTechnicalCoverage",
     "ProductTechnicalEvidenceContextBuilder",
     "ProductTechnicalGap",
+    "ProductTechnicalModelGap",
     "ProductTechnicalModelAgentAdapter",
     "ProductTechnicalModelOutput",
     "ProductTechnicalOutputValidator",
     "ProductTechnicalPayload",
+    "product_technical_gap_id",
     "ProductTechnicalValidationError",
     "register_product_technical_prompt",
 ]

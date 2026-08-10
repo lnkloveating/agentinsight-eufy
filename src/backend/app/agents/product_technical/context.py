@@ -28,7 +28,11 @@ class ProductTechnicalEvidenceContextBuilder:
         self.max_total_chars = max_total_chars
 
     async def build(self, project_id: str, handoff: ResearchHandoff) -> AgentEvidenceContext:
-        requested = list(dict.fromkeys(handoff.merged_evidence_ids))
+        requested = list(
+            dict.fromkeys(
+                [*handoff.merged_evidence_ids, *handoff.supplemental_evidence_ids]
+            )
+        )
         async with self.database.session() as session:
             models = await EvidenceRepository(session).get_evidence_by_ids(set(requested))
         by_id = {model.evidence_id: model for model in models if model.project_id == project_id}
