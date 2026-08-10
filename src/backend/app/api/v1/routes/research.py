@@ -1,10 +1,12 @@
 from fastapi import APIRouter, status
 
 from app.agents.competitor import CompetitorEcosystemArtifact
+from app.agents.ecosystem_opportunity import EcosystemOpportunityArtifact
 from app.agents.product_technical import ProductTechnicalArtifact
 from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
     CompetitorEcosystemServiceDependency,
+    EcosystemOpportunityServiceDependency,
     ProductTechnicalServiceDependency,
     SourceRecoveryServiceDependency,
     UserResearchServiceDependency,
@@ -72,6 +74,34 @@ async def list_user_research_artifacts(
     project_id: str,
     service: UserResearchServiceDependency,
 ) -> list[UserResearchArtifact]:
+    return await service.list_artifacts(project_id)
+
+
+@router.post(
+    "/{project_id}/agents/ecosystem-opportunity",
+    response_model=EcosystemOpportunityArtifact,
+    summary="运行生态机会 Agent",
+    description=(
+        "读取最新用户研究、竞品生态 Artifact、共享 Evidence 和设备能力图，动态生成有证据边界的"
+        "设备功能、设备产品或生态服务机会；未知设备能力保持为技术假设和补研缺口。"
+    ),
+)
+async def run_ecosystem_opportunity(
+    project_id: str,
+    service: EcosystemOpportunityServiceDependency,
+) -> EcosystemOpportunityArtifact:
+    return await service.run(project_id)
+
+
+@router.get(
+    "/{project_id}/agents/ecosystem-opportunity/artifacts",
+    response_model=list[EcosystemOpportunityArtifact],
+    summary="查询生态机会 Artifact 历史版本",
+)
+async def list_ecosystem_opportunity_artifacts(
+    project_id: str,
+    service: EcosystemOpportunityServiceDependency,
+) -> list[EcosystemOpportunityArtifact]:
     return await service.list_artifacts(project_id)
 
 

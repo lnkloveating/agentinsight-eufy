@@ -460,7 +460,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 真实 HTTP 接口、前端字段和失败语义见 `docs/competitor-ecosystem-analysis.md`。
 
-### 下一分支：`agent/ecosystem-opportunity`
+### 已完成：`agent/ecosystem-opportunity`
 
 目标：把用户研究、竞品综合、共享 Evidence 和设备能力图转换成多个生态级候选。
 
@@ -486,6 +486,14 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 → 无法支持生态服务时允许少于三个候选
 → 不调用固定包裹模板凑数
 ```
+
+真实运行接口、设备能力约束、前端字段和失败语义见 `docs/ecosystem-opportunity-agent.md`。
+
+### 下一分支：`workflow/ai-native-ecosystem-gate`
+
+目标：对生态机会执行独立的 AI 原生门禁，识别“普通检测通知/固定自动化包装成 AI”的伪创新，
+验证开放安全目标、持续状态、主动补证、不确定性降级、人工授权、失败修订和 AI removal test。
+本分支不得重复生成候选，也不得替代后续技术可行性与商业判断。
 
 ### 后续顺序
 

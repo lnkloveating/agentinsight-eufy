@@ -625,6 +625,33 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/unit/test_competitor_mainpath_bridge.py`
 - `tests/integration/test_competitor_synthesis_agent.py`
 
+## AC-21 生态机会 Agent（分支 `agent/ecosystem-opportunity`）
+
+用户研究、竞品生态、共享 Evidence 和设备能力图必须通过真实 Model Gateway 与确定性门禁生成
+版本化生态机会，而不是复用固定场景模板。
+
+验收要求：
+
+- `POST /projects/{project_id}/agents/ecosystem-opportunity` 和 Artifact 历史接口与 OpenAPI 一致；
+- 只消费最新 advancing User Research 与 Competitor Ecosystem Artifact；上游未就绪时不调用模型，
+  返回显式 blocked Artifact 和补研问题；
+- Context Builder 只投影设备身份与能力断言均有当前合格 Evidence 的 Capability Graph 事实；
+- 所有模型引用属于 Research Handoff、补研 Evidence 或当前 Capability Graph，编造 Evidence ID 被拒绝；
+- 每个候选同时引用用户和竞品 Evidence，竞品机会 ID 必须真实存在；
+- 已证实设备能力引用 Capability Graph Evidence；未知能力显式保留为 technical hypothesis 并生成
+  `portfolio_gap`，不支持、不可用或冲突能力不得伪装成可用；
+- `ecosystem_service` 至少包含两个设备角色和跨设备信息流；候选名称、安全目标和 ID 不重复；
+- 动态生成目标 3 个、最多 5 个；不足时保留真实数量和稳定 Gap，不使用老人、门铃、包裹或
+  Guardian 固定模板凑数；
+- Runtime 保存 Agent Run、模型调用、输入 Artifact 血缘和输出 Artifact 版本，密钥不进入 Prompt；
+- 本分支不接入 LangGraph 主图，不宣称通过 AI Native、技术、商业、红队或上架 Gate。
+
+自动化映射：
+
+- `tests/unit/test_ecosystem_opportunity_agent.py`
+- `tests/unit/test_ecosystem_opportunity_contracts.py`
+- `tests/integration/test_ecosystem_opportunity_agent.py`
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：

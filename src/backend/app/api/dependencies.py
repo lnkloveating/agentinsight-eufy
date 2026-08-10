@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.competitor.ecosystem_context import (
     CompetitorEcosystemEvidenceContextBuilder,
 )
+from app.agents.ecosystem_opportunity import EcosystemOpportunityContextBuilder
 from app.agents.product_technical import ProductTechnicalEvidenceContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.brief_clarification import BriefClarificationService
@@ -38,6 +39,7 @@ from app.application.model_gateway.selection import ProjectModelSelectionResolve
 from app.application.projects import ProjectService
 from app.application.research import (
     CompetitorEcosystemAnalysisService,
+    EcosystemOpportunityService,
     ProductTechnicalService,
     UserResearchService,
 )
@@ -495,6 +497,30 @@ def get_product_technical_service(request: Request) -> ProductTechnicalService:
 
 ProductTechnicalServiceDependency = Annotated[
     ProductTechnicalService, Depends(get_product_technical_service)
+]
+
+
+def get_ecosystem_opportunity_service(request: Request) -> EcosystemOpportunityService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+    context_builder = EcosystemOpportunityContextBuilder(
+        database,
+        max_items=settings.ecosystem_opportunity_max_evidence_items,
+        max_excerpt_chars=settings.ecosystem_opportunity_max_excerpt_chars,
+        max_total_chars=settings.ecosystem_opportunity_max_total_evidence_chars,
+    )
+    return EcosystemOpportunityService(database, runtime, context_builder)
+
+
+EcosystemOpportunityServiceDependency = Annotated[
+    EcosystemOpportunityService, Depends(get_ecosystem_opportunity_service)
 ]
 
 
