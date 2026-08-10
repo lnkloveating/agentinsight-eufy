@@ -16,7 +16,11 @@ from app.application.competitor_source_onboarding import (
     CompetitorSourceProcessingDispatcher,
 )
 from app.application.events import EventService, ProjectEventBroker
-from app.application.evidence import EvidenceQueryService, SourceEvidencePromotionService
+from app.application.evidence import (
+    EvidenceQueryService,
+    EvidenceRetrievalService,
+    SourceEvidencePromotionService,
+)
 from app.application.fragment_evidence import FragmentEvidencePipelineService
 from app.application.innovations import InnovationService
 from app.application.model_gateway import (
@@ -88,6 +92,15 @@ def get_evidence_query_service(session: SessionDependency) -> EvidenceQueryServi
 
 EvidenceQueryServiceDependency = Annotated[
     EvidenceQueryService, Depends(get_evidence_query_service)
+]
+
+
+def get_evidence_retrieval_service(request: Request) -> EvidenceRetrievalService:
+    return EvidenceRetrievalService(request.app.state.database)
+
+
+EvidenceRetrievalServiceDependency = Annotated[
+    EvidenceRetrievalService, Depends(get_evidence_retrieval_service)
 ]
 
 
