@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.13.0
+  version: 0.14.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -223,6 +223,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserResearchArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/competitor-ecosystem:
+    post:
+      tags: [Research]
+      summary: Run the evidence-bounded competitor ecosystem analysis Agent
+      description: |
+        Reuses confirmed competitor discovery and the official-product, price-channel and
+        user-review A2A fact specialists. The ecosystem synthesis compares only the target and
+        comparison ecosystems declared in the Research Brief. An uncovered capability remains
+        unknown and creates a research gap; it is never rewritten as an absent competitor feature.
+      operationId: runCompetitorEcosystemAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: A persisted version of the audited competitor ecosystem Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorEcosystemArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/competitor-ecosystem/artifacts:
+    get:
+      tags: [Research]
+      summary: List competitor ecosystem Artifact versions
+      operationId: listCompetitorEcosystemArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Competitor ecosystem Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompetitorEcosystemArtifact"
         default:
           $ref: "#/components/responses/Error"
 
@@ -2688,6 +2729,345 @@ components:
         evidence:
           $ref: "#/components/schemas/Evidence"
         created: { type: boolean }
+
+    EcosystemCapabilityAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        - assessment_id
+        - dimension
+        - status
+        - statement
+        - explanation
+        - source_dimensions
+        - evidence_ids
+        - confidence
+      properties:
+        assessment_id: { type: string, minLength: 1, maxLength: 100 }
+        dimension:
+          $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        status:
+          type: string
+          enum: [supported, limited, contradicted, unknown]
+        statement: { type: string, minLength: 1, maxLength: 2000 }
+        explanation: { type: string, minLength: 1, maxLength: 3000 }
+        source_dimensions:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum: [official_product, price_channel, user_review]
+        evidence_ids:
+          type: array
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        unknown_reason:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 1500
+
+    EcosystemCapabilityDimension:
+      type: string
+      enum:
+        - safety_goal_coverage
+        - cross_device_orchestration
+        - temporal_state_understanding
+        - active_perception
+        - uncertainty_handling
+        - intervention_ladder
+        - local_cloud_partition
+        - privacy_and_consent
+        - offline_fallback
+        - caregiver_workflow
+        - failure_recovery
+        - business_model
+
+    CompetitorEcosystemProfile:
+      type: object
+      additionalProperties: false
+      required: [ecosystem_label, role, product_scope_labels, assessments]
+      properties:
+        ecosystem_label: { type: string, minLength: 1, maxLength: 160 }
+        role: { type: string, enum: [target, comparison] }
+        product_scope_labels:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string }
+        assessments:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/EcosystemCapabilityAssessment"
+
+    EcosystemComparisonInsight:
+      type: object
+      additionalProperties: false
+      required: [insight_id, ecosystem_labels, dimension, statement, evidence_ids]
+      properties:
+        insight_id: { type: string, minLength: 1, maxLength: 100 }
+        ecosystem_labels:
+          type: array
+          minItems: 2
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string }
+        dimension:
+          $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        statement: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string }
+
+    EcosystemOpportunitySignal:
+      type: object
+      additionalProperties: false
+      required:
+        - signal_id
+        - ecosystem_labels
+        - gap_dimensions
+        - statement
+        - rationale
+        - validation_questions
+        - evidence_ids
+        - hypothesis_status
+      properties:
+        signal_id: { type: string, minLength: 1, maxLength: 100 }
+        ecosystem_labels:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string }
+        gap_dimensions:
+          type: array
+          minItems: 1
+          maxItems: 12
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        statement: { type: string, minLength: 1, maxLength: 2000 }
+        rationale: { type: string, minLength: 1, maxLength: 3000 }
+        validation_questions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 60
+          uniqueItems: true
+          items: { type: string }
+        hypothesis_status:
+          type: string
+          const: requires_ecosystem_opportunity_validation
+
+    EcosystemResearchGap:
+      type: object
+      additionalProperties: false
+      required: [ecosystem_label, dimension, question, reason, severity]
+      properties:
+        ecosystem_label: { type: string, minLength: 1, maxLength: 160 }
+        dimension:
+          $ref: "#/components/schemas/EcosystemCapabilityDimension"
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        severity: { type: string, enum: [low, medium, high] }
+
+    EcosystemDimensionCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - ecosystem_label
+        - dimension_statuses
+        - mapped_products
+        - evidence_ids
+        - evidence_backed_dimension_count
+        - unknown_dimension_count
+        - complete
+      properties:
+        ecosystem_label: { type: string }
+        dimension_statuses:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [supported, limited, contradicted, unknown]
+        mapped_products:
+          type: array
+          items: { type: string }
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        evidence_backed_dimension_count: { type: integer, minimum: 0, maximum: 12 }
+        unknown_dimension_count: { type: integer, minimum: 0, maximum: 12 }
+        complete: { type: boolean }
+
+    EcosystemDiscoveryProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - target_ecosystems
+        - comparison_ecosystems
+        - confirmed_product_scope
+        - represented_ecosystems
+        - unmapped_products
+      properties:
+        target_ecosystems:
+          type: array
+          items: { type: string }
+        comparison_ecosystems:
+          type: array
+          items: { type: string }
+        confirmed_product_scope:
+          type: array
+          items: { type: string }
+        represented_ecosystems:
+          type: array
+          items: { type: string }
+        unmapped_products:
+          type: array
+          items: { type: string }
+
+    CompetitorEcosystemEvidenceAudit:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - allowed_evidence_count
+        - cited_evidence_count
+        - specialist_output_count
+        - requested_ecosystem_count
+        - represented_ecosystem_count
+        - mapped_product_count
+        - evidence_backed_dimension_count
+        - unknown_dimension_count
+        - independent_source_count
+        - evidence_context_hash
+      properties:
+        status: { type: string, enum: [passed, passed_with_gaps] }
+        allowed_evidence_count: { type: integer, minimum: 0 }
+        cited_evidence_count: { type: integer, minimum: 0 }
+        specialist_output_count: { type: integer, minimum: 0 }
+        requested_ecosystem_count: { type: integer, minimum: 0 }
+        represented_ecosystem_count: { type: integer, minimum: 0 }
+        mapped_product_count: { type: integer, minimum: 0 }
+        evidence_backed_dimension_count: { type: integer, minimum: 0 }
+        unknown_dimension_count: { type: integer, minimum: 0 }
+        independent_source_count: { type: integer, minimum: 0 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    CompetitorEcosystemPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_name
+        - schema_version
+        - supervisor_mode
+        - specialist_outputs
+        - product_fact_synthesis
+        - discovery
+        - summary
+        - summary_evidence_ids
+        - ecosystem_profiles
+        - comparison_insights
+        - opportunity_signals
+        - research_gaps
+        - coverage_matrix
+        - evidence_audit
+        - synthesis_status
+      properties:
+        schema_name: { type: string, const: competitor_ecosystem_analysis }
+        schema_version: { type: string, const: "2.0" }
+        supervisor_mode:
+          type: string
+          const: candidate_discovery_then_three_a2a_facts_then_ecosystem_synthesis
+        specialist_outputs:
+          type: array
+          items: { type: object, additionalProperties: true }
+        product_fact_synthesis:
+          oneOf:
+            - { type: object, additionalProperties: true }
+            - { type: "null" }
+        discovery:
+          $ref: "#/components/schemas/EcosystemDiscoveryProjection"
+        summary: { type: string }
+        summary_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        ecosystem_profiles:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/CompetitorEcosystemProfile"
+        comparison_insights:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/EcosystemComparisonInsight"
+        opportunity_signals:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/EcosystemOpportunitySignal"
+        research_gaps:
+          type: array
+          maxItems: 360
+          items:
+            $ref: "#/components/schemas/EcosystemResearchGap"
+        coverage_matrix:
+          type: array
+          items:
+            $ref: "#/components/schemas/EcosystemDimensionCoverage"
+        evidence_audit:
+          $ref: "#/components/schemas/CompetitorEcosystemEvidenceAudit"
+        synthesis_status: { type: string, enum: [completed, partial, blocked] }
+
+    CompetitorEcosystemArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - agent_run_id
+        - version
+        - status
+        - schema_version
+        - payload
+        - evidence_ids
+        - unknowns
+        - quality_score
+        - errors
+      properties:
+        artifact_id: { type: string }
+        agent_run_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        status:
+          type: string
+          enum: [completed, partial, blocked, needs_revision]
+        schema_version: { type: string, const: "2.0" }
+        payload:
+          $ref: "#/components/schemas/CompetitorEcosystemPayload"
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          items: { type: string }
 
     UserResearchEventChain:
       type: object
