@@ -521,6 +521,36 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/integration/test_research_workflow.py`、`tests/integration/test_runtime_langgraph_integration.py`
   （主图执行集合为 `RESEARCH_MANAGER` 加 `PLANNED_AGENT_TYPES`，新增枚举暂不接入）
 
+## AC-17 设备能力图（分支 `evidence/device-capability-graph`）
+
+设备能力图为生态机会与后续安全策略提供确定性事实边界，不负责生成策略，也不调用大模型猜测设备能力。
+
+验收要求：
+
+- 厂商通用设备目录与用户家庭设备实例分开保存，所有数据按研究项目隔离；
+- 厂商设备身份和能力断言只接受当前项目 `verified` 或 `partially_verified` Evidence，拒绝
+  `mock`、`invalid`、`unverified`、`outdated` Evidence 以及其他项目 Evidence；
+- 能力可以表达 Sensor、Action、Compute、Storage、Connectivity 和 Context，并记录可用性、最大延迟、
+  数据处理位置、授权要求、离线支持、fallback 与置信度；
+- 同一设备能力同时存在支持与不支持的合格 Evidence 时必须保留两者，并在能力查询中返回 `conflict`，
+  不得以后写入的数据静默覆盖先前事实；
+- 用户授权保存家庭设备快照时只收集粗粒度位置、设备角色、在线状态和授权状态，不接收精确地址、序列号、
+  原始家庭视频或生物识别数据；每次修改生成新版本，旧版本标记为 `superseded`；
+- 未映射目录的家庭设备或未找到对应能力时返回 `unknown`；设备离线、未授权或能力明确不可用时返回
+  `unavailable`；满足能力、证据和运行状态时才返回 `available`；
+- 查询结果返回准确的 Capability Claim ID 和 Evidence ID，供生态机会、技术可行性和前端证据下钻复用；
+- 查询时重新检查 Evidence 当前状态；已经 outdated/invalid/移除的历史 Evidence 不得继续生成 `available` 结论；
+- 删除仍被任何家庭快照引用的目录设备时返回冲突，不级联删除用户快照；
+- 企业 eufy Device API 未配置时不创建假 Adapter、不声明已联调成功，后续可以在不改变公共查询契约的前提下接入；
+- 新增 OpenAPI、数据库迁移、领域/服务单元测试和 HTTP 集成测试。
+
+自动化映射：
+
+- `tests/unit/test_device_capability_contracts.py`
+- `tests/unit/test_device_capability_query.py`
+- `tests/integration/test_device_capability_api.py`
+- `tests/integration/test_device_capability_migration.py`
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：

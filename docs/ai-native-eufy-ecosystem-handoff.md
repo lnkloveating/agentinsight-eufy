@@ -1,14 +1,17 @@
 # eufy 生态 AI 原生方向：后端开发交接与改造计划
 
+> 状态说明：本文保留 2026-08-10 产品方向变更时的历史现场，文中的旧 `agent/commercial-evaluation`
+> 分支状态已经失效。当前实时开发状态、测试结果和下一步统一以 `docs/CODEX_HANDOFF.md` 为准。
+
 > 交接日期：2026-08-10
 >
 > 仓库：`agentinsight-eufy`
 >
 > 远程 `main` 基线：`0f611f1 合并通用智能体资料补研流程`
 >
-> 当前工作分支：`agent/commercial-evaluation`
+> 历史工作分支：`agent/commercial-evaluation`（已删除，不应恢复合并）
 >
-> 当前分支提交：`942d491 定义商业评估智能体接口契约`
+> 历史分支提交：`942d491 定义商业评估智能体接口契约`
 
 ## 0. 给接手开发者的最短说明
 

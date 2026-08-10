@@ -1358,6 +1358,165 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/device-capabilities/catalog:
+    post:
+      tags: [Evidence]
+      summary: 登记带 Evidence 血缘的厂商设备能力记录
+      description: |
+        保存当前研究项目能够证明的厂商设备、传感、动作、计算和连接能力。所有设备身份
+        与能力断言必须引用当前项目 verified 或 partially_verified 的 Evidence；不调用
+        LLM 补齐缺失能力，也不把用户家庭设备实例与厂商通用能力混为一谈。
+      operationId: createCatalogDevice
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogDeviceCreate"
+      responses:
+        "201":
+          description: Device capability record created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevice"
+        default:
+          $ref: "#/components/responses/Error"
+    get:
+      tags: [Evidence]
+      summary: 查询项目设备能力目录
+      operationId: listCatalogDevices
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project-scoped evidence-backed catalog devices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevicePage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/device-capabilities/catalog/{catalog_device_id}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+      - name: catalog_device_id
+        in: path
+        required: true
+        schema: { type: string, pattern: "^device_[A-Za-z0-9_-]+$" }
+    get:
+      tags: [Evidence]
+      summary: 查询单个厂商设备能力记录
+      operationId: getCatalogDevice
+      responses:
+        "200":
+          description: Evidence-backed catalog device.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevice"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [Evidence]
+      summary: 替换厂商设备能力记录
+      description: 替换后重新校验全部 Evidence，冲突断言会被保留并在查询时显式返回 conflict。
+      operationId: replaceCatalogDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogDeviceCreate"
+      responses:
+        "200":
+          description: Updated catalog device.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogDevice"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Evidence]
+      summary: 删除未被家庭快照引用的厂商设备记录
+      operationId: deleteCatalogDevice
+      responses:
+        "204": { description: Device deleted. }
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/device-capabilities/household-snapshot:
+    put:
+      tags: [Evidence]
+      summary: 保存用户授权的家庭设备快照新版本
+      description: |
+        只保存完成能力匹配所需的设备角色、粗粒度位置、在线状态和设备关系；不接收精确
+        地址、序列号、原始视频或生物识别数据。每次保存生成新版本，旧版本标记为 superseded。
+      operationId: replaceHouseholdDeviceSnapshot
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HouseholdSnapshotCreate"
+      responses:
+        "200":
+          description: Current household device snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdSnapshot"
+        default:
+          $ref: "#/components/responses/Error"
+    get:
+      tags: [Evidence]
+      summary: 查询当前家庭设备快照
+      operationId: getHouseholdDeviceSnapshot
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Current household device snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdSnapshot"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/device-capabilities/queries:
+    post:
+      tags: [Evidence]
+      summary: 查询家庭现有设备能否观察或执行生态方案所需能力
+      description: |
+        使用当前家庭快照和厂商能力断言做确定性匹配。支持与不支持的证据同时存在时返回
+        conflict；没有目录映射或证据时返回 unknown；离线、未授权或明确不可用时返回
+        unavailable，绝不调用模型猜测。
+      operationId: queryDeviceCapabilities
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCapabilityQuery"
+      responses:
+        "200":
+          description: Deterministic capability coverage result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCapabilityQueryResult"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/claims:
     get:
       tags: [Evidence]
@@ -4830,6 +4989,412 @@ components:
             $ref: "#/components/schemas/Evidence"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
+    DeviceCapabilityKind:
+      type: string
+      enum: [sensor, action, compute, storage, connectivity, context]
+
+    CapabilityAssertion:
+      type: string
+      enum: [supported, unsupported, unknown]
+
+    CapabilityAvailability:
+      type: string
+      enum: [available, unavailable, unknown]
+
+    DeviceDataScope:
+      type: string
+      enum: [device_local, homebase_local, cloud, hybrid, unknown]
+
+    OfflineSupport:
+      type: string
+      enum: [full, degraded, none, unknown]
+
+    DeviceCapabilityClaimInput:
+      type: object
+      additionalProperties: false
+      required:
+        - capability_key
+        - capability_name
+        - kind
+        - assertion
+        - availability
+        - confidence
+        - evidence_ids
+        - data_scope
+        - authorization_required
+        - offline_support
+      properties:
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        capability_name: { type: string, minLength: 1, maxLength: 160 }
+        kind:
+          $ref: "#/components/schemas/DeviceCapabilityKind"
+        assertion:
+          $ref: "#/components/schemas/CapabilityAssertion"
+        availability:
+          $ref: "#/components/schemas/CapabilityAvailability"
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        latency_ms_max: { type: [integer, "null"], minimum: 0, maximum: 3600000 }
+        data_scope:
+          $ref: "#/components/schemas/DeviceDataScope"
+        authorization_required: { type: boolean }
+        offline_support:
+          $ref: "#/components/schemas/OfflineSupport"
+        fallback: { type: [string, "null"], maxLength: 500 }
+
+    DeviceCapabilityClaim:
+      type: object
+      additionalProperties: false
+      required:
+        - capability_claim_id
+        - capability_key
+        - capability_name
+        - kind
+        - assertion
+        - availability
+        - confidence
+        - evidence_ids
+        - data_scope
+        - authorization_required
+        - offline_support
+      properties:
+        capability_claim_id: { type: string, pattern: "^cap_[A-Za-z0-9_-]+$" }
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        capability_name: { type: string, minLength: 1, maxLength: 160 }
+        kind:
+          $ref: "#/components/schemas/DeviceCapabilityKind"
+        assertion:
+          $ref: "#/components/schemas/CapabilityAssertion"
+        availability:
+          $ref: "#/components/schemas/CapabilityAvailability"
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        latency_ms_max: { type: [integer, "null"], minimum: 0, maximum: 3600000 }
+        data_scope:
+          $ref: "#/components/schemas/DeviceDataScope"
+        authorization_required: { type: boolean }
+        offline_support:
+          $ref: "#/components/schemas/OfflineSupport"
+        fallback: { type: [string, "null"], maxLength: 500 }
+
+    CatalogDeviceCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - manufacturer
+        - product_name
+        - model
+        - category
+        - lifecycle_status
+        - identity_evidence_ids
+        - capabilities
+      properties:
+        manufacturer: { type: string, minLength: 1, maxLength: 120 }
+        product_name: { type: string, minLength: 1, maxLength: 160 }
+        model: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1, maxLength: 120 }
+        lifecycle_status:
+          type: string
+          enum: [active, retired, unknown]
+        identity_evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityClaimInput"
+
+    CatalogDevice:
+      type: object
+      additionalProperties: false
+      required:
+        - catalog_device_id
+        - project_id
+        - manufacturer
+        - product_name
+        - model
+        - category
+        - lifecycle_status
+        - identity_evidence_ids
+        - capabilities
+        - created_at
+        - updated_at
+      properties:
+        catalog_device_id: { type: string, pattern: "^device_[A-Za-z0-9_-]+$" }
+        project_id: { type: string }
+        manufacturer: { type: string }
+        product_name: { type: string }
+        model: { type: string }
+        category: { type: string }
+        lifecycle_status:
+          type: string
+          enum: [active, retired, unknown]
+        identity_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityClaim"
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CatalogDevicePage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogDevice"
+        total: { type: integer, minimum: 0 }
+
+    HouseholdLocationInput:
+      type: object
+      additionalProperties: false
+      required: [location_id, label, location_type]
+      properties:
+        location_id: { type: string, pattern: "^[A-Za-z][A-Za-z0-9_-]{0,79}$" }
+        label: { type: string, minLength: 1, maxLength: 120 }
+        location_type:
+          type: string
+          enum: [entrance, exterior, interior, garage, yard, shared_area, other]
+
+    HouseholdDeviceInput:
+      type: object
+      additionalProperties: false
+      required:
+        - household_device_id
+        - display_name
+        - category
+        - location_id
+        - runtime_status
+        - authorization_status
+      properties:
+        household_device_id: { type: string, pattern: "^home_device_[A-Za-z0-9_-]+$" }
+        catalog_device_id: { type: [string, "null"], pattern: "^device_[A-Za-z0-9_-]+$" }
+        display_name: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1, maxLength: 120 }
+        model: { type: [string, "null"], maxLength: 120 }
+        location_id: { type: string, minLength: 1, maxLength: 80 }
+        runtime_status:
+          type: string
+          enum: [online, offline, unknown]
+        authorization_status:
+          type: string
+          enum: [authorized, denied, unknown]
+
+    HouseholdDeviceRelationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - relation_id
+        - source_household_device_id
+        - target_household_device_id
+        - relation_type
+        - verification_status
+        - evidence_ids
+      properties:
+        relation_id: { type: string, pattern: "^relation_[A-Za-z0-9_-]+$" }
+        source_household_device_id: { type: string }
+        target_household_device_id: { type: string }
+        relation_type:
+          type: string
+          enum: [connected_to, sends_events_to, controls, shares_context_with]
+        verification_status:
+          type: string
+          enum: [confirmed, user_declared, unknown]
+        evidence_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    HouseholdSnapshotCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+        - locations
+        - devices
+        - relations
+      properties:
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        locations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/HouseholdLocationInput"
+        devices:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceInput"
+        relations:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceRelationInput"
+
+    HouseholdSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - snapshot_id
+        - project_id
+        - version
+        - status
+        - authorization_confirmed
+        - authorized_by
+        - purpose
+        - locations
+        - devices
+        - relations
+        - created_at
+      properties:
+        snapshot_id: { type: string, pattern: "^snapshot_[A-Za-z0-9_-]+$" }
+        project_id: { type: string }
+        version: { type: integer, minimum: 1 }
+        status: { type: string, const: active }
+        authorization_confirmed: { type: boolean, const: true }
+        authorized_by: { type: string, minLength: 1, maxLength: 120 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        locations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/HouseholdLocationInput"
+        devices:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceInput"
+        relations:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/HouseholdDeviceRelationInput"
+        created_at: { type: string, format: date-time }
+
+    DeviceCapabilityRequirement:
+      type: object
+      additionalProperties: false
+      required: [capability_key]
+      properties:
+        capability_key: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+        location_id: { type: [string, "null"], maxLength: 80 }
+        kind:
+          oneOf:
+            - $ref: "#/components/schemas/DeviceCapabilityKind"
+            - type: "null"
+
+    DeviceCapabilityQuery:
+      type: object
+      additionalProperties: false
+      required: [requirements]
+      properties:
+        requirements:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityRequirement"
+
+    DeviceCapabilityMatch:
+      type: object
+      additionalProperties: false
+      required:
+        - household_device_id
+        - catalog_device_id
+        - display_name
+        - location_id
+        - capability_claim_ids
+        - evidence_ids
+      properties:
+        household_device_id: { type: string }
+        catalog_device_id: { type: string }
+        display_name: { type: string }
+        location_id: { type: string }
+        capability_claim_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    DeviceCapabilityRequirementResult:
+      type: object
+      additionalProperties: false
+      required: [requirement, status, matches, issues]
+      properties:
+        requirement:
+          $ref: "#/components/schemas/DeviceCapabilityRequirement"
+        status:
+          type: string
+          enum: [available, unavailable, unknown, conflict]
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityMatch"
+        issues:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    DeviceCapabilityQueryResult:
+      type: object
+      additionalProperties: false
+      required:
+        - project_id
+        - snapshot_id
+        - snapshot_version
+        - overall_status
+        - requirements
+        - cited_evidence_ids
+      properties:
+        project_id: { type: string }
+        snapshot_id: { type: string }
+        snapshot_version: { type: integer, minimum: 1 }
+        overall_status:
+          type: string
+          enum: [available, unavailable, unknown, conflict]
+        requirements:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/DeviceCapabilityRequirementResult"
+        cited_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
 
     EvidenceRetrievalQuery:
       type: object

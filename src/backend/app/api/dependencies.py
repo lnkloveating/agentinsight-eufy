@@ -15,6 +15,7 @@ from app.application.competitor_source_onboarding import (
     CompetitorSourceOnboardingService,
     CompetitorSourceProcessingDispatcher,
 )
+from app.application.device_capabilities import DeviceCapabilityService
 from app.application.events import EventService, ProjectEventBroker
 from app.application.evidence import (
     EvidenceQueryService,
@@ -40,6 +41,9 @@ from app.application.source_routing import SourceRoutingService
 from app.application.sources import SourceAssetService, SourceProcessingService
 from app.core.config import Settings
 from app.infrastructure.database import Database
+from app.infrastructure.database.device_capability_repository import (
+    DeviceCapabilityRepository,
+)
 from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.innovation_repository import InnovationRepository
 from app.infrastructure.database.repositories import ProjectRepository
@@ -438,4 +442,20 @@ def get_product_technical_service(request: Request) -> ProductTechnicalService:
 
 ProductTechnicalServiceDependency = Annotated[
     ProductTechnicalService, Depends(get_product_technical_service)
+]
+
+
+def get_device_capability_service(
+    request: Request, session: SessionDependency
+) -> DeviceCapabilityService:
+    return DeviceCapabilityService(
+        DeviceCapabilityRepository(session),
+        ProjectRepository(session),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+
+
+DeviceCapabilityServiceDependency = Annotated[
+    DeviceCapabilityService, Depends(get_device_capability_service)
 ]
