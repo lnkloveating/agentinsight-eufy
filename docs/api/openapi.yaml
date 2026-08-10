@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.11.0
+  version: 0.12.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -1203,6 +1203,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EvidencePage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/evidence/retrievals:
+    post:
+      tags: [Evidence]
+      summary: 从项目共享 Evidence 知识库检索受控 Agent 上下文
+      description: |
+        只检索当前项目中 verified 或 partially_verified 的 Evidence。第一版使用元数据、
+        确定性词法相关度、证据质量和来源多样性，不调用生成模型或向量服务。返回精确
+        Evidence ID、原文片段、匹配原因和 Context Hash；不会把未审核 Fragment、搜索摘要
+        或其他项目资料作为 Agent 事实。
+      operationId: retrieveProjectEvidence
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidenceRetrievalQuery"
+      responses:
+        "200":
+          description: 项目隔离且可审计的 Evidence Context。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceRetrievalResult"
         default:
           $ref: "#/components/responses/Error"
 
@@ -4165,6 +4193,158 @@ components:
             $ref: "#/components/schemas/Evidence"
         next_cursor: { type: [string, "null"] }
         total: { type: integer, minimum: 0 }
+
+    EvidenceRetrievalQuery:
+      type: object
+      additionalProperties: false
+      required: [consumer]
+      properties:
+        consumer: { type: string, minLength: 1, maxLength: 120 }
+        question: { type: [string, "null"], minLength: 1, maxLength: 2000 }
+        statuses:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum: [verified, partially_verified]
+        claim_types:
+          type: array
+          uniqueItems: true
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/EvidenceClaimType"
+        source_types:
+          type: array
+          uniqueItems: true
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 80 }
+        source_asset_ids:
+          type: array
+          uniqueItems: true
+          maxItems: 500
+          items: { type: string, minLength: 1, maxLength: 80 }
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          maxItems: 500
+          items: { type: string, minLength: 1, maxLength: 80 }
+        products:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          items: { type: string, minLength: 1, maxLength: 160 }
+        regions:
+          type: array
+          uniqueItems: true
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 120 }
+        user_segments:
+          type: array
+          uniqueItems: true
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 160 }
+        max_items: { type: integer, minimum: 1, maximum: 200, default: 30 }
+        max_excerpt_chars: { type: integer, minimum: 1, maximum: 10000, default: 2000 }
+        max_total_chars: { type: integer, minimum: 1, maximum: 500000, default: 40000 }
+        candidate_limit: { type: integer, minimum: 1, maximum: 2000, default: 500 }
+        diversify_sources: { type: boolean, default: true }
+        require_text_match: { type: boolean, default: false }
+        preserve_evidence_order: { type: boolean, default: false }
+
+    EvidenceRetrievalMatch:
+      type: object
+      additionalProperties: false
+      required: [evidence_id, rank, relevance_score, matched_terms, match_reasons]
+      properties:
+        evidence_id: { type: string }
+        rank: { type: integer, minimum: 1 }
+        relevance_score: { type: number, minimum: 0, maximum: 1 }
+        matched_terms:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        match_reasons:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    AgentEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - evidence_id
+        - title
+        - original_excerpt
+        - claim_type
+        - status
+        - source_type
+        - collected_at
+        - confidence
+        - authority_score
+        - recency_score
+        - diversity_score
+      properties:
+        evidence_id: { type: string }
+        title: { type: string }
+        original_excerpt: { type: string }
+        claim_type: { type: string }
+        status: { type: string, enum: [verified, partially_verified] }
+        source_type: { type: string }
+        source_url: { type: [string, "null"], format: uri }
+        source_domain: { type: [string, "null"] }
+        source_asset_id: { type: [string, "null"] }
+        source_fragment_id: { type: [string, "null"] }
+        source_locator:
+          oneOf:
+            - $ref: "#/components/schemas/SourceLocator"
+            - type: "null"
+        product: { type: [string, "null"] }
+        region: { type: [string, "null"] }
+        user_segment: { type: [string, "null"] }
+        published_at: { type: [string, "null"], format: date-time }
+        collected_at: { type: string, format: date-time }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        authority_score: { type: number, minimum: 0, maximum: 1 }
+        recency_score: { type: number, minimum: 0, maximum: 1 }
+        diversity_score: { type: number, minimum: 0, maximum: 1 }
+
+    AgentEvidenceContext:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - available_evidence_count
+        - included_evidence_count
+        - omitted_evidence_count
+        - context_hash
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentEvidence"
+        available_evidence_count: { type: integer, minimum: 0 }
+        included_evidence_count: { type: integer, minimum: 0 }
+        omitted_evidence_count: { type: integer, minimum: 0 }
+        context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    EvidenceRetrievalResult:
+      type: object
+      additionalProperties: false
+      required: [consumer, strategy, query_hash, candidate_evidence_count, context, matches]
+      properties:
+        consumer: { type: string }
+        strategy:
+          type: string
+          enum: [metadata_quality, lexical_metadata, exact_evidence_ids]
+        query_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        candidate_evidence_count: { type: integer, minimum: 0 }
+        context:
+          $ref: "#/components/schemas/AgentEvidenceContext"
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceRetrievalMatch"
 
     Claim:
       type: object
