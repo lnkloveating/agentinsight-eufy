@@ -374,6 +374,14 @@ Base Event
 
 每个分项保存理由和 Evidence IDs；如果真实证据不足以支持三个候选，系统必须显示缺口，不能用 Mock 补足数量。
 
+`agent/product-technical-opportunity` 的验收映射：
+
+- 模型输出目标为 3 个、上限为 5 个，但候选数量允许为 0；后端不会用固定场景补齐；
+- 每个候选必须同时引用用户研究和竞品研究 Evidence，且引用范围不能越过 `ResearchHandoff`；
+- 后端按候选独立执行 Event Understanding Gate，并区分生成数量与可晋级数量；
+- 少于 3 个可晋级候选时返回 `partial` 或 `blocked`，同时生成可交给资料恢复流程的补研问题；
+- 候选名称或事件签名重复、虚构 Evidence ID、虚构竞品机会信号 ID 时确定性失败。
+
 ## AC-08 红队真实影响结果
 
 每个重点候选接受一次独立红队检查。红队能读取原始 Evidence，能够降分、要求补研、要求修改或淘汰候选。未处理的 high 严重度问题阻止候选进入人工晋级。

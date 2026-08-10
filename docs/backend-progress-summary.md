@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent，以及竞品 A2A 三个专家、综合、证据审计和 ResearchState 主路径桥接已经完成；产品技术、商业和红队等领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
+> 项目生命周期、统一资料接入与多标签路由、资料范围和准备度检查、公开来源搜索发现、竞品候选发现与人工 Gate、竞品来源批量接入与资料发现、授权公开网页快照、确定性资料解析、片段 Evidence 晋级、LangGraph 编排底座、Agent Runtime Core、多模型 Model Gateway、安全的 OpenCode CLI Runtime、用户研究 Agent、竞品 A2A 三个专家与综合审计，以及动态产品技术机会 Agent 已经完成；商业和红队等后续领域 Agent 尚未接线，因此系统还不能自动完成一整轮真实行业调研。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -55,6 +55,7 @@ http://localhost:8000/api/v1
 | 竞品用户评价专家 | 从受控 user_opinion Evidence 中提炼正负体验、事件、影响、矛盾与样本限制；重复主题由后端按 Evidence 和独立来源计算 | 可以展示单条反馈和跨来源重复主题；不得把单个作者或单一页面显示成普遍用户结论 |
 | 竞品综合与证据审计 | 三个专家均有发现后调用综合模型，输出逐产品优缺点、权衡、跨产品差异及待验证机会信号；后端审计 Evidence 范围、产品归属和专家维度 | 可以展示竞品画像、覆盖矩阵和证据审计；机会信号必须标注为 Product Technical Agent 待验证假设 |
 | 竞品主路径桥接 | 用户研究与竞品综合并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、合并 Evidence 和竞品缺口；产品机会页未来直接消费同一交接，不把“未覆盖”显示成“竞品没有” |
+| 产品技术机会 Agent | 从最新 `ResearchHandoff` 动态生成目标 3 个、最多 5 个未来产品候选；每个候选同时引用用户与竞品 Evidence，并由确定性 Event Understanding Gate、去重和引用边界校验 | 可以展示候选、Event Understanding、技术依赖、Gate 状态和补研问题；证据不足时显示更少候选，不能用固定门铃场景或 Mock 凑数 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
 
@@ -77,13 +78,13 @@ http://localhost:8000/api/v1
 15. 竞品用户评价专家能够调用相同模型策略，严格消费准确产品的 `user_opinion`，并由确定性代码区分单一报告和跨来源重复主题。
 16. 竞品主管能够在三个专家均产生发现后调用综合模型，并确定性拒绝虚构 Evidence、跨产品引用和跨专家维度引用；资料不足时不调用综合模型。
 17. LangGraph 能够把用户研究与竞品综合写入强类型 `ResearchHandoff`；经过审计的 partial 缺口可进入产品技术阶段，无效竞品结果只重跑竞品节点，Checkpoint 不重复执行用户研究。
+18. Product Technical Adapter 已注册到统一 Runtime 和 Model Gateway；主路径及独立 HTTP 用例都消费同一上游 Artifact，输出版本化 `product_technical_opportunity_portfolio`。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 产品技术、商业和红队等业务 Prompt；
+- 商业和红队等后续业务 Prompt；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
-- 把 `ResearchHandoff` 转换为至少三个未来产品候选的 Product Technical Agent；
 - 最终报告、Package Risk Demo 和飞书集成。
 
 生产环境没有注册业务 Prompt 或真实业务 Adapter 时会明确失败，不会用 Mock 结果冒充调研完成。
@@ -99,6 +100,8 @@ http://localhost:8000/api/v1
 | `POST` | `/projects` | 可用 | 创建项目，提交 Brief 和可选模型策略 |
 | `GET` | `/projects/{project_id}` | 可用 | 项目详情、进度和待审批信息 |
 | `GET` | `/projects/{project_id}/agents` | 可用 | Agent Run 列表与模型调用审计摘要 |
+| `POST` | `/projects/{project_id}/agents/product-technical` | 可用 | 运行产品技术机会 Agent；目标 3 个、最多 5 个，证据不足时不补造候选 |
+| `GET` | `/projects/{project_id}/agents/product-technical/artifacts` | 可用 | 查询版本化候选组合、Gate 状态、Evidence IDs 和补研问题 |
 | `GET` | `/projects/{project_id}/events` | 可用 | SSE 实时事件和历史回放 |
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
 | `GET` | `/projects/{project_id}/source-requirements` | 可用 | 实时查询目标/竞品范围和各研究维度的资料准备度、缺口与补充动作 |
