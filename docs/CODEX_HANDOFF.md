@@ -19,6 +19,7 @@
 5. docs/ai-native-eufy-ecosystem-handoff.md
 6. docs/backend-progress-summary.md
 7. docs/device-capability-graph.md
+8. docs/ai-native-home-safety-research-scope.md
 
 然后检查：
 - git status -sb
@@ -105,9 +106,23 @@
 - `EcosystemBlueprint`、设备角色、跨设备信息流、部署位置、隐私边界、离线降级；
 - `AINativeCase` 与 AI Removal Test；
 - Evidence 引用、Coverage、Gap、Artifact 类型和版本的确定性校验；
-- 新旧 Product Technical v1 契约兼容。
+- 历史 Product Technical v1 Artifact 结构仍可读取，但不再定义新项目 Research Brief。
 
 该分支只定义“生态方案长什么样”，还没有真实生态机会 Agent。
+
+### 3.1.1 AI 原生家庭安防研究范围
+
+`domain/ai-native-home-safety-research-scope` 已完成以下迁移：
+
+- 新项目只接受 `home_safety_ecosystem` Research Brief；
+- 删除旧 `category / target_user / region / scenarios / constraints / focus_dimensions` 输入；
+- 增加安全领域、目标/对照生态、安全目标、授权信号、隐私边界、干预边界、禁止推断、验证要求与资料权限；
+- 用户研究、竞品主管、资料发现、片段 Evidence 和资料要求服务统一消费新字段；
+- 所有创建项目和直接构造 Brief 的测试已改为生态研究输入；
+- 旧字段会被确定性拒绝，不做静默兼容；
+- 历史迁移和旧 Artifact 只用于已有数据兼容，不能作为前端当前入口展示。
+
+详细边界见 `docs/ai-native-home-safety-research-scope.md`。
 
 ### 3.2 已完成分支：`evidence/device-capability-graph`
 
@@ -158,7 +173,7 @@ POST   /projects/{project_id}/device-capabilities/queries
 ```text
 Ruff：通过
 Mypy：207 个 app 源文件通过
-全量 Pytest：294 passed，1 个第三方 Starlette TestClient 弃用警告
+全量 Pytest：305 passed，1 个第三方 Starlette TestClient 弃用警告
 Alembic：内存数据库从空库升级到 head，再降级到 0018，通过
 OpenAPI：3.1 YAML 解析通过
 git diff --check：通过
@@ -199,7 +214,7 @@ stash@{0}: 归档旧商业评估未完成草稿
 - 竞品发现、Candidate Gate、来源接入和资料发现；
 - 竞品官方产品、价格渠道、用户评价三个 A2A 专家；
 - 竞品综合、证据审计和主路径桥接；
-- Product Technical v1 动态候选及资料恢复，保留兼容但不再作为新方向最终产物；
+- Product Technical v1 历史实现仍供主图迁移期间内部读取，不再定义 Research Brief 或新方向最终产物；
 - Ecosystem Opportunity 公共契约；
 - Device Capability Graph（已完成并合并到 `main`）。
 
@@ -226,7 +241,7 @@ stash@{0}: 归档旧商业评估未完成草稿
 - 可选家庭设备清单；
 - 开始前的 Research Brief 确认。
 
-如果用户只输入“分析 eufy 未来产品机会”，Research Brief Agent 应继续追问：
+如果用户只输入“分析 eufy 未来产品机会”，Research Brief Agent 应继续追问，并只提交新的生态范围契约：
 
 - 研究 eufy 整体生态还是具体地区/家庭类型；
 - 更关注防盗、包裹、老人儿童、车库、周界还是隐私；
@@ -499,7 +514,7 @@ git diff --stat
 - 不合格 Evidence 被拒绝；
 - conflict 不被覆盖；
 - unknown/unavailable 不被模型补造；
-- 旧 Product Technical 和竞品流程测试无回归。
+- 新项目不再接受旧单品 Research Brief；竞品、资料和现有主图底座测试无回归。
 
 本分支已完成的中文 Commit：
 

@@ -551,6 +551,32 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/integration/test_device_capability_api.py`
 - `tests/integration/test_device_capability_migration.py`
 
+## AC-18 AI 原生家庭安防研究范围（分支 `domain/ai-native-home-safety-research-scope`）
+
+本分支只允许新项目以家庭安防生态、安全目标、授权信号、隐私/干预边界和验证期望描述研究范围，
+不再接受旧单品式 Research Brief。
+
+验收要求：
+
+- `ResearchBrief` 的 `research_scope` 只能是 `home_safety_ecosystem`；
+- 目标生态、目标用户、市场、安全领域、安全目标和风险场景不能为空，目标生态与对照生态不得重叠；
+- `category`、`target_user`、`region`、`scenarios`、`constraints`、`focus_dimensions` 作为额外字段被 422 拒绝；
+- 明确公开资料、用户上传、企业内部资料和家庭事件四类授权边界；
+- 明确原始媒体、限制区域、保留策略和外部共享边界；
+- 高影响动作必须要求人工批准，禁止通过请求关闭该约束；
+- 用户研究、竞品主管、资料发现、片段 Evidence 和资料要求服务只读取新 Brief 字段；
+- 地区型证据使用 `markets[0]`，不得因为旧 `region` 缺失而永久停留在 `partial`；
+- 老人安全、包裹保护等是动态场景，不是后端固定候选；
+- 历史迁移和旧 Artifact 读取不等于支持旧 Brief，新项目不得静默迁移旧字段。
+
+自动化映射：
+
+- `tests/unit/test_home_safety_research_scope.py`
+- `tests/research_brief.py`
+- `tests/integration/test_project_lifecycle.py`
+- `tests/integration/test_source_requirements_api.py`
+- 所有创建项目或直接构造 `ResearchBrief` 的后端测试。
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：
