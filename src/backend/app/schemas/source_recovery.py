@@ -11,16 +11,19 @@ from app.schemas.source import SourceAuthorizationBasis
 from app.schemas.source_requirements import ProductReference, SourceRequirementAssessment
 from app.schemas.source_routing import SourceRouteTarget
 
-_RECOVERABLE_AGENT_TYPES = {
-    "user_research",
-    "competitor_research",
-    "product_technical",
-    "commercial_evaluation",
-    "red_team",
-    "candidate_synthesis",
-    "validation",
-    "final_synthesis",
-}
+
+class RecoverableAgentType(StrEnum):
+    USER_RESEARCH = "user_research"
+    COMPETITOR_RESEARCH = "competitor_research"
+    PRODUCT_TECHNICAL = "product_technical"
+    COMMERCIAL_EVALUATION = "commercial_evaluation"
+    RED_TEAM = "red_team"
+    CANDIDATE_SYNTHESIS = "candidate_synthesis"
+    VALIDATION = "validation"
+    FINAL_SYNTHESIS = "final_synthesis"
+
+
+_RECOVERABLE_AGENT_TYPES = {item.value for item in RecoverableAgentType}
 
 
 class SourceRecoveryStatus(StrEnum):
@@ -52,6 +55,11 @@ class SourceRecoveryResumeMode(StrEnum):
     NONE = "none"
     TARGETED_RETRY = "targeted_retry"
     PROCEED_WITH_GAPS = "proceed_with_gaps"
+
+
+class SourceRecoverySubmissionKind(StrEnum):
+    DIRECT_ANSWER = "direct_answer"
+    EXISTING_EVIDENCE = "existing_evidence"
 
 
 class SourceRecoveryCreate(BaseModel):
@@ -88,7 +96,7 @@ class SourceRecoveryCreate(BaseModel):
         return value
 
 
-class ProductTechnicalSourceRecoveryCreate(BaseModel):
+class AgentArtifactSourceRecoveryCreate(BaseModel):
     gap_ids: list[str] = Field(default_factory=list, max_length=30)
     requested_by: str = Field(min_length=1, max_length=120)
     reason: str = Field(min_length=1, max_length=1000)
@@ -97,8 +105,52 @@ class ProductTechnicalSourceRecoveryCreate(BaseModel):
     @classmethod
     def unique_gap_ids(cls, value: list[str]) -> list[str]:
         if len(value) != len(set(value)):
-            raise ValueError("product technical recovery gap_ids must be unique")
+            raise ValueError("agent artifact recovery gap_ids must be unique")
         return value
+
+
+class ProductTechnicalSourceRecoveryCreate(AgentArtifactSourceRecoveryCreate):
+    """向后兼容原产品技术专用接口。"""
+
+
+class AgentGapSeverity(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    UNKNOWN = "unknown"
+
+
+class AgentArtifactGap(BaseModel):
+    gap_id: str = Field(min_length=1, max_length=80)
+    artifact_id: str = Field(min_length=1, max_length=80)
+    task_id: str = Field(min_length=1, max_length=80)
+    agent_type: RecoverableAgentType
+    question: str = Field(min_length=1, max_length=1500)
+    reason: str = Field(min_length=1, max_length=1500)
+    severity: AgentGapSeverity
+    recommended_source_types: list[str] = Field(default_factory=list, max_length=20)
+    required_evidence_types: list[str] = Field(default_factory=list, max_length=20)
+    affected_candidate_ids: list[str] = Field(default_factory=list, max_length=20)
+    scope_label: str | None = Field(default=None, max_length=240)
+    dimension: str | None = Field(default=None, max_length=120)
+    source_path: str = Field(min_length=1, max_length=500)
+
+    @field_validator(
+        "recommended_source_types", "required_evidence_types", "affected_candidate_ids"
+    )
+    @classmethod
+    def unique_gap_lists(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("agent gap list values must be unique")
+        return value
+
+
+class AgentArtifactGapPage(BaseModel):
+    artifact_id: str
+    agent_type: RecoverableAgentType
+    items: list[AgentArtifactGap]
+    total: int = Field(ge=0)
+
 
 class SourceRecoveryRequestedField(BaseModel):
     field_id: str = Field(min_length=1, max_length=80)
@@ -142,10 +194,39 @@ class SourceRecoverySubmissionCreate(BaseModel):
         return self
 
 
+class SourceRecoveryEvidenceBinding(BaseModel):
+    field_id: str = Field(min_length=1, max_length=80)
+    evidence_ids: list[str] = Field(min_length=1, max_length=30)
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def unique_evidence_ids(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("evidence binding ids must be unique")
+        return value
+
+
+class SourceRecoveryEvidenceSubmissionCreate(BaseModel):
+    request_id: str = Field(min_length=8, max_length=128)
+    source_asset_id: str = Field(min_length=1, max_length=40)
+    bindings: list[SourceRecoveryEvidenceBinding] = Field(min_length=1, max_length=30)
+    actor: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def unique_bound_fields(self) -> "SourceRecoveryEvidenceSubmissionCreate":
+        field_ids = [binding.field_id for binding in self.bindings]
+        if len(field_ids) != len(set(field_ids)):
+            raise ValueError("evidence bindings must use unique field ids")
+        return self
+
+
 class SourceRecoverySubmission(BaseModel):
     submission_id: str
     request_id: str
+    submission_kind: SourceRecoverySubmissionKind
     source_asset_id: str
+    field_ids: list[str]
     evidence_ids: list[str]
     answer_count: int = Field(ge=1)
     actor: str

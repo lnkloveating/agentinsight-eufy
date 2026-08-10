@@ -3351,7 +3351,9 @@ components:
       required:
         - submission_id
         - request_id
+        - submission_kind
         - source_asset_id
+        - field_ids
         - evidence_ids
         - answer_count
         - actor
@@ -3359,7 +3361,14 @@ components:
       properties:
         submission_id: { type: string }
         request_id: { type: string }
+        submission_kind:
+          type: string
+          enum: [direct_answer, existing_evidence]
         source_asset_id: { type: string }
+        field_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
         evidence_ids:
           type: array
           uniqueItems: true
