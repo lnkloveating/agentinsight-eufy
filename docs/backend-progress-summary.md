@@ -455,13 +455,12 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次验证状态：
 
 ```text
-合并生态契约加固后的全量基线：281 passed
-设备能力图新增目标测试：13 passed
-关键兼容回归（生态契约、工作流、竞品桥接、Product Technical、通用 Gap 与能力图）：60 passed
-ruff: 设备能力图 app/migrations/tests 通过
+设备能力图合并前全量 Pytest：294 passed，1 个第三方 Starlette TestClient 弃用警告
+ruff: 全量通过
 mypy: 通过（207 个 app 源文件）
 Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空库升级到 head 并降级到 0018 通过
-注意：设备能力图完成后的全仓库 pytest 尚需在新账号清理权限异常测试目录后重跑，不能把 281 基线写成当前分支全量结果
+OpenAPI: 3.1 YAML 解析通过
+git diff --check: 通过
 真实模型：GLM 5.2 与 DeepSeek V4 Pro 基础探针、资料路由及官方产品专家完整网页链路冒烟测试通过
 价格渠道真实链路：同一授权 eufy 商品页经确定性 HTML 解析得到 372 个片段并审核晋级 2 条 Evidence；GLM 5.2 专家 completed（质量分 90），DeepSeek V4 Pro 返回契约有效的 partial（质量分 75），两次模型调用均 completed
 用户评价真实链路：公开 E340 第一人称实测页解析得到 377 个片段，人工式审核晋级 1 条 user_opinion；GLM 5.2 输出 4 个 single_report 主题并在首次结构化失败后重试成功，DeepSeek V4 Pro 一次完成并输出 2 个 single_report 主题；两者都按样本门禁保持 partial，没有伪造重复主题
@@ -474,7 +473,7 @@ Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空
 
 ```text
 Ecosystem Opportunity Contract（已完成）
-→ Device Capability Graph（当前分支已实现，待最终合并）
+→ Device Capability Graph（已完成并合并）
 → Ecosystem Opportunity Agent
 → AI Native Ecosystem Gate
 → Technical Feasibility Agent

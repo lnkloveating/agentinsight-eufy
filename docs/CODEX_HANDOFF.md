@@ -92,10 +92,10 @@
 
 ### 3.1 已合并到 `main` 的新方向基础
 
-写这份文件时，远程 `main` 为：
+设备能力图合并提交为：
 
 ```text
-814af50 合并生态机会契约加固
+6cc8cec 合并设备能力图
 ```
 
 已完成：
@@ -109,15 +109,19 @@
 
 该分支只定义“生态方案长什么样”，还没有真实生态机会 Agent。
 
-### 3.2 当前分支：`evidence/device-capability-graph`
+### 3.2 已完成分支：`evidence/device-capability-graph`
 
-已创建分支并提交第一步：
+该分支已完成、合并到 `main`，提交为：
 
 ```text
 00f942e 定义设备能力图公共接口与验收标准
+356ce5f 实现证据约束的设备能力图
+50336d6 补充设备能力图接口与迁移测试
+0f57e74 完善设备能力图文档和开发交接
+6cc8cec 合并设备能力图
 ```
 
-当前工作树已经完成但尚未提交的内容：
+已完成内容：
 
 - `app/schemas/device_capability.py`；
 - `app/infrastructure/database/models.py` 中五类能力图表；
@@ -152,28 +156,16 @@ POST   /projects/{project_id}/device-capabilities/queries
 已验证：
 
 ```text
-新增目标测试：13 passed
-关键兼容回归（生态契约、工作流、竞品桥接、Product Technical、通用 Gap 与能力图）：60 passed
 Ruff：通过
 Mypy：207 个 app 源文件通过
+全量 Pytest：294 passed，1 个第三方 Starlette TestClient 弃用警告
 Alembic：内存数据库从空库升级到 head，再降级到 0018，通过
+OpenAPI：3.1 YAML 解析通过
+git diff --check：通过
 ```
 
-当前账号在最后阶段触发 Codex 用量上限，无法执行需要批准的删除和 Git 写操作。因此新账号必须先处理：
-
-1. 确认以下目录确实是本次失败迁移测试生成的空临时目录：
-
-   ```text
-   C:\Users\zehao\Desktop\agentinsight-eufy\src\backend\device-capability-migration-1onkisii
-   ```
-
-2. 删除该目录后重新执行 `git status -sb`，确保没有无法扫描的路径；
-3. 审查全部 diff；
-4. 运行下面“发布前检查”；
-5. 分步中文提交实现、测试、文档；
-6. 合并 `main` 并推送。
-
-不要因为交接文件声称“代码已完成”就跳过 diff、测试或权限目录清理。
+迁移测试遗留目录 `src/backend/device-capability-migration-1onkisii` 已清理，功能分支工作区在合并前保持干净。
+下一位开发者不需要重新实现设备能力图，应从 `agent/ecosystem-opportunity` 开始。
 
 ### 3.3 旧商业草稿
 
@@ -209,7 +201,7 @@ stash@{0}: 归档旧商业评估未完成草稿
 - 竞品综合、证据审计和主路径桥接；
 - Product Technical v1 动态候选及资料恢复，保留兼容但不再作为新方向最终产物；
 - Ecosystem Opportunity 公共契约；
-- Device Capability Graph（当前分支，等待最终提交合并）。
+- Device Capability Graph（已完成并合并到 `main`）。
 
 ## 5. 前端最终成品应该是什么样
 
@@ -476,7 +468,7 @@ Agent 的语义判断由真实模型 API 完成，但不能只靠 API：
 
 ## 8. 发布前检查
 
-新账号完成当前分支时执行：
+每个后续分支发布前执行：
 
 ```powershell
 cd C:\Users\zehao\Desktop\agentinsight-eufy\src\backend
@@ -509,7 +501,7 @@ git diff --stat
 - unknown/unavailable 不被模型补造；
 - 旧 Product Technical 和竞品流程测试无回归。
 
-建议中文 Commit：
+本分支已完成的中文 Commit：
 
 ```text
 实现证据约束的设备能力图
@@ -517,12 +509,12 @@ git diff --stat
 完善设备能力图文档和开发交接
 ```
 
-随后：
+本分支合并记录：
 
 ```text
-切换 main
-→ merge --no-ff evidence/device-capability-graph
-→ 推送 main
+已切换 main
+已执行 merge --no-ff evidence/device-capability-graph
+已推送 main
 ```
 
 GitHub Actions 通过后再开始 `agent/ecosystem-opportunity`。
