@@ -515,6 +515,12 @@ class SourceRecoveryModel(Base):
         nullable=True,
         index=True,
     )
+    source_artifact_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_artifacts.artifact_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_gap_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     reason_code: Mapped[str] = mapped_column(String(80), nullable=False)
     reason_message: Mapped[str] = mapped_column(Text, nullable=False)
