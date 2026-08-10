@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.9.0
+  version: 0.10.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -172,6 +172,47 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UserResearchArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/product-technical:
+    post:
+      tags: [Research]
+      summary: Run the product technical opportunity Agent
+      description: |
+        Uses the latest advancing user-research and competitor-synthesis Artifacts for the project.
+        Candidates are generated dynamically from their cited Evidence, never padded with templates.
+        The target is three candidates and the hard maximum is five; fewer candidates are valid when
+        the Artifact reports the missing research needed to support additional opportunities.
+      operationId: runProductTechnicalAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: A persisted, evidence-bounded product opportunity portfolio Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductTechnicalArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/product-technical/artifacts:
+    get:
+      tags: [Research]
+      summary: List product technical opportunity Artifact versions
+      operationId: listProductTechnicalArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Product technical Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductTechnicalArtifact"
         default:
           $ref: "#/components/responses/Error"
 
@@ -2126,6 +2167,205 @@ components:
           type: array
           items: { type: string }
         quality_score: { type: number, minimum: 0, maximum: 100 }
+
+    ProductTechnicalGap:
+      type: object
+      additionalProperties: false
+      required: [question, reason, required_evidence_types, affected_candidate_ids]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        required_evidence_types:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        affected_candidate_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    ProductTechnicalAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        - data_requirements
+        - required_capabilities
+        - privacy_constraints
+        - feasibility_summary
+        - demo_validation_plan
+      properties:
+        data_requirements:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        required_capabilities:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        privacy_constraints:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 500 }
+        feasibility_summary: { type: string, minLength: 1, maxLength: 2000 }
+        demo_validation_plan: { type: string, minLength: 1, maxLength: 2000 }
+
+    ProductOpportunityCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        - candidate_id
+        - name
+        - target_user
+        - problem
+        - event_understanding
+        - competitor_gap_ids
+        - technical_assessment
+        - evidence_ids
+        - gate_status
+        - gate_issues
+      properties:
+        candidate_id: { type: string, minLength: 1, maxLength: 80 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        target_user:
+          type: object
+          additionalProperties: false
+          required: [persona_ids, description]
+          properties:
+            persona_ids:
+              type: array
+              uniqueItems: true
+              items: { type: string }
+            description: { type: string, minLength: 1 }
+        problem:
+          type: object
+          additionalProperties: false
+          required: [pain_ids, description]
+          properties:
+            pain_ids:
+              type: array
+              uniqueItems: true
+              items: { type: string }
+            description: { type: string, minLength: 1 }
+        event_understanding:
+          $ref: "#/components/schemas/EventUnderstanding"
+        competitor_gap_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        technical_assessment:
+          $ref: "#/components/schemas/ProductTechnicalAssessment"
+        evidence_ids:
+          type: array
+          minItems: 2
+          uniqueItems: true
+          items: { type: string }
+        gate_status:
+          type: string
+          enum: [passed, blocked]
+        gate_issues:
+          type: array
+          items: { type: string }
+
+    ProductTechnicalCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - target_candidate_count
+        - maximum_candidate_count
+        - generated_candidate_count
+        - advancing_candidate_count
+        - cited_user_evidence_count
+        - cited_competitor_evidence_count
+        - evidence_context_hash
+        - handoff_status
+      properties:
+        target_candidate_count: { type: integer, const: 3 }
+        maximum_candidate_count: { type: integer, const: 5 }
+        generated_candidate_count: { type: integer, minimum: 0, maximum: 5 }
+        advancing_candidate_count: { type: integer, minimum: 0, maximum: 5 }
+        cited_user_evidence_count: { type: integer, minimum: 0 }
+        cited_competitor_evidence_count: { type: integer, minimum: 0 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        handoff_status: { type: string, enum: [ready, ready_with_gaps, blocked] }
+
+    ProductTechnicalPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_name
+        - schema_version
+        - summary
+        - summary_evidence_ids
+        - candidates
+        - portfolio_gaps
+        - coverage
+      properties:
+        schema_name: { type: string, const: product_technical_opportunity_portfolio }
+        schema_version: { type: string, const: "1.0" }
+        summary: { type: string, minLength: 1, maxLength: 5000 }
+        summary_evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        candidates:
+          type: array
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/ProductOpportunityCandidate"
+        portfolio_gaps:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/ProductTechnicalGap"
+        coverage:
+          $ref: "#/components/schemas/ProductTechnicalCoverage"
+
+    ProductTechnicalArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - task_id
+        - artifact_type
+        - schema_version
+        - status
+        - payload
+        - evidence_ids
+        - contradictions
+        - unknowns
+        - quality_score
+        - errors
+      properties:
+        artifact_id: { type: string }
+        task_id: { type: string }
+        artifact_type: { type: string, const: product_technical }
+        schema_version: { type: string, const: "1.0" }
+        status:
+          type: string
+          enum: [completed, partial, blocked, needs_revision]
+        payload:
+          $ref: "#/components/schemas/ProductTechnicalPayload"
+        evidence_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        contradictions:
+          type: array
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          items: { type: string }
 
     CompetitorDiscoveryRunCreate:
       type: object
