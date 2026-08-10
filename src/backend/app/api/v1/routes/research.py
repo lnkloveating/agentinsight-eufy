@@ -8,7 +8,10 @@ from app.api.dependencies import (
     UserResearchServiceDependency,
 )
 from app.schemas.source_recovery import (
+    AgentArtifactGapPage,
+    AgentArtifactSourceRecoveryCreate,
     ProductTechnicalSourceRecoveryCreate,
+    RecoverableAgentType,
     SourceRecovery,
 )
 
@@ -82,6 +85,34 @@ async def create_product_technical_source_recovery(
     payload: ProductTechnicalSourceRecoveryCreate,
     service: SourceRecoveryServiceDependency,
 ) -> SourceRecovery:
-    return await service.create_from_product_technical(
-        project_id, artifact_id, payload
-    )
+    return await service.create_from_product_technical(project_id, artifact_id, payload)
+
+
+@router.get(
+    "/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps",
+    response_model=AgentArtifactGapPage,
+    summary="查询任意领域 Agent Artifact 的统一补研缺口",
+)
+async def list_agent_artifact_gaps(
+    project_id: str,
+    agent_type: RecoverableAgentType,
+    artifact_id: str,
+    service: SourceRecoveryServiceDependency,
+) -> AgentArtifactGapPage:
+    return await service.list_agent_artifact_gaps(project_id, agent_type, artifact_id)
+
+
+@router.post(
+    "/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/source-recovery",
+    response_model=SourceRecovery,
+    status_code=status.HTTP_201_CREATED,
+    summary="把任意领域 Agent 缺口转换为统一补研任务",
+)
+async def create_agent_artifact_source_recovery(
+    project_id: str,
+    agent_type: RecoverableAgentType,
+    artifact_id: str,
+    payload: AgentArtifactSourceRecoveryCreate,
+    service: SourceRecoveryServiceDependency,
+) -> SourceRecovery:
+    return await service.create_from_agent_artifact(project_id, agent_type, artifact_id, payload)

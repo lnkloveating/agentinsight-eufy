@@ -332,6 +332,26 @@ Asset 和 Evidence IDs。它不能被标记成官网或第三方来源，重复 
 - `tests/integration/test_evidence_retrieval.py`
 - 用户研究、三个竞品专家和产品技术 Agent 的既有集成测试
 
+## AC-04J 通用 Agent 缺口与资料恢复
+
+用户研究、竞品研究、产品技术以及后续商业与红队 Agent 的持久化 Artifact 缺口必须能够投影为
+统一 `AgentArtifactGap`。没有原生 ID 的缺口须按语义生成跨 Artifact 版本稳定的 `gap_id`；路径
+Agent 类型必须与 Artifact 类型一致，前端不得自行伪造缺口或受影响任务。
+
+任一 Gap 都应能创建统一 Source Recovery，返回结构化字段、证据类型提示、受影响候选、Agent
+和 Task。直接填写沿用可追溯 `user_declaration`；文件、PDF、网页和 API 资料必须先通过既有
+Source Processing、Routing 与 Evidence Gate，再把同项目、同 Source Asset 的 eligible Evidence
+绑定到指定字段。原文件、未审核 Fragment、Mock、Invalid 或跨项目 Evidence 不得解除缺口。
+
+补研解决后只返回 `targeted_retry` 范围，不直接重跑整张图；尚未满足时保持等待，用户可明确
+带缺口继续。旧产品技术补研接口必须继续兼容，并使用同一个通用实现。
+
+自动化映射：
+
+- `tests/unit/test_agent_gap_projector.py`
+- `tests/integration/test_universal_agent_source_recovery_api.py`
+- `tests/integration/test_product_technical_agent.py`
+
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
 ## AC-01 飞书 Aily 研究入口

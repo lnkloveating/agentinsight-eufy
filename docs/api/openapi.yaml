@@ -245,6 +245,58 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps:
+    get:
+      tags: [Research, Evidence]
+      summary: List normalized recoverable gaps from an Agent Artifact
+      description: |
+        Deterministically projects native user-research, competitor-research, product-technical,
+        commercial-evaluation and red-team gap shapes into one frontend contract. No model call is
+        made and the source Artifact remains immutable.
+      operationId: listAgentArtifactGaps
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RecoverableAgentType"
+        - $ref: "#/components/parameters/ArtifactId"
+      responses:
+        "200":
+          description: Stable, normalized gaps that can be shown in a shared recovery dialog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentArtifactGapPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/source-recovery:
+    post:
+      tags: [Research, Evidence]
+      summary: Create a recovery task from any supported Agent Artifact gap
+      description: |
+        Converts selected normalized gaps into structured questions and a targeted retry directive.
+        Users can answer directly or bind already processed Evidence from an authorized webpage,
+        file, PDF or API source. The legacy Product Technical endpoint remains supported.
+      operationId: createAgentArtifactSourceRecovery
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RecoverableAgentType"
+        - $ref: "#/components/parameters/ArtifactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentArtifactSourceRecoveryCreate"
+      responses:
+        "201":
+          description: A universal source-recovery task for the selected Artifact gaps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents/competitor-discovery:
     post:
       tags: [Research]
@@ -725,6 +777,34 @@ paths:
       responses:
         "201":
           description: 补充内容已进入证据链，并返回复评后的恢复状态。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecovery"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/source-recoveries/{source_recovery_id}/evidence-submissions:
+    post:
+      tags: [Evidence]
+      summary: Resolve recovery fields with existing processed Evidence
+      description: |
+        Binds eligible Evidence from exactly one project Source Asset to requested recovery fields.
+        Raw URLs and files must first pass through Source Ingestion, Processing, Routing and
+        Evidence promotion; this endpoint never treats an unprocessed upload as factual Evidence.
+      operationId: submitSourceRecoveryEvidence
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/SourceRecoveryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRecoveryEvidenceSubmissionCreate"
+      responses:
+        "201":
+          description: Updated recovery status and targeted retry readiness.
           content:
             application/json:
               schema:
@@ -1508,6 +1588,21 @@ components:
       schema:
         type: string
         pattern: "^recovery_[A-Za-z0-9_-]+$"
+    RecoverableAgentType:
+      name: agent_type
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - user_research
+          - competitor_research
+          - product_technical
+          - commercial_evaluation
+          - red_team
+          - candidate_synthesis
+          - validation
+          - final_synthesis
     SourceFragmentId:
       name: source_fragment_id
       in: path
@@ -3067,7 +3162,7 @@ components:
         requested_by: { type: string, minLength: 1, maxLength: 120 }
         reason: { type: string, minLength: 1, maxLength: 1000 }
 
-    ProductTechnicalSourceRecoveryCreate:
+    AgentArtifactSourceRecoveryCreate:
       type: object
       additionalProperties: false
       required: [gap_ids, requested_by, reason]
@@ -3076,10 +3171,76 @@ components:
           type: array
           maxItems: 30
           uniqueItems: true
-          description: Empty means all gaps in the selected Product Technical Artifact.
+          description: Empty means all normalized gaps in the selected Agent Artifact.
           items: { type: string, minLength: 1, maxLength: 80 }
         requested_by: { type: string, minLength: 1, maxLength: 120 }
         reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    ProductTechnicalSourceRecoveryCreate:
+      allOf:
+        - $ref: "#/components/schemas/AgentArtifactSourceRecoveryCreate"
+
+    AgentGapSeverity:
+      type: string
+      enum: [low, medium, high, unknown]
+
+    AgentArtifactGap:
+      type: object
+      additionalProperties: false
+      required:
+        - gap_id
+        - artifact_id
+        - task_id
+        - agent_type
+        - question
+        - reason
+        - severity
+        - recommended_source_types
+        - required_evidence_types
+        - affected_candidate_ids
+        - scope_label
+        - dimension
+        - source_path
+      properties:
+        gap_id: { type: string, minLength: 1, maxLength: 80 }
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        task_id: { type: string, minLength: 1, maxLength: 80 }
+        agent_type: { type: string, minLength: 1, maxLength: 80 }
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        severity:
+          $ref: "#/components/schemas/AgentGapSeverity"
+        recommended_source_types:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        required_evidence_types:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        affected_candidate_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        scope_label: { type: [string, "null"], maxLength: 240 }
+        dimension: { type: [string, "null"], maxLength: 120 }
+        source_path: { type: string, minLength: 1, maxLength: 500 }
+
+    AgentArtifactGapPage:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, agent_type, items, total]
+      properties:
+        artifact_id: { type: string }
+        agent_type: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentArtifactGap"
+        total: { type: integer, minimum: 0 }
 
     SourceRecoveryRequestedField:
       type: object
@@ -3155,13 +3316,44 @@ components:
         authorization_confirmed: { type: boolean, const: true }
         accuracy_confirmed: { type: boolean, const: true }
 
+    SourceRecoveryEvidenceBinding:
+      type: object
+      additionalProperties: false
+      required: [field_id, evidence_ids]
+      properties:
+        field_id: { type: string, minLength: 1, maxLength: 80 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    SourceRecoveryEvidenceSubmissionCreate:
+      type: object
+      additionalProperties: false
+      required: [request_id, source_asset_id, bindings, actor, reason]
+      properties:
+        request_id: { type: string, minLength: 8, maxLength: 128 }
+        source_asset_id: { type: string, minLength: 1, maxLength: 40 }
+        bindings:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/SourceRecoveryEvidenceBinding"
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
     SourceRecoverySubmission:
       type: object
       additionalProperties: false
       required:
         - submission_id
         - request_id
+        - submission_kind
         - source_asset_id
+        - field_ids
         - evidence_ids
         - answer_count
         - actor
@@ -3169,7 +3361,14 @@ components:
       properties:
         submission_id: { type: string }
         request_id: { type: string }
+        submission_kind:
+          type: string
+          enum: [direct_answer, existing_evidence]
         source_asset_id: { type: string }
+        field_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
         evidence_ids:
           type: array
           uniqueItems: true

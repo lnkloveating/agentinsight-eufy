@@ -7,6 +7,7 @@ from app.schemas.source_recovery import (
     SourceRecovery,
     SourceRecoveryCreate,
     SourceRecoveryDecisionCreate,
+    SourceRecoveryEvidenceSubmissionCreate,
     SourceRecoveryPage,
     SourceRecoverySubmissionCreate,
 )
@@ -62,6 +63,20 @@ async def submit_source_recovery(
     service: SourceRecoveryServiceDependency,
 ) -> SourceRecovery:
     return await service.submit(project_id, source_recovery_id, payload)
+
+
+@router.post(
+    "/{project_id}/source-recoveries/{source_recovery_id}/evidence-submissions",
+    response_model=SourceRecovery,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_source_recovery_evidence(
+    project_id: str,
+    source_recovery_id: str,
+    payload: SourceRecoveryEvidenceSubmissionCreate,
+    service: SourceRecoveryServiceDependency,
+) -> SourceRecovery:
+    return await service.submit_evidence(project_id, source_recovery_id, payload)
 
 
 @router.post(

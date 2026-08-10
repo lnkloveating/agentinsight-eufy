@@ -9,12 +9,14 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from app.agents.product_technical import ProductTechnicalArtifact, ProductTechnicalGap
 from app.application.events import ProjectEventBroker
 from app.application.runtime import ArtifactAccessDeniedError, ArtifactStore
+from app.application.runtime.contracts import StoredArtifact
+from app.application.source_recovery.gaps import AgentGapProjector
 from app.application.source_requirements import SourceRequirementService
 from app.core.errors import AppError
 from app.evidence.normalization import build_content_hash
+from app.infrastructure.database.evidence_repository import EvidenceRepository
 from app.infrastructure.database.models import (
     CollectionJobModel,
     EvidenceModel,
@@ -38,12 +40,17 @@ from app.schemas.source import (
     SourceMediaCategory,
 )
 from app.schemas.source_recovery import (
+    AgentArtifactGap,
+    AgentArtifactGapPage,
+    AgentArtifactSourceRecoveryCreate,
     ProductTechnicalSourceRecoveryCreate,
+    RecoverableAgentType,
     SourceRecovery,
     SourceRecoveryAnswer,
     SourceRecoveryCreate,
     SourceRecoveryDecisionAction,
     SourceRecoveryDecisionCreate,
+    SourceRecoveryEvidenceSubmissionCreate,
     SourceRecoveryPage,
     SourceRecoveryReasonCode,
     SourceRecoveryRequestedField,
@@ -52,6 +59,7 @@ from app.schemas.source_recovery import (
     SourceRecoveryStatus,
     SourceRecoverySubmission,
     SourceRecoverySubmissionCreate,
+    SourceRecoverySubmissionKind,
 )
 from app.schemas.source_requirements import (
     CompetitorResearchDimension,
@@ -68,9 +76,7 @@ _TERMINAL_RECOVERY_STATUSES = {
     SourceRecoveryStatus.CANCELLED,
 }
 
-_DIMENSION_FIELDS: dict[
-    CompetitorResearchDimension, tuple[tuple[EvidenceClaimType, bool], ...]
-] = {
+_DIMENSION_FIELDS: dict[CompetitorResearchDimension, tuple[tuple[EvidenceClaimType, bool], ...]] = {
     CompetitorResearchDimension.OFFICIAL_PRODUCT: (
         (EvidenceClaimType.CAPABILITY, True),
         (EvidenceClaimType.SPECIFICATION, False),
@@ -81,9 +87,7 @@ _DIMENSION_FIELDS: dict[
         (EvidenceClaimType.CHANNEL_AVAILABILITY, False),
         (EvidenceClaimType.PROMOTION, False),
     ),
-    CompetitorResearchDimension.USER_REVIEW: (
-        (EvidenceClaimType.USER_OPINION, True),
-    ),
+    CompetitorResearchDimension.USER_REVIEW: ((EvidenceClaimType.USER_OPINION, True),),
 }
 
 _FIELD_COPY: dict[EvidenceClaimType, tuple[str, str]] = {
@@ -198,9 +202,7 @@ class SourceRecoveryService:
                 requirement_ids_json=list(
                     dict.fromkeys(item.requirement_id for item in requested_fields)
                 ),
-                requested_fields_json=[
-                    item.model_dump(mode="json") for item in requested_fields
-                ],
+                requested_fields_json=[item.model_dump(mode="json") for item in requested_fields],
                 affected_task_ids_json=affected_task_ids,
                 affected_agent_types_json=affected_agent_types,
                 assessment_before_json=assessment.model_dump(mode="json"),
@@ -241,48 +243,55 @@ class SourceRecoveryService:
         artifact_id: str,
         payload: ProductTechnicalSourceRecoveryCreate,
     ) -> SourceRecovery:
-        try:
-            stored = await ArtifactStore(self.database).get(project_id, artifact_id)
-        except ArtifactAccessDeniedError as exc:
-            raise self._not_found(
-                "PRODUCT_TECHNICAL_ARTIFACT_NOT_FOUND",
-                "没有找到当前项目的产品技术 Artifact。",
-            ) from exc
-        if stored is None:
-            raise self._not_found(
-                "PRODUCT_TECHNICAL_ARTIFACT_NOT_FOUND",
-                "没有找到当前项目的产品技术 Artifact。",
-            )
-        try:
-            artifact = ProductTechnicalArtifact.from_research_artifact(stored.artifact)
-        except ValueError as exc:
-            raise AppError(
-                code="PRODUCT_TECHNICAL_ARTIFACT_INVALID",
-                message="指定 Artifact 不是可用于补研的产品技术机会组合。",
-                status_code=422,
-                details={"artifact_id": artifact_id},
-            ) from exc
-        gaps_by_id = {gap.gap_id: gap for gap in artifact.payload.portfolio_gaps}
+        return await self.create_from_agent_artifact(
+            project_id,
+            RecoverableAgentType.PRODUCT_TECHNICAL,
+            artifact_id,
+            payload,
+        )
+
+    async def list_agent_artifact_gaps(
+        self,
+        project_id: str,
+        agent_type: RecoverableAgentType,
+        artifact_id: str,
+    ) -> AgentArtifactGapPage:
+        _, gaps = await self._load_agent_artifact_gaps(project_id, agent_type, artifact_id)
+        return AgentArtifactGapPage(
+            artifact_id=artifact_id,
+            agent_type=agent_type,
+            items=gaps,
+            total=len(gaps),
+        )
+
+    async def create_from_agent_artifact(
+        self,
+        project_id: str,
+        agent_type: RecoverableAgentType,
+        artifact_id: str,
+        payload: AgentArtifactSourceRecoveryCreate,
+    ) -> SourceRecovery:
+        stored, gaps = await self._load_agent_artifact_gaps(project_id, agent_type, artifact_id)
+        gaps_by_id = {gap.gap_id: gap for gap in gaps}
         selected_ids = payload.gap_ids or list(gaps_by_id)
         missing_ids = sorted(set(selected_ids) - set(gaps_by_id))
         if missing_ids:
             raise AppError(
-                code="PRODUCT_TECHNICAL_GAP_NOT_FOUND",
-                message="选择的补研缺口不属于该产品技术 Artifact。",
+                code="AGENT_ARTIFACT_GAP_NOT_FOUND",
+                message="选择的补研缺口不属于该 Agent Artifact。",
                 status_code=422,
                 details={"gap_ids": missing_ids},
             )
         if not selected_ids:
             raise AppError(
-                code="PRODUCT_TECHNICAL_RECOVERY_NOT_REQUIRED",
-                message="该产品技术 Artifact 没有需要用户补充的资料缺口。",
+                code="AGENT_ARTIFACT_RECOVERY_NOT_REQUIRED",
+                message="该 Agent Artifact 没有需要用户补充的资料缺口。",
                 status_code=409,
-                details={"artifact_id": artifact_id},
+                details={"artifact_id": artifact_id, "agent_type": agent_type.value},
             )
         selected_gaps = [gaps_by_id[gap_id] for gap_id in selected_ids]
-        fields, affected_agents = self._build_product_gap_fields(
-            artifact_id, selected_gaps
-        )
+        fields, affected_agents = self._build_agent_gap_fields(selected_gaps)
+        affected_agents.add(agent_type.value)
         assessment = await self.requirements.get(project_id)
         async with self.database.session() as session:
             repository = SourceRecoveryRepository(session)
@@ -294,7 +303,7 @@ class SourceRecoveryService:
             input_models = await AgentRuntimeRepository(session).get_artifacts_by_ids(
                 set(stored.input_artifact_ids)
             )
-            affected_task_ids = [artifact.task_id]
+            affected_task_ids = [stored.artifact.task_id]
             for model in input_models:
                 if model.artifact_type in affected_agents:
                     affected_task_ids.append(model.task_id)
@@ -310,11 +319,9 @@ class SourceRecoveryService:
                 status=SourceRecoveryStatus.WAITING_FOR_USER_INPUT,
                 reason_code=SourceRecoveryReasonCode.INSUFFICIENT_INFORMATION,
                 reason_message=(
-                    "产品技术候选缺少可验证信息，需要用户或企业补充具体事实。"
+                    f"{agent_type.value} Artifact 缺少可验证信息，需要用户或企业补充事实。"
                 ),
-                requirement_ids_json=list(
-                    dict.fromkeys(field.requirement_id for field in fields)
-                ),
+                requirement_ids_json=list(dict.fromkeys(field.requirement_id for field in fields)),
                 requested_fields_json=[field.model_dump(mode="json") for field in fields],
                 affected_task_ids_json=affected_task_ids,
                 affected_agent_types_json=sorted(affected_agents),
@@ -336,7 +343,8 @@ class SourceRecoveryService:
                     "requested_field_count": len(fields),
                     "affected_task_ids": affected_task_ids,
                     "affected_agent_types": sorted(affected_agents),
-                    "origin": "product_technical_portfolio_gap",
+                    "origin": "agent_artifact_gap",
+                    "agent_type": agent_type.value,
                 },
                 now,
             )
@@ -350,15 +358,45 @@ class SourceRecoveryService:
         await self.event_broker.notify(project_id)
         return await self.get(project_id, recovery.source_recovery_id)
 
+    async def _load_agent_artifact_gaps(
+        self,
+        project_id: str,
+        agent_type: RecoverableAgentType,
+        artifact_id: str,
+    ) -> tuple[StoredArtifact, list[AgentArtifactGap]]:
+        try:
+            stored = await ArtifactStore(self.database).get(project_id, artifact_id)
+        except ArtifactAccessDeniedError as exc:
+            raise self._not_found(
+                "AGENT_ARTIFACT_NOT_FOUND",
+                "没有找到当前项目的 Agent Artifact。",
+            ) from exc
+        if stored is None:
+            raise self._not_found(
+                "AGENT_ARTIFACT_NOT_FOUND",
+                "没有找到当前项目的 Agent Artifact。",
+            )
+        if stored.artifact.artifact_type != agent_type.value:
+            raise AppError(
+                code="AGENT_ARTIFACT_TYPE_MISMATCH",
+                message="路径中的 Agent 类型与 Artifact 类型不一致。",
+                status_code=422,
+                details={
+                    "artifact_id": artifact_id,
+                    "expected_agent_type": agent_type.value,
+                    "actual_agent_type": stored.artifact.artifact_type,
+                },
+            )
+        gaps = AgentGapProjector().project(stored.artifact, agent_type)
+        return stored, gaps
+
     async def get(self, project_id: str, source_recovery_id: str) -> SourceRecovery:
         async with self.database.session() as session:
             repository = SourceRecoveryRepository(session)
             await self._require_project(repository, project_id)
             model = await repository.get(project_id, source_recovery_id)
             if model is None:
-                raise self._not_found(
-                    "SOURCE_RECOVERY_NOT_FOUND", "没有找到指定的资料恢复任务。"
-                )
+                raise self._not_found("SOURCE_RECOVERY_NOT_FOUND", "没有找到指定的资料恢复任务。")
             return self._to_recovery(model)
 
     async def list_recoveries(self, project_id: str) -> SourceRecoveryPage:
@@ -407,7 +445,11 @@ class SourceRecoveryService:
                 for field in requested_fields.values()
                 if field.required
                 and field.requirement_id.startswith(
-                    ("requirement_source_gap_", "requirement_product_gap_")
+                    (
+                        "requirement_source_gap_",
+                        "requirement_product_gap_",
+                        "requirement_agent_gap_",
+                    )
                 )
             }
             missing_generic_fields = sorted(
@@ -456,9 +498,7 @@ class SourceRecoveryService:
                 collection_job_id=collection_job_id,
                 project_id=project_id,
                 task_id=(
-                    recovery.affected_task_ids_json[0]
-                    if recovery.affected_task_ids_json
-                    else None
+                    recovery.affected_task_ids_json[0] if recovery.affected_task_ids_json else None
                 ),
                 source_url=None,
                 source_type="user_declaration",
@@ -617,7 +657,9 @@ class SourceRecoveryService:
                 source_recovery_id=source_recovery_id,
                 project_id=project_id,
                 request_id=payload.request_id,
+                submission_kind=SourceRecoverySubmissionKind.DIRECT_ANSWER,
                 source_asset_id=source_asset_id,
+                field_ids_json=[answer.field_id for answer in payload.answers],
                 evidence_ids_json=evidence_ids,
                 answer_count=len(payload.answers),
                 actor=payload.actor,
@@ -632,6 +674,153 @@ class SourceRecoveryService:
                     "source_asset_id": source_asset_id,
                     "evidence_ids": evidence_ids,
                     "source_type": "user_declaration",
+                },
+                now,
+            )
+            try:
+                await repository.add_submission(submission)
+                await ProjectRepository(session).add_event(event)
+                await repository.commit()
+            except Exception:
+                await repository.rollback()
+                raise
+
+        assessment = await self.requirements.get(project_id)
+        await self._update_after_assessment(project_id, source_recovery_id, assessment)
+        await self.event_broker.notify(project_id)
+        return await self.get(project_id, source_recovery_id)
+
+    async def submit_evidence(
+        self,
+        project_id: str,
+        source_recovery_id: str,
+        payload: SourceRecoveryEvidenceSubmissionCreate,
+    ) -> SourceRecovery:
+        """关联已完成处理的 Evidence；不把原始文件或 URL 直接当成事实。"""
+
+        async with self.database.session() as session:
+            repository = SourceRecoveryRepository(session)
+            recovery = await self._require_recovery(repository, project_id, source_recovery_id)
+            replay = await repository.get_submission_by_request(
+                source_recovery_id, payload.request_id
+            )
+            if replay is not None:
+                return self._to_recovery(recovery)
+            self._require_open(recovery)
+            asset = await repository.get_source_asset(project_id, payload.source_asset_id)
+            if asset is None:
+                raise self._not_found(
+                    "SOURCE_RECOVERY_EVIDENCE_ASSET_NOT_FOUND",
+                    "没有找到已完成处理的补研资料。",
+                )
+            requested_fields = {
+                item.field_id: item
+                for item in map(
+                    SourceRecoveryRequestedField.model_validate,
+                    recovery.requested_fields_json,
+                )
+            }
+            bound_field_ids = {binding.field_id for binding in payload.bindings}
+            unknown_fields = sorted(bound_field_ids - set(requested_fields))
+            if unknown_fields:
+                raise AppError(
+                    code="SOURCE_RECOVERY_FIELD_UNKNOWN",
+                    message="Evidence 绑定包含不属于当前恢复任务的字段。",
+                    status_code=422,
+                    details={"field_ids": unknown_fields},
+                )
+            evidence_ids = list(
+                dict.fromkeys(
+                    evidence_id
+                    for binding in payload.bindings
+                    for evidence_id in binding.evidence_ids
+                )
+            )
+            evidence_models = await EvidenceRepository(session).get_evidence_by_ids(
+                set(evidence_ids)
+            )
+            evidence_by_id = {model.evidence_id: model for model in evidence_models}
+            missing_evidence_ids = sorted(set(evidence_ids) - set(evidence_by_id))
+            if missing_evidence_ids:
+                raise AppError(
+                    code="SOURCE_RECOVERY_EVIDENCE_NOT_FOUND",
+                    message="部分 Evidence 不存在。",
+                    status_code=422,
+                    details={"evidence_ids": missing_evidence_ids},
+                )
+            invalid_scope_ids = sorted(
+                model.evidence_id
+                for model in evidence_models
+                if model.project_id != project_id
+                or model.source_asset_id != payload.source_asset_id
+            )
+            if invalid_scope_ids:
+                raise AppError(
+                    code="SOURCE_RECOVERY_EVIDENCE_SCOPE_INVALID",
+                    message="Evidence 必须来自当前项目中指定的已处理资料。",
+                    status_code=422,
+                    details={"evidence_ids": invalid_scope_ids},
+                )
+            ineligible_ids = sorted(
+                model.evidence_id
+                for model in evidence_models
+                if model.status
+                not in {EvidenceStatus.VERIFIED.value, EvidenceStatus.PARTIALLY_VERIFIED.value}
+            )
+            if ineligible_ids:
+                raise AppError(
+                    code="SOURCE_RECOVERY_EVIDENCE_INELIGIBLE",
+                    message="只有 verified 或 partially_verified Evidence 可用于补研。",
+                    status_code=422,
+                    details={"evidence_ids": ineligible_ids},
+                )
+            mismatches: list[dict[str, str]] = []
+            for binding in payload.bindings:
+                field = requested_fields[binding.field_id]
+                for evidence_id in binding.evidence_ids:
+                    actual = EvidenceClaimType(evidence_by_id[evidence_id].claim_type)
+                    if not self._claim_type_compatible(field.claim_type, actual):
+                        mismatches.append(
+                            {
+                                "field_id": field.field_id,
+                                "evidence_id": evidence_id,
+                                "expected": field.claim_type.value,
+                                "actual": actual.value,
+                            }
+                        )
+            if mismatches:
+                raise AppError(
+                    code="SOURCE_RECOVERY_EVIDENCE_TYPE_MISMATCH",
+                    message="Evidence 类型与所绑定的缺口字段不匹配。",
+                    status_code=422,
+                    details={"bindings": mismatches},
+                )
+
+            now = datetime.now(UTC)
+            submission = SourceRecoverySubmissionModel(
+                submission_id=f"submission_{uuid4().hex[:12]}",
+                source_recovery_id=source_recovery_id,
+                project_id=project_id,
+                request_id=payload.request_id,
+                submission_kind=SourceRecoverySubmissionKind.EXISTING_EVIDENCE,
+                source_asset_id=payload.source_asset_id,
+                field_ids_json=sorted(bound_field_ids),
+                evidence_ids_json=evidence_ids,
+                answer_count=len(payload.bindings),
+                actor=payload.actor,
+                created_at=now,
+            )
+            event = self._event(
+                project_id,
+                "source_recovery_evidence_linked",
+                {
+                    "source_recovery_id": source_recovery_id,
+                    "submission_id": submission.submission_id,
+                    "source_asset_id": payload.source_asset_id,
+                    "evidence_ids": evidence_ids,
+                    "field_ids": sorted(bound_field_ids),
+                    "actor": payload.actor,
+                    "reason": payload.reason,
                 },
                 now,
             )
@@ -699,15 +888,31 @@ class SourceRecoveryService:
             repository = SourceRecoveryRepository(session)
             recovery = await self._require_recovery(repository, project_id, source_recovery_id)
             status_by_id = {item.requirement_id: item.status for item in assessment.requirements}
-            has_submission = bool(recovery.submissions)
+            requested_fields = [
+                SourceRecoveryRequestedField.model_validate(item)
+                for item in recovery.requested_fields_json
+            ]
+            submitted_field_ids = {
+                field_id
+                for submission in recovery.submissions
+                for field_id in submission.field_ids_json
+            }
+            synthetic_field_by_requirement = {
+                field.requirement_id: field.field_id
+                for field in requested_fields
+                if field.requirement_id.startswith(
+                    (
+                        "requirement_source_gap_",
+                        "requirement_product_gap_",
+                        "requirement_agent_gap_",
+                    )
+                )
+            }
             resolved = all(
                 (
-                    has_submission
-                    if requirement_id.startswith(
-                        ("requirement_source_gap_", "requirement_product_gap_")
-                    )
-                    else status_by_id.get(requirement_id)
-                    is SourceRequirementStatus.SATISFIED
+                    synthetic_field_by_requirement[requirement_id] in submitted_field_ids
+                    if requirement_id in synthetic_field_by_requirement
+                    else status_by_id.get(requirement_id) is SourceRequirementStatus.SATISFIED
                 )
                 for requirement_id in recovery.requirement_ids_json
             )
@@ -741,9 +946,7 @@ class SourceRecoveryService:
                 raise
 
     @staticmethod
-    async def _require_project(
-        repository: SourceRecoveryRepository, project_id: str
-    ) -> None:
+    async def _require_project(repository: SourceRecoveryRepository, project_id: str) -> None:
         if await repository.get_project(project_id) is None:
             raise AppError(
                 code="PROJECT_NOT_FOUND",
@@ -783,8 +986,7 @@ class SourceRecoveryService:
         material = [
             item
             for item in assessment.requirements
-            if item.dimension is not None
-            and item.status is not SourceRequirementStatus.SATISFIED
+            if item.dimension is not None and item.status is not SourceRequirementStatus.SATISFIED
         ]
         by_id = {item.requirement_id: item for item in material}
         if requested_ids:
@@ -797,46 +999,43 @@ class SourceRecoveryService:
                     details={"requirement_ids": missing},
                 )
             return [by_id[item_id] for item_id in requested_ids]
-        detected = [
-            item for item in material if source_asset_id in item.detected_source_asset_ids
-        ]
+        detected = [item for item in material if source_asset_id in item.detected_source_asset_ids]
         if detected:
             return detected
         return []
 
     @classmethod
-    def _build_product_gap_fields(
+    def _build_agent_gap_fields(
         cls,
-        artifact_id: str,
-        gaps: list[ProductTechnicalGap],
+        gaps: list[AgentArtifactGap],
     ) -> tuple[list[SourceRecoveryRequestedField], set[str]]:
         fields: list[SourceRecoveryRequestedField] = []
-        affected_agents = {ResearchAgentType.PRODUCT_TECHNICAL.value}
+        affected_agents: set[str] = set()
         for gap in gaps:
-            evidence_types = gap.required_evidence_types or ["supporting_fact"]
+            evidence_types = (
+                gap.required_evidence_types
+                or gap.recommended_source_types[:1]
+                or ["supporting_fact"]
+            )
             for evidence_type in evidence_types:
-                claim_type, route, agents, label = cls._product_gap_evidence_rule(
-                    evidence_type
-                )
+                claim_type, route, agents, label = cls._agent_gap_evidence_rule(evidence_type, gap)
                 affected_agents.update(agent.value for agent in agents)
-                identity = f"{artifact_id}:{gap.gap_id}:{evidence_type}"
+                identity = f"{gap.artifact_id}:{gap.gap_id}:{evidence_type}"
                 digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
                 question = f"{gap.question} 请补充{label}，并说明适用范围、限制和信息来源。"
                 fields.append(
                     SourceRecoveryRequestedField(
                         field_id=f"field_{digest}",
-                        requirement_id=f"requirement_product_gap_{digest}",
+                        requirement_id=f"requirement_agent_gap_{digest}",
                         field_key=(
-                            evidence_type
-                            if len(evidence_type) <= 80
-                            else f"evidence_{digest}"
+                            evidence_type if len(evidence_type) <= 80 else f"evidence_{digest}"
                         ),
                         label=f"补充{label}",
                         question=question[:500],
                         required=True,
                         claim_type=claim_type,
                         evidence_type_hint=evidence_type,
-                        affected_candidate_ids=gap.affected_candidate_ids,
+                        affected_candidate_ids=gap.affected_candidate_ids[:5],
                         product=None,
                         region=None,
                         route=route,
@@ -845,38 +1044,69 @@ class SourceRecoveryService:
         return fields, affected_agents
 
     @staticmethod
-    def _product_gap_evidence_rule(
+    def _agent_gap_evidence_rule(
         evidence_type: str,
+        gap: AgentArtifactGap,
     ) -> tuple[
         EvidenceClaimType,
         SourceRouteTarget,
         tuple[ResearchAgentType, ...],
         str,
     ]:
-        normalized = evidence_type.casefold()
-        if "user" in normalized or "pain" in normalized or "opinion" in normalized:
+        normalized = " ".join(
+            filter(
+                None,
+                (
+                    evidence_type,
+                    gap.dimension or "",
+                    gap.agent_type.value,
+                ),
+            )
+        ).casefold()
+        if any(
+            token in normalized
+            for token in ("user", "pain", "opinion", "review", "interview", "voc")
+        ):
             return (
                 EvidenceClaimType.USER_OPINION,
                 SourceRouteTarget.USER_RESEARCH,
                 (ResearchAgentType.USER_RESEARCH,),
                 "用户事件、痛点或反馈事实",
             )
-        if "competitor" in normalized or "review" in normalized:
+        if "price" in normalized or "pricing" in normalized:
+            return (
+                EvidenceClaimType.PRICE_OBSERVATION,
+                SourceRouteTarget.PRICE_CHANNEL,
+                (ResearchAgentType.COMPETITOR_RESEARCH,),
+                "带地区、币种和观察时间的价格事实",
+            )
+        if "channel" in normalized or "availability" in normalized:
+            return (
+                EvidenceClaimType.CHANNEL_AVAILABILITY,
+                SourceRouteTarget.PRICE_CHANNEL,
+                (ResearchAgentType.COMPETITOR_RESEARCH,),
+                "渠道和可售状态事实",
+            )
+        if "competitor" in normalized or "official" in normalized:
             return (
                 EvidenceClaimType.LIMITATION,
                 SourceRouteTarget.OFFICIAL_PRODUCT,
                 (ResearchAgentType.COMPETITOR_RESEARCH,),
                 "竞品能力、限制或差异事实",
             )
-        if any(
-            token in normalized
-            for token in ("context", "signal", "technical", "api", "data")
-        ):
+        if any(token in normalized for token in ("context", "signal", "technical", "api", "data")):
             return (
                 EvidenceClaimType.TECHNICAL_FACT,
                 SourceRouteTarget.TECHNICAL_DOCUMENT,
                 (ResearchAgentType.PRODUCT_TECHNICAL,),
                 "数据接口、信号可用性和授权事实",
+            )
+        if "market" in normalized or "commercial" in normalized:
+            return (
+                EvidenceClaimType.MARKET_FACT,
+                SourceRouteTarget.COMMERCIAL_DATA,
+                (ResearchAgentType.COMMERCIAL_EVALUATION,),
+                "市场规模、成本、收入或渠道事实",
             )
         return (
             EvidenceClaimType.FACT,
@@ -932,8 +1162,7 @@ class SourceRecoveryService:
                         product=requirement.product,
                         region=(
                             region
-                            if requirement.dimension
-                            is CompetitorResearchDimension.PRICE_CHANNEL
+                            if requirement.dimension is CompetitorResearchDimension.PRICE_CHANNEL
                             else None
                         ),
                         route=route,
@@ -1052,6 +1281,33 @@ class SourceRecoveryService:
         return 0.35
 
     @staticmethod
+    def _claim_type_compatible(
+        expected: EvidenceClaimType,
+        actual: EvidenceClaimType,
+    ) -> bool:
+        if expected is EvidenceClaimType.FACT:
+            return actual is not EvidenceClaimType.AGENT_INFERENCE
+        compatible: dict[EvidenceClaimType, set[EvidenceClaimType]] = {
+            EvidenceClaimType.LIMITATION: {
+                EvidenceClaimType.LIMITATION,
+                EvidenceClaimType.CAPABILITY,
+                EvidenceClaimType.SPECIFICATION,
+                EvidenceClaimType.VENDOR_CLAIM,
+            },
+            EvidenceClaimType.TECHNICAL_FACT: {
+                EvidenceClaimType.TECHNICAL_FACT,
+                EvidenceClaimType.SPECIFICATION,
+                EvidenceClaimType.CAPABILITY,
+            },
+            EvidenceClaimType.MARKET_FACT: {
+                EvidenceClaimType.MARKET_FACT,
+                EvidenceClaimType.PRICE_OBSERVATION,
+                EvidenceClaimType.CHANNEL_AVAILABILITY,
+            },
+        }
+        return actual in compatible.get(expected, {expected})
+
+    @staticmethod
     def _product_label(product: object | None) -> str:
         if product is None:
             return ""
@@ -1125,7 +1381,9 @@ class SourceRecoveryService:
                 SourceRecoverySubmission(
                     submission_id=item.submission_id,
                     request_id=item.request_id,
+                    submission_kind=SourceRecoverySubmissionKind(item.submission_kind),
                     source_asset_id=item.source_asset_id,
+                    field_ids=list(item.field_ids_json),
                     evidence_ids=list(item.evidence_ids_json),
                     answer_count=item.answer_count,
                     actor=item.actor,

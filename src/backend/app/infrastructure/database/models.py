@@ -72,15 +72,15 @@ class ProjectModel(Base):
     search_discovery_runs: Mapped[list["SearchDiscoveryRunModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
-    competitor_candidate_decisions: Mapped[list["CompetitorCandidateDecisionModel"]] = (
+    competitor_candidate_decisions: Mapped[list["CompetitorCandidateDecisionModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    competitor_source_onboardings: Mapped[list["CompetitorSourceOnboardingModel"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    competitor_material_discoveries: Mapped[list["CompetitorMaterialDiscoveryModel"]] = (
         relationship(back_populates="project", cascade="all, delete-orphan")
     )
-    competitor_source_onboardings: Mapped[list["CompetitorSourceOnboardingModel"]] = (
-        relationship(back_populates="project", cascade="all, delete-orphan")
-    )
-    competitor_material_discoveries: Mapped[
-        list["CompetitorMaterialDiscoveryModel"]
-    ] = relationship(back_populates="project", cascade="all, delete-orphan")
     fragment_evidence_batches: Mapped[list["FragmentEvidenceBatchModel"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
@@ -529,9 +529,7 @@ class SourceRecoveryModel(Base):
         JSON, nullable=False, default=list
     )
     affected_task_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
-    affected_agent_types_json: Mapped[list[str]] = mapped_column(
-        JSON, nullable=False, default=list
-    )
+    affected_agent_types_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     assessment_before_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     current_assessment_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -574,11 +572,15 @@ class SourceRecoverySubmissionModel(Base):
         ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False, index=True
     )
     request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    submission_kind: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="direct_answer"
+    )
     source_asset_id: Mapped[str] = mapped_column(
         ForeignKey("source_assets.source_asset_id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
+    field_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     answer_count: Mapped[int] = mapped_column(Integer, nullable=False)
     actor: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -735,9 +737,7 @@ class CompetitorSourceOnboardingItemModel(Base):
         DateTime(timezone=True), nullable=False, default=utc_now
     )
 
-    onboarding: Mapped[CompetitorSourceOnboardingModel] = relationship(
-        back_populates="items"
-    )
+    onboarding: Mapped[CompetitorSourceOnboardingModel] = relationship(back_populates="items")
     source_asset: Mapped[SourceAssetModel] = relationship()
 
 
