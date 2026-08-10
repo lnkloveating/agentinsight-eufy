@@ -161,6 +161,7 @@ class ResearchHandoff(BaseModel):
     competitor_research: ResearchArtifactProjection | None = None
     competitor_projection: CompetitorResearchProjection | None = None
     merged_evidence_ids: list[str] = Field(default_factory=list)
+    supplemental_evidence_ids: list[str] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")

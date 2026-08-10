@@ -88,6 +88,18 @@ class SourceRecoveryCreate(BaseModel):
         return value
 
 
+class ProductTechnicalSourceRecoveryCreate(BaseModel):
+    gap_ids: list[str] = Field(default_factory=list, max_length=30)
+    requested_by: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("gap_ids")
+    @classmethod
+    def unique_gap_ids(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("product technical recovery gap_ids must be unique")
+        return value
+
 class SourceRecoveryRequestedField(BaseModel):
     field_id: str = Field(min_length=1, max_length=80)
     requirement_id: str = Field(min_length=1, max_length=120)
@@ -96,6 +108,8 @@ class SourceRecoveryRequestedField(BaseModel):
     question: str = Field(min_length=1, max_length=500)
     required: bool
     claim_type: EvidenceClaimType
+    evidence_type_hint: str | None = Field(default=None, max_length=120)
+    affected_candidate_ids: list[str] = Field(default_factory=list, max_length=5)
     product: ProductReference | None = None
     region: str | None = Field(default=None, max_length=120)
     route: SourceRouteTarget | None = None
@@ -160,6 +174,8 @@ class SourceRecovery(BaseModel):
     reason_message: str
     failed_source_asset_id: str | None = None
     failed_collection_job_id: str | None = None
+    source_artifact_id: str | None = None
+    source_gap_ids: list[str] = Field(default_factory=list)
     requirement_ids: list[str]
     requested_fields: list[SourceRecoveryRequestedField]
     affected_task_ids: list[str]

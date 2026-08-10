@@ -16,6 +16,7 @@ from app.agents.product_technical.contracts import (
     ProductTechnicalGap,
     ProductTechnicalModelOutput,
     ProductTechnicalPayload,
+    product_technical_gap_id,
 )
 from app.domain.innovation import EventUnderstandingGate
 from app.workflows.contracts import (
@@ -54,6 +55,7 @@ class ProductTechnicalOutputValidator:
         handoff = context.research_handoff
         question = "需要补齐哪些用户研究与竞品证据，才能生成可验证的未来产品候选？"
         gap = ProductTechnicalGap(
+            gap_id=product_technical_gap_id(question, []),
             question=question,
             reason="产品技术阶段没有收到通过主路径交接门的用户研究和竞品综合结果。",
             required_evidence_types=["user_research_artifact", "competitor_synthesis_artifact"],
@@ -105,7 +107,10 @@ class ProductTechnicalOutputValidator:
             )
         user_ids = set(user.evidence_ids)
         competitor_ids = set(competitor.evidence_ids)
-        allowed = set(handoff.merged_evidence_ids)
+        allowed = {
+            *handoff.merged_evidence_ids,
+            *handoff.supplemental_evidence_ids,
+        }
         cited = output.cited_evidence_ids()
         unsupported = sorted(cited - allowed)
         if unsupported:
@@ -156,25 +161,38 @@ class ProductTechnicalOutputValidator:
             for candidate in candidates
             if candidate.gate_status is CandidateGateStatus.PASSED
         ]
-        gaps = list(output.portfolio_gaps)
+        gaps = [
+            ProductTechnicalGap(
+                gap_id=product_technical_gap_id(
+                    gap.question, gap.affected_candidate_ids
+                ),
+                **gap.model_dump(mode="python"),
+            )
+            for gap in output.portfolio_gaps
+        ]
         if len(advancing) < self.TARGET_CANDIDATES:
+            gap_question = (
+                f"还需要哪些证据才能把可晋级候选从 {len(advancing)} 个补足到 "
+                f"{self.TARGET_CANDIDATES} 个？"
+            )
+            blocked_candidate_ids = [
+                candidate.candidate_id
+                for candidate in candidates
+                if candidate.gate_status is CandidateGateStatus.BLOCKED
+            ]
             gaps.append(
                 ProductTechnicalGap(
-                    question=(
-                        f"还需要哪些证据才能把可晋级候选从 {len(advancing)} 个补足到 "
-                        f"{self.TARGET_CANDIDATES} 个？"
+                    gap_id=product_technical_gap_id(
+                        gap_question, blocked_candidate_ids
                     ),
+                    question=gap_question,
                     reason="系统不会用固定模板或无证据推测补足候选数量。",
                     required_evidence_types=[
                         "user_event_or_pain_evidence",
                         "competitor_gap_evidence",
                         "context_signal_availability_evidence",
                     ],
-                    affected_candidate_ids=[
-                        candidate.candidate_id
-                        for candidate in candidates
-                        if candidate.gate_status is CandidateGateStatus.BLOCKED
-                    ],
+                    affected_candidate_ids=blocked_candidate_ids,
                 )
             )
         gaps = self._unique_gaps(gaps)
