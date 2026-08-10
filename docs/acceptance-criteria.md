@@ -577,6 +577,30 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/integration/test_source_requirements_api.py`
 - 所有创建项目或直接构造 `ResearchBrief` 的后端测试。
 
+## AC-19 Research Brief 多轮追问（分支 `agent/research-brief-clarifier-v2`）
+
+模糊研究目标必须先进入项目外的持久化追问会话。模型可以提取用户明确回答并生成动态问题，
+但只有确定性代码确认正式 `ResearchBrief` 全部字段合法后才能进入确认状态。
+
+验收要求：
+
+- `POST /research-brief-clarifications` 使用默认或用户选择的真实 Model Gateway 模型，不返回固定假问题；
+- 会话、对话、部分草稿、问题、版本和模型用量可持久化读取；
+- 模型生成的每个草稿叶子字段必须引用现有用户消息 ID，无引用字段不得写入草稿；
+- 未明确回答时，原始媒体、家庭事件、外部分享、第三方通知和其他权限字段保持缺失；
+- 问题只针对后端仍缺失的字段，每轮最多六个；模型问题无效时由后端生成明确补充提示，不补造答案；
+- `ready_for_confirmation` 必须同时满足零缺失字段和完整 `ResearchBrief` Schema 校验；
+- 追问完成后仍由用户确认，再调用现有项目创建 API，不自动绕过 Brief Gate；
+- 过期 `expected_version` 返回 409，模型失败保存安全错误分类；
+- 模型调用审计允许关联追问会话，不要求伪造 Project 或 Agent Run；
+- 数据库迁移可从 `0019` 升级到 head，并可降级回 `0019`。
+
+自动化映射：
+
+- `tests/integration/test_brief_clarification_api.py`
+- `tests/integration/test_brief_clarification_migration.py`
+- `tests/integration/test_model_gateway.py`
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：
