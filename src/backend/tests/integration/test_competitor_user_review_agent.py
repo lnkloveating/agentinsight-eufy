@@ -309,7 +309,9 @@ def test_two_authorized_review_sources_flow_to_bound_a2a_specialist(
     review_task = next(item for item in tasks if item.specialist_type == "user_review")
     official_task = next(item for item in tasks if item.specialist_type == "official_product")
     price_task = next(item for item in tasks if item.specialist_type == "price_channel")
-    assert artifact.status == "partial"
+    assert artifact.status == "blocked"
+    assert artifact.payload["schema_name"] == "competitor_ecosystem_analysis"
+    assert artifact.payload["synthesis_status"] == "blocked"
     assert review_task.status == "completed"
     assert official_task.status == "blocked"
     assert price_task.status == "blocked"

@@ -151,6 +151,10 @@ class CompetitorResearchProjection(BaseModel):
     synthesis_status: str
     evidence_audit_status: str
     product_scope: list[str] = Field(default_factory=list)
+    ecosystem_scope: list[str] = Field(default_factory=list)
+    ecosystem_dimension_statuses: dict[str, dict[str, str]] = Field(
+        default_factory=dict
+    )
     opportunity_signal_ids: list[str] = Field(default_factory=list)
     gaps: list[CompetitorGapProjection] = Field(default_factory=list)
 

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, status
 
+from app.agents.competitor import CompetitorEcosystemArtifact
 from app.agents.product_technical import ProductTechnicalArtifact
 from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
+    CompetitorEcosystemServiceDependency,
     ProductTechnicalServiceDependency,
     SourceRecoveryServiceDependency,
     UserResearchServiceDependency,
@@ -16,6 +18,34 @@ from app.schemas.source_recovery import (
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/{project_id}/agents/competitor-ecosystem",
+    response_model=CompetitorEcosystemArtifact,
+    summary="运行竞品生态分析 Agent",
+    description=(
+        "复用候选发现和三个 A2A 事实专家，生成带 Evidence 审计的竞品生态能力矩阵。"
+        "资料未覆盖时保持 unknown，不改写为竞品没有。"
+    ),
+)
+async def run_competitor_ecosystem(
+    project_id: str,
+    service: CompetitorEcosystemServiceDependency,
+) -> CompetitorEcosystemArtifact:
+    return await service.run(project_id)
+
+
+@router.get(
+    "/{project_id}/agents/competitor-ecosystem/artifacts",
+    response_model=list[CompetitorEcosystemArtifact],
+    summary="查询竞品生态分析 Artifact 历史版本",
+)
+async def list_competitor_ecosystem_artifacts(
+    project_id: str,
+    service: CompetitorEcosystemServiceDependency,
+) -> list[CompetitorEcosystemArtifact]:
+    return await service.list_artifacts(project_id)
 
 
 @router.post(

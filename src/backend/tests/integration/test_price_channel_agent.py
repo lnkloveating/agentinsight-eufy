@@ -278,7 +278,9 @@ def test_authorized_price_page_flows_to_bound_a2a_specialist(
     price_task = next(item for item in tasks if item.specialist_type == "price_channel")
     official_task = next(item for item in tasks if item.specialist_type == "official_product")
     user_task = next(item for item in tasks if item.specialist_type == "user_review")
-    assert artifact.status == "partial"
+    assert artifact.status == "blocked"
+    assert artifact.payload["schema_name"] == "competitor_ecosystem_analysis"
+    assert artifact.payload["synthesis_status"] == "blocked"
     assert price_task.status == "completed"
     assert official_task.status == "blocked"
     assert user_task.status == "blocked"

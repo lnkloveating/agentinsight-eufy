@@ -323,7 +323,9 @@ def test_authorized_webpage_flows_to_real_official_product_specialist_contract(
     a2a_tasks = list(raw_tasks)
     model_calls = list(raw_model_calls)
     official_task = next(task for task in a2a_tasks if task.specialist_type == "official_product")
-    assert artifact.status == "partial"  # The other two specialists are intentionally unbound.
+    assert artifact.status == "blocked"  # One fact specialist cannot support ecosystem synthesis.
+    assert artifact.payload["schema_name"] == "competitor_ecosystem_analysis"
+    assert artifact.payload["synthesis_status"] == "blocked"
     assert official_task.status == "completed"
     assert official_task.output_json["evidence_ids"] == sorted(provider.evidence_ids)
     assert (

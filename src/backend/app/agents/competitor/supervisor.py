@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterable
 
+from app.agents.competitor.ecosystem_adapter import CompetitorEcosystemModelAdapter
 from app.agents.competitor.synthesis_adapter import (
     CompetitorSynthesisModelAdapter,
     can_synthesize,
@@ -35,9 +36,11 @@ class CompetitorA2ASupervisorAdapter:
         self,
         gateway: CompetitorA2AGateway,
         synthesizer: CompetitorSynthesisModelAdapter | None = None,
+        ecosystem_synthesizer: CompetitorEcosystemModelAdapter | None = None,
     ) -> None:
         self.gateway = gateway
         self.synthesizer = synthesizer
+        self.ecosystem_synthesizer = ecosystem_synthesizer
 
     async def execute(self, invocation: AgentInvocation) -> ResearchArtifact:
         if invocation.task.agent_type is not ResearchAgentType.COMPETITOR_RESEARCH:
@@ -70,7 +73,14 @@ class CompetitorA2ASupervisorAdapter:
                 },
             ) from exc
         if self.synthesizer is not None and can_synthesize(results):
-            return await self.synthesizer.synthesize(invocation, results)
+            product_facts = await self.synthesizer.synthesize(invocation, results)
+            if self.ecosystem_synthesizer is not None:
+                return await self.ecosystem_synthesizer.synthesize(
+                    invocation, results, product_facts
+                )
+            return product_facts
+        if self.ecosystem_synthesizer is not None:
+            return self.ecosystem_synthesizer.build_blocked(invocation, results)
         synthesis_status = (
             "blocked_by_specialist_coverage"
             if self.synthesizer is not None
@@ -86,7 +96,9 @@ def build_competitor_evidence_requests(
 
     task = invocation.task
     brief = invocation.context.brief
-    product_scope = _product_scope(task.scope, " / ".join(brief.target_ecosystems))
+    product_scope = _product_scope(
+        task.scope, [*brief.target_ecosystems, *brief.comparison_ecosystems]
+    )
     definitions = (
         (
             CompetitorSpecialistType.OFFICIAL_PRODUCT,
@@ -216,7 +228,7 @@ def _aggregate_results(
     )
 
 
-def _product_scope(scope: dict[str, object], fallback_category: str) -> list[str]:
+def _product_scope(scope: dict[str, object], fallback_scope: list[str]) -> list[str]:
     values: list[str] = []
     for key in (
         "target_product",
@@ -237,7 +249,7 @@ def _product_scope(scope: dict[str, object], fallback_category: str) -> list[str
                     model = item.get("model")
                     if isinstance(model, str) and model.strip():
                         values.append(model.strip())
-    return _unique(values) or [fallback_category]
+    return _unique(values) or _unique(fallback_scope)
 
 
 def _request_id(task_id: str, specialist_type: CompetitorSpecialistType) -> str:

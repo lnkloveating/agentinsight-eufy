@@ -601,6 +601,30 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/integration/test_brief_clarification_migration.py`
 - `tests/integration/test_model_gateway.py`
 
+## AC-20 竞品生态分析（分支 `agent/competitor-ecosystem-analysis`）
+
+竞品研究必须保留“具体产品事实”和“生态层判断”两层，不能让模型直接凭常识描述 Ring、Google Nest、Arlo 或 eufy 生态。
+
+验收要求：
+
+- 生态范围只来自已确认 Research Brief 的 `target_ecosystems` 与 `comparison_ecosystems`；候选产品只来自已有 Competitor Discovery、资料接入和 Evidence 血缘；
+- 官方产品、价格渠道和用户评价三个 A2A 专家继续并行提取具体产品事实，旧产品事实综合作为生态综合的内部上游，不再充当新项目最终竞品 Artifact；
+- 生态综合固定覆盖安全目标、跨设备协作、跨时间状态、主动感知、不确定性、分级干预、本地/云分工、隐私授权、离线降级、照护者流程、失败修订和商业模式 12 个维度；
+- `supported`、`limited`、`contradicted` 必须引用当前项目、对应产品且属于声明专家维度的 Evidence ID；
+- 没有合格 Evidence 的维度只能是 `unknown`，不得引用 Evidence，也不得改写为“竞品没有该能力”；
+- 同一具体产品不得映射到多个生态；生态比较与机会信号只能引用参与生态已映射产品的 Evidence；
+- 后端确定性生成覆盖矩阵、资料缺口、审计状态和质量分，模型不得自行决定完成状态；
+- 资料不全但审计通过时返回 `partial` 与 `passed_with_gaps`，三个事实专家无法形成有效上游时返回显式 `blocked`，不得生成伪成功结论；
+- v2 `competitor_ecosystem_analysis` Artifact 可以进入 `ResearchHandoff`，并投影生态范围、产品范围、12 维状态、机会信号和补研问题；历史 v1 Artifact 仍可读取；
+- `POST /projects/{project_id}/agents/competitor-ecosystem` 与 Artifact 历史查询接口和 OpenAPI 一致，运行记录、模型调用与 Artifact 版本可审计；
+- 本分支不生成未来生态方案，不判断技术或商业上架结论；这些属于后续 Ecosystem Opportunity、Technical Feasibility 与 Commercial Agent。
+
+自动化映射：
+
+- `tests/unit/test_competitor_ecosystem_analysis.py`
+- `tests/unit/test_competitor_mainpath_bridge.py`
+- `tests/integration/test_competitor_synthesis_agent.py`
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：

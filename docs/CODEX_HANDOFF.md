@@ -432,7 +432,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 接口和前端接法见 `docs/research-brief-clarifier-v2.md`。
 
-### 下一分支：`agent/competitor-ecosystem-analysis`
+### 已完成：`agent/competitor-ecosystem-analysis`
 
 目标：保留现有官方产品、价格渠道和用户评价三个事实专家，在其上增加生态发现和生态层综合，
 把竞品单位从“某一款门铃”提升为 Ring、Google Nest、Arlo、eufy 等家庭安防生态。
@@ -440,7 +440,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 必须完成：
 
 - 定义竞品生态 Artifact、生态能力矩阵和 Evidence 审计规则；
-- 新增生态发现 Agent，识别需要比较的生态和事实资料缺口；
+- 复用已有 Competitor Discovery 与已确认产品范围，并从 Research Brief 确定性投影目标/对照生态；没有重复增加一个会改写范围的发现模型；
 - 复用现有三个 A2A 专家作为具体设备、价格、订阅、评价和限制的 Evidence 来源；
 - 新增生态综合 Agent，分析跨设备协作、持续状态、跨时间理解、主动补证、不确定性处理、
   本地/云分工、隐私授权、离线降级、照护者流程、失败修订和商业模式；
@@ -458,7 +458,9 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 → 缺少跨设备资料时显示 unknown 和补研要求
 ```
 
-### 再下一分支：`agent/ecosystem-opportunity`
+真实 HTTP 接口、前端字段和失败语义见 `docs/competitor-ecosystem-analysis.md`。
+
+### 下一分支：`agent/ecosystem-opportunity`
 
 目标：把用户研究、竞品综合、共享 Evidence 和设备能力图转换成多个生态级候选。
 
@@ -488,17 +490,16 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 ### 后续顺序
 
 ```text
-1. agent/competitor-ecosystem-analysis
-2. agent/ecosystem-opportunity
-3. workflow/ai-native-ecosystem-gate
-4. agent/technical-feasibility
-5. agent/security-policy-compiler
-6. workflow/security-policy-verification
-7. agent/commercial-evaluation-v2
-8. agent/redteam-policy-revision
-9. demo/package-goal-to-guard
-10. integration/feishu-aily
-11. backend/e2e-ecosystem-hardening
+1. agent/ecosystem-opportunity
+2. workflow/ai-native-ecosystem-gate
+3. agent/technical-feasibility
+4. agent/security-policy-compiler
+5. workflow/security-policy-verification
+6. agent/commercial-evaluation-v2
+7. agent/redteam-policy-revision
+8. demo/package-goal-to-guard
+9. integration/feishu-aily
+10. backend/e2e-ecosystem-hardening
 ```
 
 `integration/eufy-device-api` 是可选等待分支：只有企业明确提供授权流、设备列表、事件、动作、HomeBase 能力、隐私

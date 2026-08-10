@@ -6,22 +6,13 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.application.model_gateway import ModelUsage, ProviderModelRequest, ProviderModelResult
-from app.application.runtime import AgentRuntimeGateway
 from app.core.config import Settings
 from app.infrastructure.database import EvidenceModel, ProjectModel
 from app.infrastructure.database.model_call_repository import ModelCallRepository
 from app.infrastructure.database.repositories import ProjectRepository
 from app.main import create_app
 from app.schemas.project import ProjectStatus, ResearchBrief
-from app.workflows.contracts import (
-    AgentContext,
-    AgentEvidence,
-    AgentEvidenceContext,
-    EvidenceRules,
-    ResearchAgentType,
-    ResearchBudget,
-    ResearchTask,
-)
+from app.workflows.contracts import AgentEvidence, AgentEvidenceContext
 from tests.research_brief import home_safety_brief
 
 PRODUCT = "Target Doorbell"
@@ -42,6 +33,8 @@ class FullCompetitorProvider:
             output = self._price_output()
         elif "review_themes" in properties:
             output = self._review_output()
+        elif "ecosystem_profiles" in properties:
+            output = self._ecosystem_output()
         else:
             assert "product_profiles" in properties
             output = self._synthesis_output()
@@ -210,6 +203,100 @@ class FullCompetitorProvider:
             "unknowns": [],
         }
 
+    @staticmethod
+    def _ecosystem_output() -> dict[str, object]:
+        assessments = [
+            {
+                "assessment_id": "assessment_safety_goal",
+                "dimension": "safety_goal_coverage",
+                "status": "supported",
+                "statement": "Package detection covers one bounded safety goal.",
+                "explanation": "Official product evidence documents package detection.",
+                "source_dimensions": ["official_product"],
+                "evidence_ids": ["ev_official"],
+                "confidence": 0.9,
+                "unknown_reason": None,
+            },
+            {
+                "assessment_id": "assessment_uncertainty",
+                "dimension": "uncertainty_handling",
+                "status": "limited",
+                "statement": "Review evidence reports delayed alerts in the observed sample.",
+                "explanation": "Two independent user-review excerpts report notification lag.",
+                "source_dimensions": ["user_review"],
+                "evidence_ids": ["ev_review_a", "ev_review_b"],
+                "confidence": 0.82,
+                "unknown_reason": None,
+            },
+        ]
+        covered = {item["dimension"] for item in assessments}
+        dimensions = [
+            "safety_goal_coverage",
+            "cross_device_orchestration",
+            "temporal_state_understanding",
+            "active_perception",
+            "uncertainty_handling",
+            "intervention_ladder",
+            "local_cloud_partition",
+            "privacy_and_consent",
+            "offline_fallback",
+            "caregiver_workflow",
+            "failure_recovery",
+            "business_model",
+        ]
+        assessments.extend(
+            {
+                "assessment_id": f"assessment_unknown_{dimension}",
+                "dimension": dimension,
+                "status": "unknown",
+                "statement": f"{dimension} is not established by the bounded evidence.",
+                "explanation": "The specialist outputs do not contain a supported conclusion.",
+                "source_dimensions": [],
+                "evidence_ids": [],
+                "confidence": 0,
+                "unknown_reason": "No eligible specialist evidence covers this dimension.",
+            }
+            for dimension in dimensions
+            if dimension not in covered
+        )
+        return {
+            "summary": "Bounded evidence covers package detection and observed alert latency.",
+            "summary_evidence_ids": ["ev_official", "ev_review_a", "ev_review_b"],
+            "ecosystem_profiles": [
+                {
+                    "ecosystem_label": "eufy Security",
+                    "role": "target",
+                    "product_scope_labels": [PRODUCT],
+                    "assessments": assessments,
+                }
+            ],
+            "comparison_insights": [],
+            "opportunity_signals": [
+                {
+                    "signal_id": "signal_temporal_context",
+                    "ecosystem_labels": ["eufy Security"],
+                    "gap_dimensions": ["temporal_state_understanding"],
+                    "statement": "Continuous package-state understanding merits validation.",
+                    "rationale": "Detection and observed alert latency coexist.",
+                    "validation_questions": [
+                        "Can a cross-time state reduce delayed package responses?"
+                    ],
+                    "evidence_ids": ["ev_official", "ev_review_a", "ev_review_b"],
+                    "hypothesis_status": "requires_ecosystem_opportunity_validation",
+                }
+            ],
+            "research_gaps": [
+                {
+                    "ecosystem_label": "eufy Security",
+                    "dimension": "temporal_state_understanding",
+                    "question": "Which evidence establishes cross-time state maintenance?",
+                    "reason": "The current product facts cover detection, not state duration.",
+                    "severity": "high",
+                }
+            ],
+            "unknowns": ["Comparison ecosystem evidence remains missing."],
+        }
+
 
 def _settings(tmp_path: Path) -> Settings:
     return Settings(
@@ -280,7 +367,7 @@ def _evidence_context() -> AgentEvidenceContext:
     )
 
 
-def test_three_specialists_flow_into_synthesis_and_persist_four_model_calls(
+def test_three_specialists_flow_into_product_and_ecosystem_synthesis(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("TEST_COMPETITOR_KEY", "test-secret")
@@ -288,8 +375,8 @@ def test_three_specialists_flow_into_synthesis_and_persist_four_model_calls(
     provider = FullCompetitorProvider()
     application.state.model_provider_registry.register(provider)
 
-    with TestClient(application):
-        async def run() -> tuple[object, list[object]]:
+    with TestClient(application) as client:
+        async def arrange() -> None:
             now = datetime.now(UTC)
             async with application.state.database.session() as session:
                 session.add(
@@ -334,59 +421,51 @@ def test_three_specialists_flow_into_synthesis_and_persist_four_model_calls(
                         )
                     )
                 await session.commit()
-            task = ResearchTask(
-                task_id="task_synthesis",
-                project_id="project_synthesis",
-                agent_type=ResearchAgentType.COMPETITOR_RESEARCH,
-                goal="Synthesize evidence-backed competitor intelligence.",
-                scope={"target_product": PRODUCT},
-                evidence_rules=EvidenceRules(
-                    citation_required=True, minimum_independent_domains=2
-                ),
-                budget=ResearchBudget(max_pages=20, deadline_seconds=120),
-            )
-            runtime = AgentRuntimeGateway(
-                application.state.database,
-                application.state.agent_registry,
-                application.state.event_broker,
-                "trace_synthesis",
-            )
-            artifact = await runtime.execute(
-                task,
-                AgentContext(
-                    project_id="project_synthesis",
-                    brief=_brief(),
-                    iteration=0,
-                    evidence_context=_evidence_context(),
-                ),
-            )
+
+        asyncio.run(arrange())
+        response = client.post(
+            "/api/v1/projects/project_synthesis/agents/competitor-ecosystem"
+        )
+        assert response.status_code == 200, response.text
+        artifact = response.json()
+        history_response = client.get(
+            "/api/v1/projects/project_synthesis/agents/competitor-ecosystem/artifacts"
+        )
+        assert history_response.status_code == 200, history_response.text
+        assert history_response.json() == [artifact]
+
+        async def read_model_calls() -> list[object]:
             async with application.state.database.session() as session:
                 runs = await ProjectRepository(session).list_agent_runs("project_synthesis")
                 model_calls = await ModelCallRepository(session).list_for_run(
                     runs[0].agent_run_id
                 )
-            return artifact, list(model_calls)
+            return list(model_calls)
 
-        artifact, model_calls = asyncio.run(run())
+        model_calls = asyncio.run(read_model_calls())
 
-    assert artifact.status == "completed"
-    assert artifact.payload["schema_name"] == "competitor_synthesis_intelligence"
-    assert artifact.payload["synthesis_status"] == "completed"
-    assert artifact.payload["evidence_audit"]["status"] == "passed"
-    assert artifact.payload["coverage_matrix"][0]["complete"] is True
-    assert artifact.evidence_ids == [
+    assert artifact["status"] == "partial"
+    assert artifact["agent_run_id"].startswith("run_")
+    assert artifact["version"] == 1
+    assert artifact["payload"]["schema_name"] == "competitor_ecosystem_analysis"
+    assert artifact["payload"]["synthesis_status"] == "partial"
+    assert artifact["payload"]["evidence_audit"]["status"] == "passed_with_gaps"
+    assert artifact["payload"]["coverage_matrix"][0]["complete"] is False
+    assert artifact["payload"]["coverage_matrix"][1]["unknown_dimension_count"] == 12
+    assert artifact["evidence_ids"] == [
         "ev_channel",
         "ev_official",
         "ev_price",
         "ev_review_a",
         "ev_review_b",
     ]
-    assert len(provider.requests) == 4
+    assert len(provider.requests) == 5
     assert {call.prompt_key for call in model_calls} == {
         "agent:competitor_official_product",
         "agent:competitor_price_channel",
         "agent:competitor_user_review",
         "agent:competitor_synthesis",
+        "agent:competitor_ecosystem_analysis",
     }
     assert all(
         "test-secret" not in message.content
