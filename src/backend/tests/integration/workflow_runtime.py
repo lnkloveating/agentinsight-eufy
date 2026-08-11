@@ -79,9 +79,6 @@ class TestAgentRuntime:
                             evidence_id,
                             with_gaps=self.competitor_ready_with_gaps,
                         )
-        elif task.agent_type is ResearchAgentType.PRODUCT_TECHNICAL:
-            evidence_ids = _upstream_evidence(context)
-            payload = {"innovation_ids": ["inv_one", "inv_two", "inv_three"]}
         elif task.agent_type is ResearchAgentType.COMMERCIAL_EVALUATION:
             evidence_ids = _upstream_evidence(context)
             payload = {"assessed_innovation_ids": ["inv_one", "inv_two", "inv_three"]}

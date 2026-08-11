@@ -172,18 +172,18 @@ async def test_gateway_persists_run_events_artifact_versions_and_lineage() -> No
         user_adapter = StaticAdapter(
             lambda invocation: _artifact(invocation, "ev_proj_one")
         )
-        product_adapter = StaticAdapter(
+        ecosystem_adapter = StaticAdapter(
             lambda invocation: _artifact(invocation, "ev_proj_one")
         )
         registry.bind(ResearchAgentType.USER_RESEARCH, user_adapter)
-        registry.bind(ResearchAgentType.PRODUCT_TECHNICAL, product_adapter)
+        registry.bind(ResearchAgentType.ECOSYSTEM_OPPORTUNITY, ecosystem_adapter)
         broker = ProjectEventBroker()
         gateway = _gateway(database, registry, broker)
 
         first = await gateway.execute(_task("proj_one"), _context("proj_one"))
         second = await gateway.execute(_task("proj_one"), _context("proj_one"))
         downstream = await gateway.execute(
-            _task("proj_one", ResearchAgentType.PRODUCT_TECHNICAL),
+            _task("proj_one", ResearchAgentType.ECOSYSTEM_OPPORTUNITY),
             _context("proj_one", {"user_research": second}),
         )
 
@@ -232,13 +232,13 @@ async def test_gateway_rejects_cross_project_artifact_and_store_hides_it() -> No
             )
         )
         registry.bind(ResearchAgentType.USER_RESEARCH, adapter)
-        registry.bind(ResearchAgentType.PRODUCT_TECHNICAL, adapter)
+        registry.bind(ResearchAgentType.ECOSYSTEM_OPPORTUNITY, adapter)
         gateway = _gateway(database, registry)
         first = await gateway.execute(_task("proj_one"), _context("proj_one"))
 
         with pytest.raises(RuntimeGatewayError) as exc_info:
             await gateway.execute(
-                _task("proj_two", ResearchAgentType.PRODUCT_TECHNICAL),
+                _task("proj_two", ResearchAgentType.ECOSYSTEM_OPPORTUNITY),
                 _context("proj_two", {"user_research": first}),
             )
         assert exc_info.value.code is RuntimeErrorCode.PERMISSION_DENIED

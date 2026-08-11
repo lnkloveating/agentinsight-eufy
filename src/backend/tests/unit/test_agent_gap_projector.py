@@ -99,11 +99,11 @@ def test_competitor_specialist_and_synthesis_gaps_share_one_contract() -> None:
     assert any("specialist_outputs" in gap.source_path for gap in gaps)
 
 
-def test_product_gap_keeps_backend_owned_id_and_future_agent_shape_is_supported() -> None:
-    product = AgentGapProjector().project(
+def test_ecosystem_gap_keeps_backend_owned_id_and_future_agent_shape_is_supported() -> None:
+    ecosystem = AgentGapProjector().project(
         _artifact(
-            artifact_id="artifact_product",
-            artifact_type="product_technical",
+            artifact_id="artifact_ecosystem",
+            artifact_type="ecosystem_opportunity",
             payload={
                 "portfolio_gaps": [
                     {
@@ -116,7 +116,7 @@ def test_product_gap_keeps_backend_owned_id_and_future_agent_shape_is_supported(
                 ]
             },
         ),
-        RecoverableAgentType.PRODUCT_TECHNICAL,
+        RecoverableAgentType.ECOSYSTEM_OPPORTUNITY,
     )
     commercial = AgentGapProjector().project(
         _artifact(
@@ -135,7 +135,7 @@ def test_product_gap_keeps_backend_owned_id_and_future_agent_shape_is_supported(
         RecoverableAgentType.COMMERCIAL_EVALUATION,
     )
 
-    assert product[0].gap_id == "gap_backend_owned"
-    assert product[0].affected_candidate_ids == ["candidate_package_risk"]
+    assert ecosystem[0].gap_id == "gap_backend_owned"
+    assert ecosystem[0].affected_candidate_ids == ["candidate_package_risk"]
     assert commercial[0].agent_type is RecoverableAgentType.COMMERCIAL_EVALUATION
     assert commercial[0].severity is AgentGapSeverity.UNKNOWN
