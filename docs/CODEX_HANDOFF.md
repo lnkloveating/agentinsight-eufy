@@ -1,6 +1,6 @@
 # AgentInsight × eufy 后端开发交接
 
-> 更新时间：2026-08-10
+> 更新时间：2026-08-11
 >
 > 用途：换 Codex 账号、换开发者或发生上下文压缩时，以这份文件恢复项目状态。
 >
@@ -541,7 +541,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 目标：把已编译策略作为数据放入确定性 dry-run 引擎，自动覆盖风险规则和五类失败降级，并允许用户
 提交受策略 state/signal/Evidence 范围约束的结构化场景。输出场景、trace、风险、动作、断言、Gap 和
-总体结论；不调用真实设备。通过或有条件通过后等待 Commercial v2，失败后等待策略修订。
+总体结论；不调用真实设备。通过或有条件通过后自动进入 Commercial v2，失败后等待策略修订。
 
 前端“场景实验”页应按 `docs/security-policy-verification.md` 展示，并始终显示 Dry Run 标识。
 
@@ -553,8 +553,8 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 3. agent/technical-feasibility（已完成）
 4. agent/security-policy-compiler（已完成）
 5. workflow/security-policy-verification（已完成）
-6. agent/commercial-evaluation-v2（下一步）
-7. agent/redteam-policy-revision
+6. agent/commercial-evaluation-v2（已完成）
+7. agent/redteam-policy-revision（下一步）
 8. demo/package-goal-to-guard
 9. integration/feishu-aily
 10. backend/e2e-ecosystem-hardening
@@ -562,6 +562,21 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 `integration/eufy-device-api` 是可选等待分支：只有企业明确提供授权流、设备列表、事件、动作、HomeBase 能力、隐私
 规则和沙箱环境后才做。没有企业接口不阻塞 dry-run Demo，也不能使用假 API 冒充联调。
+
+### 已完成：`agent/commercial-evaluation-v2`
+
+- 真实 Model Gateway Adapter、Prompt、Context Builder、Service、API 和版本化 Artifact 已完成；
+- 用户价值只能引用 User Research Evidence，商业事实只能引用市场、价格、渠道或企业 Evidence；
+- 模型只生成独立维度 Claim 与商业假设，后端计算交付状态和四类 recommendation；
+- 不使用商业加权总分，`recommend_for_validation` 不代表上架或保证收益；
+- 技术和交付判断直接消费 Technical Feasibility 与 Policy Verification，不重复猜测；
+- 商业资料不足时进入通用 Source Recovery，补充后只重跑 Commercial Evaluation；
+- 主图完成后进入 `awaiting_red_team_review`；下一分支必须让红队和用户质疑真实改变结论或策略。
+
+公共接口、结果字段、缺证恢复与前端展示见 `docs/commercial-evaluation-v2.md`。
+
+合并前验证：353 个后端测试全部通过；Ruff、Mypy（244 个 app 源文件）、OpenAPI YAML、
+`git diff --check`、前端 ESLint 与生产构建通过。唯一警告来自第三方 Starlette TestClient 弃用提示。
 
 ## 7. 每个后续 Agent 的判断方式
 

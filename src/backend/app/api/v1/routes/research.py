@@ -1,5 +1,9 @@
 from fastapi import APIRouter, status
 
+from app.agents.commercial_evaluation_v2 import (
+    CommercialEvaluationArtifact,
+    CommercialEvaluationRunCreate,
+)
 from app.agents.competitor import CompetitorEcosystemArtifact
 from app.agents.ecosystem_opportunity import EcosystemOpportunityArtifact
 from app.agents.policy_verification import (
@@ -13,6 +17,7 @@ from app.agents.technical_feasibility import (
 )
 from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
+    CommercialEvaluationV2ServiceDependency,
     CompetitorEcosystemServiceDependency,
     EcosystemOpportunityServiceDependency,
     PolicyVerificationServiceDependency,
@@ -29,6 +34,31 @@ from app.schemas.source_recovery import (
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/{project_id}/agents/commercial-evaluation-v2",
+    response_model=CommercialEvaluationArtifact,
+    summary="运行生态商业评估 v2",
+)
+async def run_commercial_evaluation_v2(
+    project_id: str,
+    payload: CommercialEvaluationRunCreate,
+    service: CommercialEvaluationV2ServiceDependency,
+) -> CommercialEvaluationArtifact:
+    return await service.run(project_id, payload)
+
+
+@router.get(
+    "/{project_id}/agents/commercial-evaluation-v2/artifacts",
+    response_model=list[CommercialEvaluationArtifact],
+    summary="查询生态商业评估 v2 Artifact 历史版本",
+)
+async def list_commercial_evaluation_v2_artifacts(
+    project_id: str,
+    service: CommercialEvaluationV2ServiceDependency,
+) -> list[CommercialEvaluationArtifact]:
+    return await service.list_artifacts(project_id)
 
 
 @router.post(
