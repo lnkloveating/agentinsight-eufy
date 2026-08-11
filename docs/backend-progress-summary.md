@@ -65,6 +65,7 @@ http://localhost:8000/api/v1
 | Security Policy Compiler | 模型生成策略意图；后端校验授权信号、设备角色、干预权限和 Evidence，并确定性生成版本化 dry-run DSL、五类降级与安全不变量 | 可以展示跨设备状态、风险规则、干预阶梯、失败降级和版本差异；不能控制真实设备，尚未证明策略有效 |
 | Security Policy Verification | 从已编译 DSL 生成风险规则和五类 fallback 场景，运行确定性断言，并接受受策略范围约束的用户场景 | 可以展示场景、trace、命中规则、风险、动作、失败和 Gap；只证明当前 dry-run 场景行为，不代表真实部署或商业可行 |
 | Commercial Evaluation v2 | 分别判断用户价值、商业假设与交付运营条件；交付结论消费技术和策略验证结果，最终 recommendation 由后端计算 | 可以展示四类 recommendation、Evidence 下钻、商业假设与补研 Gap；没有商业总分，也不承诺上架或收益 |
+| 旧编排 v1 清理 | 删除未接入主图的候选综合、验证分发、最终综合角色及宽松旧红队 Directive；保留正式 Red Team 和 Human Gate | 前端运行时间线只展示真实存在的当前节点，不再出现三个永远不会运行的占位 Agent |
 | 设备能力图 | 保存带 Evidence 的厂商设备能力、用户授权家庭快照和 `available/unavailable/unknown/conflict` 确定性查询；不保存家庭视频或序列号 | 可以实现“方案需要什么能力、已有设备能否支撑、还缺什么”的设备覆盖页；企业 API 未接入时不得显示实时设备状态 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
@@ -100,6 +101,7 @@ http://localhost:8000/api/v1
 27. Technical Feasibility 已注册到真实 Model Gateway 与 Runtime；只处理 Human Gate 选择的机会，模型不能写最终 verdict，设备能力匹配和晋级由后端确定性计算。
 28. 主图在技术证据不足时进入统一 Source Recovery，补证后只重跑技术 Agent；至少一个 `demo_feasible` 或 `conditionally_feasible` 才进入 `awaiting_security_policy`。
 29. Commercial Evaluation v2 已接入 Model Gateway、Runtime、共享 Evidence 和主图；用户价值、商业模式与交付运营独立输出，缺证时只重跑商业 Agent。
+30. 旧编排 v1 的三个占位角色和旧 Red Team Directive 已删除；新版红队将直接消费当前七类上游 Artifact。
 
 当前仍缺少：
 
