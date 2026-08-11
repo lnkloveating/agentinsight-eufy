@@ -154,13 +154,16 @@ async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway
             config,
         )
 
-        assert result["outcome"] == WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY
+        assert result["outcome"] == WorkflowOutcome.AWAITING_SECURITY_POLICY
         async with database.session() as session:
             repository = ProjectRepository(session)
             runs = await repository.list_agent_runs(project_id)
             events = await repository.list_events(project_id, limit=200)
-        # 当前主图执行到 AI Native Gate；后续技术可行性分支再继续接线。
-        main_path_types = {ResearchAgentType.RESEARCH_MANAGER, *PLANNED_AGENT_TYPES}
+        main_path_types = {
+            ResearchAgentType.RESEARCH_MANAGER,
+            *PLANNED_AGENT_TYPES,
+            ResearchAgentType.TECHNICAL_FEASIBILITY,
+        }
         assert len(runs) == len(main_path_types)
         assert all(run.output_artifact_id is not None for run in runs)
         assert {run.agent_type for run in runs} == {item.value for item in main_path_types}

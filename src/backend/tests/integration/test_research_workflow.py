@@ -56,7 +56,11 @@ def _decision(
     ).model_dump(mode="json")
 
 
-def _resolved_recovery(project_id: str, task_id: str) -> dict[str, Any]:
+def _resolved_recovery(
+    project_id: str,
+    task_id: str,
+    agent_type: str = "ecosystem_opportunity",
+) -> dict[str, Any]:
     now = datetime.now(UTC)
     assessment = {
         "project_id": project_id,
@@ -82,7 +86,7 @@ def _resolved_recovery(project_id: str, task_id: str) -> dict[str, Any]:
             "requirement_ids": [],
             "requested_fields": [],
             "affected_task_ids": [task_id],
-            "affected_agent_types": ["ecosystem_opportunity"],
+            "affected_agent_types": [agent_type],
             "assessment_before": assessment,
             "current_assessment": assessment,
             "submissions": [],
@@ -90,7 +94,7 @@ def _resolved_recovery(project_id: str, task_id: str) -> dict[str, Any]:
                 "ready": True,
                 "mode": "targeted_retry",
                 "affected_task_ids": [task_id],
-                "affected_agent_types": ["ecosystem_opportunity"],
+                "affected_agent_types": [agent_type],
                 "reason": "Evidence supplied; retry only ecosystem opportunity.",
             },
             "requested_by": "tester",
@@ -102,9 +106,7 @@ def _resolved_recovery(project_id: str, task_id: str) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-async def test_main_graph_pauses_at_ai_native_gate_and_stops_before_unbuilt_technical_agent() -> (
-    None
-):
+async def test_main_graph_runs_selected_opportunity_through_technical_feasibility() -> None:
     runtime = TestAgentRuntime()
     graph = compile_research_graph(runtime, InMemorySaver())
     config = {"configurable": {"thread_id": "proj_happy"}}
@@ -140,9 +142,17 @@ async def test_main_graph_pauses_at_ai_native_gate_and_stops_before_unbuilt_tech
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY
-    assert result["terminal_reason"] == "technical_feasibility_not_implemented"
-    assert set(runtime.call_counts) == {ResearchAgentType.RESEARCH_MANAGER, *PLANNED_AGENT_TYPES}
+    assert result["outcome"] == WorkflowOutcome.AWAITING_SECURITY_POLICY
+    assert result["terminal_reason"] == "security_policy_not_implemented"
+    assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 1
+    technical_context = runtime.contexts[ResearchAgentType.TECHNICAL_FEASIBILITY]
+    assert technical_context.selected_innovation_ids == ["eco_continuous_guard"]
+    assert set(technical_context.upstream_artifacts) == {"ecosystem_opportunity"}
+    assert set(runtime.call_counts) == {
+        ResearchAgentType.RESEARCH_MANAGER,
+        *PLANNED_AGENT_TYPES,
+        ResearchAgentType.TECHNICAL_FEASIBILITY,
+    }
     assert len(result["decision_history"]) == 2
 
 
@@ -167,6 +177,55 @@ async def test_evidence_gap_has_bounded_research_loop_and_no_fake_opportunity() 
     assert runtime.call_counts[ResearchAgentType.USER_RESEARCH] == 3
     assert runtime.call_counts[ResearchAgentType.COMPETITOR_RESEARCH] == 3
     assert ResearchAgentType.ECOSYSTEM_OPPORTUNITY not in runtime.call_counts
+
+
+@pytest.mark.asyncio
+async def test_technical_evidence_gap_enters_universal_source_recovery() -> None:
+    runtime = TestAgentRuntime(technical_verdict="insufficient_evidence")
+    graph = compile_research_graph(runtime, InMemorySaver())
+    config = {
+        "configurable": {"thread_id": "proj_technical_recovery"},
+        "recursion_limit": 50,
+    }
+
+    result = await graph.ainvoke(
+        create_initial_state("proj_technical_recovery", _brief()), config
+    )
+    result = await graph.ainvoke(
+        Command(resume=_decision(_gate_request(result), DecisionAction.APPROVE)),
+        config,
+    )
+    result = await graph.ainvoke(
+        Command(
+            resume=_decision(
+                _gate_request(result),
+                DecisionAction.APPROVE,
+                selected=["eco_continuous_guard"],
+            )
+        ),
+        config,
+    )
+
+    request = _source_request(result)
+    assert request.gap_ids == ["gap_technical_api"]
+    assert request.affected_agent_types == ["technical_feasibility"]
+    assert result["outcome"] == WorkflowOutcome.AWAITING_SOURCE_RECOVERY
+
+    runtime.technical_verdict = "demo_feasible"
+    result = await graph.ainvoke(
+        Command(
+            resume=_resolved_recovery(
+                "proj_technical_recovery",
+                "task_proj_technical_recovery_technical_feasibility",
+                "technical_feasibility",
+            )
+        ),
+        config,
+    )
+
+    assert result["outcome"] == WorkflowOutcome.AWAITING_SECURITY_POLICY
+    assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 2
+    assert runtime.call_counts[ResearchAgentType.ECOSYSTEM_OPPORTUNITY] == 1
 
 
 @pytest.mark.asyncio
