@@ -24,15 +24,15 @@ Brief Gate
 → Ecosystem Opportunity Agent
 → AI Native 确定性检查
 → AI Native Human Gate
-   ├─ approve       → technical_feasibility_pending
+   ├─ approve       → Technical Feasibility Agent
    ├─ revise        → 只重跑 Ecosystem Opportunity
    ├─ research_more → 统一 Source Recovery → 只重跑 Ecosystem Opportunity
    ├─ reject        → rejected
    └─ terminate     → terminated
 ```
 
-技术可行性 Agent 仍未实现，因此 `approve` 后明确返回
-`awaiting_technical_feasibility`；旧 Product Technical v1 已删除，也不会错误进入商业链路。
+技术可行性 Agent 已接入：批准后只评估用户选择且通过 Gate 的机会。旧 Product Technical v1 已删除，
+不会错误进入单产品或旧商业链路。详细语义见 `docs/technical-feasibility-agent.md`。
 
 ## 3. 确定性检查
 
@@ -86,7 +86,8 @@ AI Native Gate 页面应显示：
 - 可选择的 Opportunity ID；
 - “批准进入技术验证”“要求修订”“补充资料”“淘汰”“终止”五类动作；
 - `awaiting_source_recovery` 时显示统一补研弹窗；
-- `awaiting_technical_feasibility` 时明确说明下一 Agent 尚未运行，不能显示“可落地”或“可上架”。
+- 技术证据不足时显示统一补研弹窗；至少一个机会可验证后显示 `awaiting_security_policy`，但不能显示
+  “可商业化”或“可上架”。
 
 当前没有新增公共 HTTP API；Human Gate 和恢复语义通过现有 LangGraph/Runner 契约承载，后续工作流 API
 分支再把 Checkpoint 操作投影给前端和飞书。
