@@ -25,7 +25,7 @@ http://localhost:8000/api/v1
 
 一句话概括：
 
-> 项目生命周期、统一资料链路、用户研究、竞品 A2A 与生态层综合、通用资料恢复、共享 Evidence Retrieval、设备能力图、AI 原生 Research Brief、多轮追问、真实生态机会、AI Native Gate、技术可行性 Agent、Security Policy Compiler 和 dry-run Policy Verification 已经完成；主图会根据验证结果进入等待商业评估或策略修订。商业 v2、红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
+> 项目生命周期、统一资料链路、用户研究、竞品 A2A 与生态层综合、通用资料恢复、共享 Evidence Retrieval、设备能力图、AI 原生 Research Brief、多轮追问、真实生态机会、AI Native Gate、技术可行性 Agent、Security Policy Compiler、dry-run Policy Verification 和 Commercial Evaluation v2 已经完成；主图会根据验证结果进入商业评估、补研或策略修订。红队、Demo 与飞书仍未完成，因此系统还不能自动完成一整轮 AI 原生生态定义与验证。
 
 ### 2.1 已完成并合并到 `main`
 
@@ -44,7 +44,7 @@ http://localhost:8000/api/v1
 | Competitor Discovery | 主办方模型从 `competitor_candidate` 搜索运行中提名准确品牌/型号；确定性校验全部 candidate ID、目标重叠和文本依据；版本化 Artifact 停在一次性 Candidate Gate | 可以实现候选竞品审批页；Gate 前不能改写正式范围，确认后刷新资料要求并进入来源接入 |
 | Competitor Source Onboarding | 从已 confirm 的 Candidate Gate 自动读取所选 proposal/candidate；原子登记授权 Source Asset 和血缘；提交后自动完成网页处理、Source Routing 和资料要求重评，逐来源隔离失败 | 候选审批后只需确认一次授权；页面通过 Processing、Routing 和 SSE 展示进度，低置信度路由仍需复核，解析/路由成功仍不是 Evidence |
 | Innovation Foundation | 事件理解结构、八维评分、红队结果、候选组合门禁、持久化查询 | 可以实现候选机会比较页，不应继续只依赖旧 `Concept` 类型 |
-| LangGraph AI 原生主路径 | Brief Gate、并行用户/竞品生态研究、Evidence Readiness、生态机会、AI Native Human Gate、技术可行性、Security Policy Compiler、Policy Verification、Checkpoint、定向修订和 Source Recovery 恢复 | 可以展示真实节点、门禁和策略验证状态；验证通过后等待 Commercial v2，失败后等待策略修订 |
+| LangGraph AI 原生主路径 | Brief Gate、并行用户/竞品生态研究、Evidence Readiness、生态机会、AI Native Human Gate、技术可行性、Security Policy Compiler、Policy Verification、Commercial Evaluation v2、Checkpoint、定向修订和 Source Recovery 恢复 | 可以展示真实节点、门禁、策略验证和商业评估状态；商业缺证时暂停补研，完成后等待红队 |
 | Agent Runtime Core | Agent Run、Adapter Registry、Artifact Store、超时、取消、错误分类、运行隔离、运行事件 | 可以展示 Agent 状态、错误、Artifact 元数据和运行历史 |
 | External CLI Runtime | 固定 Driver 注册、CLI 健康探测、项目/运行隔离目录、输出限制、超时/取消、密钥脱敏、OpenCode Driver | 可以通过 `/runtimes` 展示外部 Agent 是否真实可用；不能把未声明的网站/视频能力标成可用 |
 | Model Gateway | 模型目录、项目默认模型、Agent 级覆盖、Prompt 版本、结构化输出、重试、Token/成本审计 | 可以实现模型选择器和 Agent 调用审计展示 |
@@ -64,6 +64,7 @@ http://localhost:8000/api/v1
 | 技术可行性 Agent | 模型拆解设备、数据、API、部署、性能、隐私、权限与韧性要求；后端以 Capability Graph 和 Evidence 计算四类 verdict，并接入主图定向补研 | 可以展示每个已选机会的技术条件、设备覆盖、Evidence、Gap 和 Demo 边界；`unknown` 不是“不支持”，通过技术验证也不是“可上架” |
 | Security Policy Compiler | 模型生成策略意图；后端校验授权信号、设备角色、干预权限和 Evidence，并确定性生成版本化 dry-run DSL、五类降级与安全不变量 | 可以展示跨设备状态、风险规则、干预阶梯、失败降级和版本差异；不能控制真实设备，尚未证明策略有效 |
 | Security Policy Verification | 从已编译 DSL 生成风险规则和五类 fallback 场景，运行确定性断言，并接受受策略范围约束的用户场景 | 可以展示场景、trace、命中规则、风险、动作、失败和 Gap；只证明当前 dry-run 场景行为，不代表真实部署或商业可行 |
+| Commercial Evaluation v2 | 分别判断用户价值、商业假设与交付运营条件；交付结论消费技术和策略验证结果，最终 recommendation 由后端计算 | 可以展示四类 recommendation、Evidence 下钻、商业假设与补研 Gap；没有商业总分，也不承诺上架或收益 |
 | 设备能力图 | 保存带 Evidence 的厂商设备能力、用户授权家庭快照和 `available/unavailable/unknown/conflict` 确定性查询；不保存家庭视频或序列号 | 可以实现“方案需要什么能力、已有设备能否支撑、还缺什么”的设备覆盖页；企业 API 未接入时不得显示实时设备状态 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
@@ -98,11 +99,12 @@ http://localhost:8000/api/v1
 26. AI Native Gate 不调用模型，确定性检查生态范围、跨设备闭环、AI removal test、职责分离、修订、隐私/fallback、授权和部署前验证；语义判断暂停 Human Gate，补研恢复只重跑生态机会。
 27. Technical Feasibility 已注册到真实 Model Gateway 与 Runtime；只处理 Human Gate 选择的机会，模型不能写最终 verdict，设备能力匹配和晋级由后端确定性计算。
 28. 主图在技术证据不足时进入统一 Source Recovery，补证后只重跑技术 Agent；至少一个 `demo_feasible` 或 `conditionally_feasible` 才进入 `awaiting_security_policy`。
+29. Commercial Evaluation v2 已接入 Model Gateway、Runtime、共享 Evidence 和主图；用户价值、商业模式与交付运营独立输出，缺证时只重跑商业 Agent。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 商业 v2 和红队 Prompt；
+- 红队 Prompt、用户质疑与定向策略修订；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 最终报告、Package Risk Demo 和飞书集成。
 
@@ -126,6 +128,8 @@ http://localhost:8000/api/v1
 | `GET` | `/projects/{project_id}/agents/competitor-ecosystem/artifacts` | 可用 | 查询版本化竞品生态 Artifact、覆盖矩阵、未知项与补研问题 |
 | `POST` | `/projects/{project_id}/agents/ecosystem-opportunity` | 可用 | 运行生态机会 Agent；动态生成设备功能、设备产品或生态服务候选，证据不足时保留真实数量与 Gap |
 | `GET` | `/projects/{project_id}/agents/ecosystem-opportunity/artifacts` | 可用 | 查询版本化生态机会、AI Native 结构、Evidence IDs 和补研问题 |
+| `POST` | `/projects/{project_id}/agents/commercial-evaluation-v2` | 可用 | 运行证据约束的生态商业评估；不计算商业总分，不代表上架或收益保证 |
+| `GET` | `/projects/{project_id}/agents/commercial-evaluation-v2/artifacts` | 可用 | 查询用户价值、商业假设、交付运营、recommendation 和补研 Gap 历史版本 |
 | `POST` | `/projects/{project_id}/agents/ecosystem_opportunity/artifacts/{artifact_id}/source-recovery` | 可用 | 通过领域 Agent 通用接口把生态机会缺口转换为前端补充弹窗，并保存定向恢复血缘 |
 | `GET` | `/projects/{project_id}/events` | 可用 | SSE 实时事件和历史回放 |
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
@@ -473,8 +477,9 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 技术可行性 Agent 合并前全量 Pytest：330 passed，1 个第三方 Starlette TestClient 弃用警告
 
 Security Policy Verification 合并前全量 Pytest：345 passed，1 个第三方 Starlette TestClient 弃用警告
+Commercial Evaluation v2 合并前全量 Pytest：353 passed，1 个第三方 Starlette TestClient 弃用警告
 ruff: 全量通过
-mypy: 通过（225 个 app 源文件）
+mypy: 通过（244 个 app 源文件）
 前端：ESLint 与生产构建通过
 Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空库升级到 head 并降级到 0018 通过
 OpenAPI: 3.1 YAML 解析通过
@@ -497,9 +502,9 @@ Ecosystem Opportunity Contract（已完成）
 → AI Native Ecosystem Gate（已完成）
 → Legacy Single-product Path Cleanup（已完成）
 → Technical Feasibility Agent（已完成）
-→ Security Policy Compiler
-→ Security Policy Verification
-→ Commercial Evaluation v2
+→ Security Policy Compiler（已完成）
+→ Security Policy Verification（已完成）
+→ Commercial Evaluation v2（已完成）
 → Red Team Policy Revision
 → Package Goal-to-Guard Demo
 → Feishu Aily Integration

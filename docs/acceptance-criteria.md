@@ -45,14 +45,35 @@ Evidence Context 中允许类型的 Evidence ID。
 - 风险等级、命中规则、干预动作、fallback、断言及 trace 必须结构化返回；
 - 场景更新支持时间戳并输出状态 trace；无法可靠合成的缺失或冲突条件必须生成
   `validation_gaps`，不得伪造通过；
-- 任一断言失败时进入 `awaiting_policy_revision`；通过或有条件通过才进入
-  `awaiting_commercial_evaluation`；
+- 任一断言失败时进入 `awaiting_policy_revision`；通过或有条件通过才自动进入
+  Commercial Evaluation v2；
 - Gap 可通过统一 Source Recovery 投影，补研时只针对受影响策略与场景；
 - OpenAPI、运行 API、Artifact 历史和 LangGraph 持久化链路保持一致。
 
 验收测试：
 
 - `tests/unit/test_policy_verification.py`
+- `tests/integration/test_research_workflow.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
+
+## AC-27 Commercial Evaluation v2（分支 `agent/commercial-evaluation-v2`）
+
+- 只能消费当前项目的 User Research、Ecosystem Opportunity、Technical Feasibility 和通过或有条件
+  通过的 Policy Verification Artifact；
+- 用户价值 Claim 必须引用 User Research Evidence，商业 Claim 必须引用市场、价格、渠道或企业事实；
+- 模型不能输出 weighted score、最终 recommendation 或交付结论；后端必须确定性计算；
+- 交付运营结论直接消费技术 verdict、策略验证状态、限制和前置条件，不能让商业模型重新猜技术；
+- 输出独立的用户价值、商业模式和交付运营结论，以及可验证的商业假设；
+- 最终只允许 `recommend_for_validation / conditional / needs_more_evidence / do_not_recommend`；
+- `recommend_for_validation` 只允许继续受控验证，不得表示正式上架或保证收益；
+- 证据不足必须生成结构化 Commercial Gap；主图进入通用 Source Recovery，恢复后只重跑商业 Agent；
+- 达到最大补研次数仍证据不足时返回 `inconclusive`，不得强行给出肯定结论；
+- 完成后进入 `awaiting_red_team_review`，包括 `do_not_recommend` 在内的结论都保留给红队审查；
+- OpenAPI、FastAPI、Prompt Registry、Model Gateway、Runtime、Artifact 版本和主图契约保持一致。
+
+自动化映射：
+
+- `tests/unit/test_commercial_evaluation_v2.py`
 - `tests/integration/test_research_workflow.py`
 - `tests/integration/test_runtime_langgraph_integration.py`
 

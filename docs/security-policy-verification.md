@@ -35,8 +35,8 @@ Evidence 下钻。必须持续显示 `Dry Run，不控制真实设备`。
 
 结果状态：
 
-- `passed`：当前场景全部通过，主图进入等待商业评估；
-- `conditionally_passed`：已运行场景通过但仍有验证 Gap，可限制试点范围并补研；
+- `passed`：当前场景全部通过，主图自动进入 Commercial Evaluation v2；
+- `conditionally_passed`：已运行场景通过但仍有验证 Gap，交付结论保留限制并进入商业评估；
 - `failed`：至少一个断言失败，主图进入等待策略修订；
 - `inconclusive`：无法形成验证结论，不允许进入商业判断。
 
