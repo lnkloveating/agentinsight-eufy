@@ -376,6 +376,52 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/agents/security-policy-compiler:
+    post:
+      tags: [Research]
+      summary: Compile selected opportunities into a dry-run Security Policy DSL
+      description: |
+        The model proposes structured policy intent only. The backend deterministically enforces
+        signal authorization, device-role references, intervention permissions, human approval,
+        privacy invariants and five required fallback modes. No real device action is executed.
+      operationId: runSecurityPolicyCompiler
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecurityPolicyRunCreate"
+      responses:
+        "200":
+          description: A persisted, versioned dry-run Security Policy Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityPolicyArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/security-policy-compiler/artifacts:
+    get:
+      tags: [Research]
+      summary: List Security Policy Artifact versions
+      operationId: listSecurityPolicyArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Security Policy Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityPolicyArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps:
     get:
       tags: [Research, Evidence]
@@ -1889,6 +1935,7 @@ components:
           - competitor_research
           - ecosystem_opportunity
           - technical_feasibility
+          - security_policy
           - commercial_evaluation
           - red_team
           - candidate_synthesis
@@ -2587,7 +2634,7 @@ components:
         task_id: { type: [string, "null"] }
         agent_type:
           type: string
-          enum: [research_manager, user_research, competitor_research, ecosystem_opportunity, technical_feasibility, business, red_team]
+          enum: [research_manager, user_research, competitor_research, ecosystem_opportunity, technical_feasibility, security_policy, business, red_team]
         agent_name: { type: string }
         status:
           $ref: "#/components/schemas/AgentRunStatus"
@@ -3824,6 +3871,312 @@ components:
         payload: { $ref: "#/components/schemas/TechnicalFeasibilityPayload" }
         evidence_ids:
           type: array
+          maxItems: 500
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        contradictions:
+          type: array
+          maxItems: 100
+          items: { type: string }
+        unknowns:
+          type: array
+          maxItems: 100
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          maxItems: 100
+          items: { type: string }
+
+    SecurityPolicyRunCreate:
+      type: object
+      additionalProperties: false
+      required: [selected_opportunity_ids]
+      properties:
+        selected_opportunity_ids:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    PolicyRiskLevel:
+      type: string
+      enum: [informational, low, medium, high, critical, uncertain]
+
+    PolicyValueType:
+      type: string
+      enum: [boolean, integer, number, text, timestamp, duration_seconds, risk_level]
+
+    PolicyConditionOperator:
+      type: string
+      enum: [eq, ne, gt, gte, lt, lte, exists, not_exists, changed, unchanged]
+
+    PolicyFallbackTrigger:
+      type: string
+      enum: [signal_unavailable, device_offline, network_offline, uncertain_state, permission_denied]
+
+    PolicyCompilationStatus:
+      type: string
+      enum: [compiled, conditional]
+
+    CompiledPolicyStateVariable:
+      type: object
+      additionalProperties: false
+      required: [state_id, key, value_type, description, initial_value, retention_seconds]
+      properties:
+        state_id: { type: string, minLength: 1, maxLength: 80 }
+        key: { type: string, pattern: "^[a-z][a-z0-9_]{1,63}$" }
+        value_type: { $ref: "#/components/schemas/PolicyValueType" }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        initial_value: {}
+        retention_seconds: { type: integer, minimum: 0, maximum: 2592000 }
+
+    CompiledPolicySignal:
+      type: object
+      additionalProperties: false
+      required: [signal_id, key, signal_type, source_role_id, purpose, freshness_seconds, required]
+      properties:
+        signal_id: { type: string, minLength: 1, maxLength: 80 }
+        key: { type: string, pattern: "^[a-z][a-z0-9_]{1,63}$" }
+        signal_type:
+          type: string
+          enum: [visual_event_metadata, motion_event, door_event, device_status, household_presence, user_confirmation, environment_context, simulated_event]
+        source_role_id: { type: string, minLength: 1, maxLength: 80 }
+        purpose: { type: string, minLength: 1, maxLength: 2000 }
+        freshness_seconds: { type: integer, minimum: 1, maximum: 86400 }
+        required: { type: boolean }
+
+    PolicyCondition:
+      type: object
+      additionalProperties: false
+      required: [reference, operator, value]
+      properties:
+        reference: { type: string, pattern: "^(state|signal):[a-z][a-z0-9_]{1,63}$" }
+        operator: { $ref: "#/components/schemas/PolicyConditionOperator" }
+        value: {}
+
+    CompiledPolicyRule:
+      type: object
+      additionalProperties: false
+      required: [rule_id, description, conditions, require_all_conditions, minimum_duration_seconds, within_seconds, resulting_risk_level, rationale, evidence_ids]
+      properties:
+        rule_id: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        conditions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/PolicyCondition" }
+        require_all_conditions: { type: boolean }
+        minimum_duration_seconds: { type: integer, minimum: 0, maximum: 86400 }
+        within_seconds: { type: [integer, "null"], minimum: 1, maximum: 604800 }
+        resulting_risk_level: { $ref: "#/components/schemas/PolicyRiskLevel" }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 40
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    CompiledPolicyIntervention:
+      type: object
+      additionalProperties: false
+      required: [intervention_id, minimum_risk_level, action, human_approval_required, cooldown_seconds, rationale]
+      properties:
+        intervention_id: { type: string, minLength: 1, maxLength: 80 }
+        minimum_risk_level: { $ref: "#/components/schemas/PolicyRiskLevel" }
+        action:
+          type: string
+          enum: [continue_observing, request_additional_signal, local_prompt, ask_user, notify_authorized_contact, preserve_evidence]
+        human_approval_required: { type: boolean }
+        cooldown_seconds: { type: integer, minimum: 0, maximum: 86400 }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+
+    CompiledPolicyFallback:
+      type: object
+      additionalProperties: false
+      required: [fallback_id, trigger, action, human_approval_required, safe_state, rationale]
+      properties:
+        fallback_id: { type: string, minLength: 1, maxLength: 80 }
+        trigger: { $ref: "#/components/schemas/PolicyFallbackTrigger" }
+        action:
+          type: string
+          enum: [continue_observing, request_additional_signal, local_prompt, ask_user, notify_authorized_contact, preserve_evidence]
+        human_approval_required: { type: boolean }
+        safe_state: { type: string, minLength: 1, maxLength: 500 }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+
+    CompiledPolicyInvariant:
+      type: object
+      additionalProperties: false
+      required: [invariant_id, kind, statement]
+      properties:
+        invariant_id: { type: string, minLength: 1, maxLength: 80 }
+        kind: { type: string, minLength: 1, maxLength: 80 }
+        statement: { type: string, minLength: 1, maxLength: 1000 }
+
+    PolicyCompilationGap:
+      type: object
+      additionalProperties: false
+      required: [gap_id, question, reason, affected_opportunity_ids]
+      properties:
+        gap_id: { type: string, minLength: 1, maxLength: 80 }
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        affected_opportunity_ids:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    CompiledSecurityPolicy:
+      type: object
+      additionalProperties: false
+      required: [policy_id, policy_version, opportunity_id, policy_name, objective, execution_mode, compilation_status, state_variables, signal_requests, risk_rules, intervention_ladder, fallbacks, invariants, technical_prerequisites, assumptions, evidence_ids, dsl_hash]
+      properties:
+        policy_id: { type: string, minLength: 1, maxLength: 80 }
+        policy_version: { type: integer, minimum: 1 }
+        opportunity_id: { type: string, minLength: 1, maxLength: 80 }
+        policy_name: { type: string, minLength: 1, maxLength: 200 }
+        objective: { type: string, minLength: 1, maxLength: 2000 }
+        execution_mode: { type: string, const: dry_run }
+        compilation_status: { $ref: "#/components/schemas/PolicyCompilationStatus" }
+        state_variables:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { $ref: "#/components/schemas/CompiledPolicyStateVariable" }
+        signal_requests:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { $ref: "#/components/schemas/CompiledPolicySignal" }
+        risk_rules:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items: { $ref: "#/components/schemas/CompiledPolicyRule" }
+        intervention_ladder:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/CompiledPolicyIntervention" }
+        fallbacks:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items: { $ref: "#/components/schemas/CompiledPolicyFallback" }
+        invariants:
+          type: array
+          minItems: 4
+          maxItems: 100
+          items: { $ref: "#/components/schemas/CompiledPolicyInvariant" }
+        technical_prerequisites:
+          type: array
+          maxItems: 100
+          items: { type: string }
+        assumptions:
+          type: array
+          maxItems: 40
+          items: { type: string }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        dsl_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    SecurityPolicyVersionDiff:
+      type: object
+      additionalProperties: false
+      required: [previous_artifact_id, added_policy_ids, removed_policy_ids, changed_policy_ids, unchanged_policy_ids]
+      properties:
+        previous_artifact_id: { type: [string, "null"], minLength: 1, maxLength: 80 }
+        added_policy_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        removed_policy_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        changed_policy_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        unchanged_policy_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    SecurityPolicyCoverage:
+      type: object
+      additionalProperties: false
+      required: [selected_opportunity_count, compiled_policy_count, conditional_policy_count, authorized_signal_type_count, allowed_intervention_count, evidence_context_hash]
+      properties:
+        selected_opportunity_count: { type: integer, minimum: 1, maximum: 5 }
+        compiled_policy_count: { type: integer, minimum: 1, maximum: 5 }
+        conditional_policy_count: { type: integer, minimum: 0, maximum: 5 }
+        authorized_signal_type_count: { type: integer, minimum: 1, maximum: 8 }
+        allowed_intervention_count: { type: integer, minimum: 1, maximum: 6 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    SecurityPolicyPayload:
+      type: object
+      additionalProperties: false
+      required: [schema_name, schema_version, source_technical_artifact_id, source_opportunity_artifact_id, selected_opportunity_ids, summary, summary_evidence_ids, policies, compilation_gaps, version_diff, coverage]
+      properties:
+        schema_name: { type: string, const: security_policy_dsl_portfolio }
+        schema_version: { type: string, const: "1.0" }
+        source_technical_artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        source_opportunity_artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        selected_opportunity_ids:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        summary: { type: string, minLength: 1, maxLength: 5000 }
+        summary_evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        policies:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { $ref: "#/components/schemas/CompiledSecurityPolicy" }
+        compilation_gaps:
+          type: array
+          maxItems: 40
+          items: { $ref: "#/components/schemas/PolicyCompilationGap" }
+        version_diff: { $ref: "#/components/schemas/SecurityPolicyVersionDiff" }
+        coverage: { $ref: "#/components/schemas/SecurityPolicyCoverage" }
+
+    SecurityPolicyArtifact:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, task_id, artifact_type, schema_version, status, payload, evidence_ids, contradictions, unknowns, quality_score, errors]
+      properties:
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        task_id: { type: string, minLength: 1, maxLength: 80 }
+        artifact_type: { type: string, const: security_policy }
+        schema_version: { type: string, const: "1.0" }
+        status: { type: string, enum: [completed, partial] }
+        payload: { $ref: "#/components/schemas/SecurityPolicyPayload" }
+        evidence_ids:
+          type: array
+          minItems: 1
           maxItems: 500
           uniqueItems: true
           items: { type: string, minLength: 1, maxLength: 80 }

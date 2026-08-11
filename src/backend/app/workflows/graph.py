@@ -116,7 +116,11 @@ class ResearchWorkflow:
             "technical_source_recovery_gate",
             self._technical_source_recovery_gate,
         )
-        builder.add_node("awaiting_security_policy", self._awaiting_security_policy)
+        builder.add_node("prepare_security_policy", self._prepare_security_policy)
+        builder.add_node("security_policy", self._security_policy)
+        builder.add_node(
+            "awaiting_policy_verification", self._awaiting_policy_verification
+        )
         builder.add_node("reject", self._reject)
         builder.add_node("terminate", self._terminate)
         builder.add_node("inconclusive", self._inconclusive)
@@ -173,7 +177,7 @@ class ResearchWorkflow:
             "technical_feasibility",
             self._route_technical_feasibility,
             {
-                "advance": "awaiting_security_policy",
+                "advance": "prepare_security_policy",
                 "research_more": "prepare_technical_source_recovery",
                 "inconclusive": "inconclusive",
             },
@@ -183,8 +187,10 @@ class ResearchWorkflow:
             "technical_source_recovery_gate",
         )
         builder.add_edge("technical_source_recovery_gate", "technical_feasibility")
+        builder.add_edge("prepare_security_policy", "security_policy")
+        builder.add_edge("security_policy", "awaiting_policy_verification")
         for terminal_node in (
-            "awaiting_security_policy",
+            "awaiting_policy_verification",
             "reject",
             "terminate",
             "inconclusive",
@@ -520,25 +526,73 @@ class ResearchWorkflow:
             "outcome": WorkflowOutcome.RUNNING.value,
         }
 
-    async def _awaiting_security_policy(self, state: ResearchState) -> dict[str, Any]:
-        artifact = self._artifact(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
+    async def _prepare_security_policy(self, state: ResearchState) -> dict[str, Any]:
+        selected_ids = list(dict.fromkeys(state.get("selected_innovation_ids", [])))
+        if not selected_ids:
+            raise WorkflowContractError("security policy requires selected opportunities")
+        technical_task = self._task(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
+        task = ResearchTask(
+            task_id=f"task_{state['project_id']}_security_policy",
+            project_id=state["project_id"],
+            agent_type=ResearchAgentType.SECURITY_POLICY,
+            goal="Compile feasible ecosystem opportunities into a safe dry-run policy DSL.",
+            scope={"selected_opportunity_ids": selected_ids},
+            required_artifacts=[
+                ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value,
+                ResearchAgentType.TECHNICAL_FEASIBILITY.value,
+            ],
+            evidence_rules=technical_task.evidence_rules,
+            budget=ResearchBudget(
+                max_pages=technical_task.budget.max_pages,
+                max_iterations=state.get("max_iterations", 2),
+                deadline_seconds=180,
+            ),
+            depends_on=[technical_task.task_id],
+            acceptance_checks=[
+                "dry_run_only",
+                "authorized_signals_only",
+                "allowed_interventions_only",
+                "five_deterministic_fallbacks",
+            ],
+        )
+        plan = self._task_plan(state)
+        plan = [item for item in plan if item.agent_type is not task.agent_type]
+        plan.append(task)
+        return {
+            "task_plan": [item.model_dump(mode="json") for item in plan],
+            "outcome": WorkflowOutcome.RUNNING.value,
+            "current_stage": "security_policy_preparation",
+            "progress": 72,
+            "node_history": [self._event("prepare_security_policy", task, "prepared")],
+        }
+
+    async def _security_policy(self, state: ResearchState) -> dict[str, Any]:
+        return await self._run_planned_agent(
+            state,
+            ResearchAgentType.SECURITY_POLICY,
+            "security_policy",
+            78,
+            accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
+        )
+
+    async def _awaiting_policy_verification(self, state: ResearchState) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.SECURITY_POLICY)
         coverage = artifact.payload.get("coverage", {})
         return {
-            "outcome": WorkflowOutcome.AWAITING_SECURITY_POLICY.value,
-            "current_stage": "security_policy_pending",
-            "progress": 70,
+            "outcome": WorkflowOutcome.AWAITING_POLICY_VERIFICATION.value,
+            "current_stage": "policy_verification_pending",
+            "progress": 80,
             "pending_gate": None,
-            "terminal_reason": "security_policy_not_implemented",
+            "terminal_reason": "policy_verification_not_implemented",
             "node_history": [
                 WorkflowEvent(
                     event_type="workflow_phase_completed",
-                    node="awaiting_security_policy",
+                    node="awaiting_policy_verification",
                     task_id=artifact.task_id,
-                    status=WorkflowOutcome.AWAITING_SECURITY_POLICY,
+                    status=WorkflowOutcome.AWAITING_POLICY_VERIFICATION,
                     message=(
-                        "技术可行性评估完成："
-                        f"{coverage.get('demo_feasible_count', 0)} 个可直接验证，"
-                        f"{coverage.get('conditionally_feasible_count', 0)} 个有条件可验证。"
+                        "Security Policy DSL compiled in dry-run mode: "
+                        f"{coverage.get('compiled_policy_count', 0)} policies."
                     ),
                 ).model_dump(mode="json")
             ],

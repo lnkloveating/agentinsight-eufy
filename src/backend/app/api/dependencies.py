@@ -11,6 +11,7 @@ from app.agents.competitor.ecosystem_context import (
     CompetitorEcosystemEvidenceContextBuilder,
 )
 from app.agents.ecosystem_opportunity import EcosystemOpportunityContextBuilder
+from app.agents.security_policy import SecurityPolicyContextBuilder
 from app.agents.technical_feasibility import TechnicalFeasibilityContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.brief_clarification import BriefClarificationService
@@ -40,6 +41,7 @@ from app.application.projects import ProjectService
 from app.application.research import (
     CompetitorEcosystemAnalysisService,
     EcosystemOpportunityService,
+    SecurityPolicyService,
     TechnicalFeasibilityService,
     UserResearchService,
 )
@@ -525,6 +527,34 @@ def get_technical_feasibility_service(
 
 TechnicalFeasibilityServiceDependency = Annotated[
     TechnicalFeasibilityService, Depends(get_technical_feasibility_service)
+]
+
+
+def get_security_policy_service(request: Request) -> SecurityPolicyService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+    context_builder = SecurityPolicyContextBuilder(
+        TechnicalFeasibilityContextBuilder(
+            EcosystemOpportunityContextBuilder(
+                database,
+                max_items=settings.security_policy_max_evidence_items,
+                max_excerpt_chars=settings.security_policy_max_excerpt_chars,
+                max_total_chars=settings.security_policy_max_total_evidence_chars,
+            )
+        )
+    )
+    return SecurityPolicyService(database, runtime, context_builder)
+
+
+SecurityPolicyServiceDependency = Annotated[
+    SecurityPolicyService, Depends(get_security_policy_service)
 ]
 
 

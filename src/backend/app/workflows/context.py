@@ -21,6 +21,11 @@ CONTEXT_POLICY: dict[ResearchAgentType, set[ResearchAgentType]] = {
     ResearchAgentType.TECHNICAL_FEASIBILITY: {
         ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
     },
+    ResearchAgentType.SECURITY_POLICY: {
+        ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
+        ResearchAgentType.TECHNICAL_FEASIBILITY,
+        ResearchAgentType.SECURITY_POLICY,
+    },
     ResearchAgentType.COMMERCIAL_EVALUATION: {
         ResearchAgentType.USER_RESEARCH,
         ResearchAgentType.COMPETITOR_RESEARCH,
@@ -68,6 +73,7 @@ def build_agent_context(
         in {
             ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
             ResearchAgentType.TECHNICAL_FEASIBILITY,
+            ResearchAgentType.SECURITY_POLICY,
         }
         and raw_handoff is not None
         else None
