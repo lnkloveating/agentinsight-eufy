@@ -32,7 +32,7 @@ Brief Gate
 ```
 
 技术可行性 Agent 仍未实现，因此 `approve` 后明确返回
-`awaiting_technical_feasibility`，不会错误进入旧 Product Technical v1 或商业链路。
+`awaiting_technical_feasibility`；旧 Product Technical v1 已删除，也不会错误进入商业链路。
 
 ## 3. 确定性检查
 

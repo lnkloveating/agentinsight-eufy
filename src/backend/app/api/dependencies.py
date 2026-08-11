@@ -11,7 +11,6 @@ from app.agents.competitor.ecosystem_context import (
     CompetitorEcosystemEvidenceContextBuilder,
 )
 from app.agents.ecosystem_opportunity import EcosystemOpportunityContextBuilder
-from app.agents.product_technical import ProductTechnicalEvidenceContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.brief_clarification import BriefClarificationService
 from app.application.competitor_discovery import CompetitorDiscoveryService
@@ -40,7 +39,6 @@ from app.application.projects import ProjectService
 from app.application.research import (
     CompetitorEcosystemAnalysisService,
     EcosystemOpportunityService,
-    ProductTechnicalService,
     UserResearchService,
 )
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
@@ -473,30 +471,6 @@ def get_competitor_ecosystem_service(
 
 CompetitorEcosystemServiceDependency = Annotated[
     CompetitorEcosystemAnalysisService, Depends(get_competitor_ecosystem_service)
-]
-
-
-def get_product_technical_service(request: Request) -> ProductTechnicalService:
-    settings: Settings = request.app.state.settings
-    database: Database = request.app.state.database
-    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
-    runtime = AgentRuntimeGateway(
-        database,
-        cast(AgentRegistry, request.app.state.agent_registry),
-        cast(ProjectEventBroker, request.app.state.event_broker),
-        trace_id,
-    )
-    context_builder = ProductTechnicalEvidenceContextBuilder(
-        database,
-        max_items=settings.product_technical_max_evidence_items,
-        max_excerpt_chars=settings.product_technical_max_excerpt_chars,
-        max_total_chars=settings.product_technical_max_total_evidence_chars,
-    )
-    return ProductTechnicalService(database, runtime, context_builder)
-
-
-ProductTechnicalServiceDependency = Annotated[
-    ProductTechnicalService, Depends(get_product_technical_service)
 ]
 
 

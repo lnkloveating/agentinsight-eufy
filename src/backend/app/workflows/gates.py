@@ -110,7 +110,7 @@ def evaluate_research_artifacts(
 
     handoff = build_research_handoff(artifacts)
     return EvidenceGateResult(
-        passed=handoff.ready_for_product_technical,
+        passed=handoff.ready_for_ecosystem_opportunity,
         issues=handoff.issues,
     )
 

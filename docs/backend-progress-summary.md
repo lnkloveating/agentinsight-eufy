@@ -58,8 +58,8 @@ http://localhost:8000/api/v1
 | 竞品产品事实综合 | 三个专家均有发现后先调用产品事实综合模型，保留逐产品优缺点、权衡和准确 Evidence 血缘，供生态层继续使用 | 可以下钻查看生态结论来自哪些具体设备、价格或用户评价；该层不再直接作为新项目最终竞品结论 |
 | 竞品生态综合与证据审计 | 在产品事实之上调用生态综合模型，按 Brief 中目标/对照生态生成 12 维能力矩阵；后端审计生态范围、产品映射、专家维度和 Evidence | 可以展示 Ring、Google Nest、Arlo、eufy 等生态矩阵；未覆盖维度必须显示 `unknown` 与补研问题，不能显示成“竞品没有” |
 | 竞品主路径桥接 | 用户研究与竞品生态 Artifact 并行汇合后生成 `ResearchHandoff`；完整结果为 `ready`，经过审计的缺口结果为 `ready_with_gaps`，无效结果定向补研 | 可以展示研究交接状态、生态/产品范围、12 维状态和缺口；下一步生态机会 Agent 消费同一交接 |
-| Product Technical v1 | 历史单品候选实现，仅保留独立兼容读取；已经从 AI 原生主图任务计划移除 | 前端不要新建单品入口或调用旧链路；改用生态机会与 AI Native Gate |
-| 产品技术资料恢复 | 把指定候选组合的 `portfolio_gaps` 转换为结构化补充字段；用户确认后的内容生成带血缘 Evidence，并在下一版产品技术运行中进入受控上下文 | 可以按 `gap_id` 弹出“当前缺什么”的填写框，展示受影响候选和定向恢复范围；不要求用户盲目更换网站，也不会把填写内容伪装成官网证据 |
+| 旧单产品链路清理 | Product Technical v1 的 API、Adapter、Prompt、Service、配置与测试已经删除；只保留旧 Checkpoint 交接字段的读取别名 | 前端不得再调用旧路径；所有机会生成、候选查看和补研都使用生态机会链路 |
+| 生态机会资料恢复 | 把生态候选的 `portfolio_gaps` 转换为结构化补充字段；用户确认后的内容生成带血缘 Evidence，并定向恢复生态机会 Agent | 可以按 `gap_id` 弹出“当前缺什么”的填写框，展示受影响机会和定向恢复范围；不要求用户盲目更换网站，也不会把填写内容伪装成官网证据 |
 | 生态机会 Agent 与 AI Native Gate | 真实模型基于用户、竞品生态、Evidence 和设备能力图动态生成候选；确定性 Gate 阻止普通通知/固定规则包装，语义问题交给 Human Gate | 前端可以展示真实候选、八项检查、补研/修订/淘汰；不能把通过 AI Native Gate 写成技术可行或可上架 |
 | 设备能力图 | 保存带 Evidence 的厂商设备能力、用户授权家庭快照和 `available/unavailable/unknown/conflict` 确定性查询；不保存家庭视频或序列号 | 可以实现“方案需要什么能力、已有设备能否支撑、还缺什么”的设备覆盖页；企业 API 未接入时不得显示实时设备状态 |
 
@@ -83,10 +83,10 @@ http://localhost:8000/api/v1
 14. 价格渠道专家能够通过项目模型策略调用 GLM 5.2 或 DeepSeek V4 Pro，输出带 Evidence IDs、地区和采集时间边界的结构化价格渠道结果。
 15. 竞品用户评价专家能够调用相同模型策略，严格消费准确产品的 `user_opinion`，并由确定性代码区分单一报告和跨来源重复主题。
 16. 竞品主管能够在三个专家均产生发现后调用综合模型，并确定性拒绝虚构 Evidence、跨产品引用和跨专家维度引用；资料不足时不调用综合模型。
-17. LangGraph 能够把用户研究与竞品综合写入强类型 `ResearchHandoff`；经过审计的 partial 缺口可进入产品技术阶段，无效竞品结果只重跑竞品节点，Checkpoint 不重复执行用户研究。
-18. Product Technical Adapter 已注册到统一 Runtime 和 Model Gateway；主路径及独立 HTTP 用例都消费同一上游 Artifact，输出版本化 `product_technical_opportunity_portfolio`。
-19. 产品技术 Artifact 的补研缺口具有稳定 ID；可创建统一 Source Recovery、生成 `user_declaration` Evidence，并把已解决 Evidence 注入下一版产品技术上下文。
-20. 用户研究、三个竞品专家和产品技术 Context Builder 已迁移到共享 Evidence Retrieval；后续商业与红队可以复用同一接口，不再建立各自知识副本。
+17. LangGraph 能够把用户研究与竞品生态综合写入强类型 `ResearchHandoff`；经过审计的 partial 缺口可进入生态机会阶段，无效竞品结果只重跑竞品节点，Checkpoint 不重复执行用户研究。
+18. 生态机会 Adapter 已注册到统一 Runtime 和 Model Gateway，主路径与独立 HTTP 用例消费同一上游 Artifact，输出版本化 `ecosystem_opportunity_portfolio`。
+19. 生态机会 Artifact 的补研缺口具有稳定 ID；可创建通用 Source Recovery、生成 `user_declaration` Evidence，并把已解决 Evidence 注入下一版生态机会上下文。
+20. 用户研究、三个竞品专家和生态机会 Context Builder 使用共享 Evidence Retrieval；后续商业与红队可以复用同一接口，不再建立各自知识副本。
 21. 生态机会契约和真实 Agent 已经完成，候选随用户、竞品、Evidence 和设备能力图变化，证据不足时保留真实数量与稳定 Gap。
 22. Device Capability Graph 能够把厂商通用能力与家庭实例分开，拒绝不合格或跨项目 Evidence，保留冲突，并确定性回答方案能力覆盖。
 23. 新 Research Brief 已删除单品式字段，强制表达生态、安全目标、信号授权、隐私/干预边界和验证期望；全部项目创建测试已迁移。
@@ -119,9 +119,9 @@ http://localhost:8000/api/v1
 | `GET` | `/projects/{project_id}/agents` | 可用 | Agent Run 列表与模型调用审计摘要 |
 | `POST` | `/projects/{project_id}/agents/competitor-ecosystem` | 可用 | 运行三个竞品事实专家、产品事实综合和生态综合，返回带 Evidence 审计的 12 维生态矩阵 |
 | `GET` | `/projects/{project_id}/agents/competitor-ecosystem/artifacts` | 可用 | 查询版本化竞品生态 Artifact、覆盖矩阵、未知项与补研问题 |
-| `POST` | `/projects/{project_id}/agents/product-technical` | 可用 | 运行产品技术机会 Agent；目标 3 个、最多 5 个，证据不足时不补造候选 |
-| `GET` | `/projects/{project_id}/agents/product-technical/artifacts` | 可用 | 查询版本化候选组合、Gate 状态、Evidence IDs 和补研问题 |
-| `POST` | `/projects/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery` | 可用 | 把一个或多个候选证据缺口转换为前端补充弹窗契约，并保存定向恢复血缘 |
+| `POST` | `/projects/{project_id}/agents/ecosystem-opportunity` | 可用 | 运行生态机会 Agent；动态生成设备功能、设备产品或生态服务候选，证据不足时保留真实数量与 Gap |
+| `GET` | `/projects/{project_id}/agents/ecosystem-opportunity/artifacts` | 可用 | 查询版本化生态机会、AI Native 结构、Evidence IDs 和补研问题 |
+| `POST` | `/projects/{project_id}/agents/ecosystem_opportunity/artifacts/{artifact_id}/source-recovery` | 可用 | 通过领域 Agent 通用接口把生态机会缺口转换为前端补充弹窗，并保存定向恢复血缘 |
 | `GET` | `/projects/{project_id}/events` | 可用 | SSE 实时事件和历史回放 |
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
 | `GET` | `/projects/{project_id}/source-requirements` | 可用 | 实时查询目标/竞品范围和各研究维度的资料准备度、缺口与补充动作 |
@@ -465,9 +465,9 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 最近一次完整验证状态；真实联网记录沿用此前已经完成的受控测试：
 
 ```text
-AI Native Ecosystem Gate 分支全量 Pytest：327 passed，1 个第三方 Starlette TestClient 弃用警告
+旧单产品链路清理后全量 Pytest：322 passed，1 个第三方 Starlette TestClient 弃用警告
 ruff: 全量通过
-mypy: 通过（225 个 app 源文件）
+mypy: 通过（218 个 app 源文件）
 Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空库升级到 head 并降级到 0018 通过
 OpenAPI: 3.1 YAML 解析通过
 git diff --check: 通过
@@ -487,6 +487,7 @@ Ecosystem Opportunity Contract（已完成）
 → AI-native Home-safety Research Scope（已完成）
 → Ecosystem Opportunity Agent（已完成）
 → AI Native Ecosystem Gate（已完成）
+→ Legacy Single-product Path Cleanup（已完成）
 → Technical Feasibility Agent
 → Security Policy Compiler
 → Security Policy Verification

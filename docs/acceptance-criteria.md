@@ -109,7 +109,7 @@ Evidence Context 中允许类型的 Evidence ID。
 ## AC-03F 竞品综合与证据审计
 
 三个竞品专家均产生带 Evidence ID 的发现后，主管才允许调用竞品综合模型。综合结果必须包含
-逐产品优点、缺点与权衡、跨产品差异和待 Product Technical Agent 验证的机会假设；机会假设
+逐产品优点、缺点与权衡、跨产品差异和待 Ecosystem Opportunity Agent 验证的机会假设；机会假设
 不得作为已验证未来产品结论。后端必须确定性检查每个引用是否来自本轮专家输出、是否仍存在于
 父级 Evidence Context、产品归属是否一致，以及单维度判断是否越过专家边界。任何越界引用都
 必须使本轮 Artifact 失败。缺少任一专家发现时不得调用综合模型，并返回
@@ -126,12 +126,12 @@ Evidence Context 中允许类型的 Evidence ID。
 
 LangGraph 必须在用户研究和竞品研究两个并行节点均返回后生成强类型 `ResearchHandoff`，
 并把两个 Artifact、合并后的 Evidence IDs、竞品产品范围、机会假设 ID、缺失研究维度和补研
-问题写入 `ResearchState`。Product Technical Agent 只能读取这份交接和策略允许的上游
+问题写入 `ResearchState`。Ecosystem Opportunity Agent 只能读取这份交接和策略允许的上游
 Artifact，不能从 Runtime 存储中自行猜测最新结果。
 
 状态为 `completed` 的结果可以正常交接；状态为 `partial` 的竞品综合只有在结构有效、三个
 专家输出完整、Evidence Audit 为 `passed_with_gaps` 且所有 Payload 引用均属于父级 Artifact
-时，才允许以 `ready_with_gaps` 进入产品技术阶段。Foundation 占位结构、缺失 Evidence、
+时，才允许以 `ready_with_gaps` 进入生态机会阶段。Foundation 占位结构、缺失 Evidence、
 越界引用、审计失败或产品覆盖范围不一致必须阻断。阻断时只重跑受影响的用户研究或竞品研究
 任务；Checkpoint 恢复不得重复执行已经成功且未受影响的并行节点。
 
@@ -350,7 +350,7 @@ Source Processing、Routing 与 Evidence Gate，再把同项目、同 Source Ass
 
 - `tests/unit/test_agent_gap_projector.py`
 - `tests/integration/test_universal_agent_source_recovery_api.py`
-- `tests/integration/test_product_technical_agent.py`
+- `tests/unit/test_legacy_single_product_cleanup.py`
 
 每条标准必须映射到自动化测试、可重复演示步骤或两者。验收对象是从飞书 Aily 发起、经过真实证据和候选比较、在飞书完成人工决策、运行晋级场景 Demo 并生成可追溯结论的完整链路。
 
@@ -409,23 +409,20 @@ Base Event
 
 每个 Context Signal 都要记录来源、可获得性、授权、时效、延迟、置信度和失败回退。缺少任一结构的候选不能进入技术评审或场景晋级门。
 
-## AC-07 候选场景比较
+## AC-07 生态机会比较
 
-在证据允许时，系统至少生成三个候选事件理解场景，并用统一权重比较用户痛点、频率、证据、竞品差异、事件理解完整度、技术与数据可行性、商业价值和 Demo 可行性。
+在证据允许时，系统动态生成设备功能、设备产品或生态服务机会，并比较用户安全目标、跨设备协作、
+持续状态理解、主动补证、隐私边界、离线降级和验证可行性。模型输出目标为 3 个、上限为 5 个，
+但证据不足时允许为 0，必须显示真实 `portfolio_gaps`，不能用 Mock 或固定门铃场景补齐。
 
-每个分项保存理由和 Evidence IDs；如果真实证据不足以支持三个候选，系统必须显示缺口，不能用 Mock 补足数量。
+`agent/ecosystem-opportunity` 的验收映射：
 
-`agent/product-technical-opportunity` 的验收映射：
-
-- 模型输出目标为 3 个、上限为 5 个，但候选数量允许为 0；后端不会用固定场景补齐；
-- 每个候选必须同时引用用户研究和竞品研究 Evidence，且引用范围不能越过 `ResearchHandoff`；
-- 后端按候选独立执行 Event Understanding Gate，并区分生成数量与可晋级数量；
-- 少于 3 个可晋级候选时返回 `partial` 或 `blocked`，同时生成可交给资料恢复流程的补研问题；
-- 每个补研问题具有稳定 `gap_id`，可以从指定产品技术 Artifact 创建结构化资料恢复任务；
-- 恢复任务必须返回证据类型提示、受影响候选、受影响 Agent 和任务，供前端展示精确补充弹窗；
-- 用户补充内容必须保存为 `user_declaration` Evidence，并保留 Artifact、Gap、Submission 与 Evidence 的血缘；
-- 已解决补研 Evidence 必须进入下一版产品技术 Agent 的受控上下文，未受影响任务不得被无差别重跑；
-- 候选名称或事件签名重复、虚构 Evidence ID、虚构竞品机会信号 ID 时确定性失败。
+- 每个候选必须引用用户研究和竞品生态 Evidence，具体设备能力只能来自 Device Capability Graph；
+- 后端审计 Evidence、竞品机会信号、设备角色、跨设备信息流、AI Removal Test 和稳定 Gap ID；
+- 补研统一调用领域 Agent 通用 Source Recovery API，不存在单产品专用恢复接口；
+- 用户补充内容保存为 `user_declaration` Evidence，并保留 Artifact、Gap、Submission 与 Evidence 血缘；
+- 已解决 Evidence 只恢复 Ecosystem Opportunity，不无差别重跑用户研究或竞品研究；
+- 重复候选、虚构 Evidence、虚构竞品信号或把未知设备能力写成事实时确定性失败。
 
 ## AC-08 红队真实影响结果
 
@@ -510,8 +507,7 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
   `ecosystem_service` 候选数量；Gap 不得引用当前组合中不存在的 Opportunity；
 - Evidence 不足时允许零个或少于三个候选，但必须包含 `portfolio_gaps`，不得用固定模板凑数；
 - `EcosystemOpportunityArtifact` 与通用 `ResearchArtifact` 双向转换，并在缺失 `gap_id` 时确定性回填；
-- 新增 `ECOSYSTEM_OPPORTUNITY` 枚举后，旧 `ProductTechnicalArtifact` 与 Product Technical v1 API 仍可解析，
-  现有 LangGraph 主路径计划与运行测试不受影响（主路径以 `PLANNED_AGENT_TYPES` 为准）；
+- `ECOSYSTEM_OPPORTUNITY` 是新项目唯一的机会生成类型，主路径以 `PLANNED_AGENT_TYPES` 为准；
 - 本分支不声称已经生成任何生态方案。
 
 自动化映射：
@@ -684,6 +680,25 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/unit/test_workflow_contracts.py`
 - `tests/integration/test_research_workflow.py`
 - `tests/integration/test_runtime_langgraph_integration.py`
+
+## AC-23 移除旧单产品机会链路（分支 `cleanup/remove-legacy-single-product-path`）
+
+新项目不得再通过 Product Technical v1 生成或恢复单产品候选。验收要求：
+
+- OpenAPI 和 FastAPI 均不再暴露旧单产品运行、Artifact 查询或专属 Source Recovery 路径；
+- 旧 Adapter、Prompt、Service、Context Builder、配置和专属测试全部删除，应用启动时不再注册旧 Runtime；
+- `ResearchAgentType`、`RecoverableAgentType` 和上下文策略只把生态机会作为当前机会生成类型；
+- 技术资料和市场研究资料不再路由到已删除的 Agent，而是进入生态机会或后续商业评估；
+- `ResearchHandoff` 对外只序列化 `ready_for_ecosystem_opportunity`；旧 Checkpoint 中的
+  `ready_for_product_technical` 只允许作为读取别名，不能重新出现在新状态中；
+- 通用 Evidence、Source Recovery、Event Understanding 领域结构、设备能力图和生态机会链路保持可用。
+
+自动化映射：
+
+- `tests/unit/test_legacy_single_product_cleanup.py`
+- `tests/unit/test_workflow_contracts.py`
+- `tests/unit/test_agent_gap_projector.py`
+- 全量 Ruff、Mypy 与 Pytest。
 
 ## Release gate
 

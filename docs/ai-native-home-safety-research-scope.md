@@ -38,7 +38,7 @@
 - 竞品主管默认比较目标生态，不再从单一 `category` 推导范围；
 - 价格渠道、资料发现、片段晋级和资料要求统一使用 `markets[0]` 作为主市场；
 - 通用 Evidence、Source、Runtime、Model Gateway 和 Device Capability Graph 不受影响；
-- 当前 Product Technical v1 只作为尚未完成主图替换期间的内部兼容实现，不代表新产品方向；
+- Product Technical v1 旧单产品运行链路已经删除，不再作为内部兼容实现或新产品方向；
   新项目的目标产物是 `EcosystemOpportunityArtifact`，下一分支负责实现真实 Agent 并替换该节点。
 
 历史数据库迁移和旧 Artifact 结构不能在本分支物理删除，否则已有本地数据库可能无法升级或读取。

@@ -22,12 +22,12 @@ def test_shared_retrieval_requires_consistent_modes_and_limits() -> None:
         )
     with pytest.raises(ValidationError, match="preserve_evidence_order"):
         EvidenceRetrievalQuery(
-            consumer="product_technical",
+            consumer="ecosystem_opportunity",
             preserve_evidence_order=True,
         )
     with pytest.raises(ValidationError, match="every ordered evidence"):
         EvidenceRetrievalQuery(
-            consumer="product_technical",
+            consumer="ecosystem_opportunity",
             evidence_ids=[f"evidence_{index}" for index in range(3)],
             max_items=1,
             candidate_limit=2,

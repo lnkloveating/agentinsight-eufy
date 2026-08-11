@@ -15,7 +15,6 @@ from app.schemas.source_routing import SourceRouteTarget
 class RecoverableAgentType(StrEnum):
     USER_RESEARCH = "user_research"
     COMPETITOR_RESEARCH = "competitor_research"
-    PRODUCT_TECHNICAL = "product_technical"
     ECOSYSTEM_OPPORTUNITY = "ecosystem_opportunity"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
@@ -108,10 +107,6 @@ class AgentArtifactSourceRecoveryCreate(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("agent artifact recovery gap_ids must be unique")
         return value
-
-
-class ProductTechnicalSourceRecoveryCreate(AgentArtifactSourceRecoveryCreate):
-    """向后兼容原产品技术专用接口。"""
 
 
 class AgentGapSeverity(StrEnum):

@@ -2,19 +2,16 @@ from fastapi import APIRouter, status
 
 from app.agents.competitor import CompetitorEcosystemArtifact
 from app.agents.ecosystem_opportunity import EcosystemOpportunityArtifact
-from app.agents.product_technical import ProductTechnicalArtifact
 from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
     CompetitorEcosystemServiceDependency,
     EcosystemOpportunityServiceDependency,
-    ProductTechnicalServiceDependency,
     SourceRecoveryServiceDependency,
     UserResearchServiceDependency,
 )
 from app.schemas.source_recovery import (
     AgentArtifactGapPage,
     AgentArtifactSourceRecoveryCreate,
-    ProductTechnicalSourceRecoveryCreate,
     RecoverableAgentType,
     SourceRecovery,
 )
@@ -27,7 +24,7 @@ router = APIRouter()
     response_model=CompetitorEcosystemArtifact,
     summary="运行竞品生态分析 Agent",
     description=(
-        "复用候选发现和三个 A2A 事实专家，生成带 Evidence 审计的竞品生态能力矩阵。"
+        "复用候选发现和三个 A2A 事实专家，生成经过 Evidence 审计的竞品生态能力矩阵。"
         "资料未覆盖时保持 unknown，不改写为竞品没有。"
     ),
 )
@@ -103,49 +100,6 @@ async def list_ecosystem_opportunity_artifacts(
     service: EcosystemOpportunityServiceDependency,
 ) -> list[EcosystemOpportunityArtifact]:
     return await service.list_artifacts(project_id)
-
-
-@router.post(
-    "/{project_id}/agents/product-technical",
-    response_model=ProductTechnicalArtifact,
-    summary="运行产品技术机会 Agent",
-    description=(
-        "读取最新用户研究与竞品综合 Artifact，动态生成有 Evidence 引用的未来产品候选，"
-        "并由后端执行 Event Understanding Gate。"
-    ),
-)
-async def run_product_technical(
-    project_id: str,
-    service: ProductTechnicalServiceDependency,
-) -> ProductTechnicalArtifact:
-    return await service.run(project_id)
-
-
-@router.get(
-    "/{project_id}/agents/product-technical/artifacts",
-    response_model=list[ProductTechnicalArtifact],
-    summary="查询产品技术机会 Artifact 历史版本",
-)
-async def list_product_technical_artifacts(
-    project_id: str,
-    service: ProductTechnicalServiceDependency,
-) -> list[ProductTechnicalArtifact]:
-    return await service.list_artifacts(project_id)
-
-
-@router.post(
-    "/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery",
-    response_model=SourceRecovery,
-    status_code=status.HTTP_201_CREATED,
-    summary="把产品技术缺口转换为用户补研任务",
-)
-async def create_product_technical_source_recovery(
-    project_id: str,
-    artifact_id: str,
-    payload: ProductTechnicalSourceRecoveryCreate,
-    service: SourceRecoveryServiceDependency,
-) -> SourceRecovery:
-    return await service.create_from_product_technical(project_id, artifact_id, payload)
 
 
 @router.get(

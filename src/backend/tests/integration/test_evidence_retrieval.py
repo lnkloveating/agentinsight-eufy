@@ -181,7 +181,7 @@ async def test_exact_retrieval_preserves_handoff_order_and_metadata_boundaries()
         result = await EvidenceRetrievalService(database).retrieve(
             "proj_shared_retrieval",
             EvidenceRetrievalQuery(
-                consumer="product_technical",
+                consumer="ecosystem_opportunity",
                 evidence_ids=[
                     "ev_unrelated_high_quality",
                     "ev_rain_risk",

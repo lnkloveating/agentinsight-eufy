@@ -226,7 +226,7 @@ def test_completed_research_builds_ready_handoff() -> None:
     handoff = build_research_handoff(_artifacts())
 
     assert handoff.status is ResearchHandoffStatus.READY
-    assert handoff.ready_for_product_technical is True
+    assert handoff.ready_for_ecosystem_opportunity is True
     assert handoff.merged_evidence_ids == ["ev_competitor", "ev_user"]
     assert handoff.competitor_projection is not None
     assert handoff.competitor_projection.opportunity_signal_ids == [
@@ -245,7 +245,7 @@ def test_partial_competitor_with_audited_gaps_can_advance() -> None:
     )
 
     assert handoff.status is ResearchHandoffStatus.READY_WITH_GAPS
-    assert handoff.ready_for_product_technical is True
+    assert handoff.ready_for_ecosystem_opportunity is True
     assert handoff.competitor_projection is not None
     assert handoff.competitor_projection.gaps[0].missing_dimensions == ["user_review"]
     assert handoff.competitor_projection.gaps[0].research_questions == [
@@ -259,7 +259,7 @@ def test_ecosystem_v2_artifact_projects_ecosystem_scope_and_unknown_dimensions()
     )
 
     assert handoff.status is ResearchHandoffStatus.READY_WITH_GAPS
-    assert handoff.ready_for_product_technical is True
+    assert handoff.ready_for_ecosystem_opportunity is True
     assert handoff.competitor_projection is not None
     assert handoff.competitor_projection.schema_name == "competitor_ecosystem_analysis"
     assert handoff.competitor_projection.product_scope == ["Target Doorbell"]
@@ -281,7 +281,7 @@ def test_foundation_or_unbounded_competitor_artifact_is_blocked() -> None:
     handoff = build_research_handoff(_artifacts(competitor=artifact))
 
     assert handoff.status is ResearchHandoffStatus.BLOCKED
-    assert handoff.ready_for_product_technical is False
+    assert handoff.ready_for_ecosystem_opportunity is False
     assert handoff.issues == ["invalid_competitor_synthesis_artifact"]
     assert affected_research_agents(handoff) == {
         ResearchAgentType.COMPETITOR_RESEARCH

@@ -51,7 +51,7 @@ def _context() -> AgentContext:
         },
         research_handoff=ResearchHandoff(
             status=ResearchHandoffStatus.READY,
-            ready_for_product_technical=True,
+            ready_for_ecosystem_opportunity=True,
             user_research=ResearchArtifactProjection(
                 artifact_id=user.artifact_id,
                 task_id=user.task_id,

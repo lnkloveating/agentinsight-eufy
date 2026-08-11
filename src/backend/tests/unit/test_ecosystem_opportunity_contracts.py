@@ -19,16 +19,10 @@ from app.agents.ecosystem_opportunity.contracts import (
     SolutionScope,
     ecosystem_opportunity_gap_id,
 )
-from app.agents.product_technical.contracts import (
-    ProductTechnicalArtifact,
-    ProductTechnicalCoverage,
-    ProductTechnicalPayload,
-)
 from app.schemas.source_recovery import RecoverableAgentType
 from app.workflows.contracts import (
     ResearchAgentType,
     ResearchArtifact,
-    ResearchHandoffStatus,
     ResearchTaskStatus,
 )
 
@@ -335,7 +329,7 @@ def test_research_artifact_round_trips() -> None:
 @pytest.mark.parametrize(
     ("field_name", "invalid_value"),
     [
-        ("artifact_type", "product_technical"),
+        ("artifact_type", "wrong_artifact"),
         ("schema_version", "9.9"),
         ("status", "running"),
     ],
@@ -437,37 +431,8 @@ def test_from_research_artifact_backfills_missing_gap_id() -> None:
     assert restored.payload.portfolio_gaps[0].gap_id.startswith("gap_")
 
 
-# 13. Product Technical v1 契约在新增枚举后仍能解析。
-def test_product_technical_v1_artifact_still_parses() -> None:
-    artifact = ProductTechnicalArtifact(
-        artifact_id="artifact_pt",
-        task_id="task_pt",
-        artifact_type="product_technical",
-        schema_version="1.0",
-        status=ResearchTaskStatus.BLOCKED,
-        payload=ProductTechnicalPayload(
-            summary="v1 unchanged",
-            summary_evidence_ids=[],
-            candidates=[],
-            portfolio_gaps=[],
-            coverage=ProductTechnicalCoverage(
-                generated_candidate_count=0,
-                advancing_candidate_count=0,
-                cited_user_evidence_count=0,
-                cited_competitor_evidence_count=0,
-                evidence_context_hash=_HASH,
-                handoff_status=ResearchHandoffStatus.BLOCKED,
-            ),
-        ),
-        evidence_ids=[],
-        contradictions=[],
-        unknowns=[],
-        quality_score=0.0,
-        errors=[],
-    )
-    assert artifact.artifact_type == "product_technical"
-    assert ResearchAgentType.PRODUCT_TECHNICAL.value == "product_technical"
-    assert ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value == "ecosystem_opportunity"
+# 13. 生态机会是统一补研入口支持的领域 Agent。
+def test_ecosystem_opportunity_is_recoverable() -> None:
     assert RecoverableAgentType.ECOSYSTEM_OPPORTUNITY.value == "ecosystem_opportunity"
 
 
