@@ -58,6 +58,10 @@ def build_agent_context(
         for key, value in state.get("artifacts", {}).items()
         if key in allowed
     }
+    if agent_type is ResearchAgentType.RED_TEAM:
+        previous = state.get("artifacts", {}).get(ResearchAgentType.RED_TEAM.value)
+        if previous is not None:
+            artifacts["previous_red_team"] = ResearchArtifact.model_validate(previous)
     decisions = [StageDecision.model_validate(item) for item in state.get("decision_history", [])]
     raw_handoff = state.get("research_handoff")
     handoff = (
@@ -68,6 +72,7 @@ def build_agent_context(
             ResearchAgentType.TECHNICAL_FEASIBILITY,
             ResearchAgentType.SECURITY_POLICY,
             ResearchAgentType.COMMERCIAL_EVALUATION,
+            ResearchAgentType.RED_TEAM,
         }
         and raw_handoff is not None
         else None

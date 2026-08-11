@@ -5,6 +5,7 @@ from typing import Any
 from app.schemas.source_recovery import SourceRecovery, SourceRecoveryResumeMode
 from app.workflows.contracts import (
     ResearchAgentType,
+    ResearchHandoff,
     ResearchState,
     ResearchTask,
     WorkflowContractError,
@@ -33,7 +34,7 @@ def prepare_source_recovery_resume(
     if not affected and directive.mode is SourceRecoveryResumeMode.TARGETED_RETRY:
         raise WorkflowContractError("source recovery does not match any planned task")
 
-    return {
+    update: dict[str, Any] = {
         "affected_task_ids": sorted(affected),
         "iteration": state.get("iteration", 0) + 1,
         "current_stage": (
@@ -50,3 +51,24 @@ def prepare_source_recovery_resume(
             ).model_dump(mode="json")
         ],
     }
+    raw_handoff = state.get("research_handoff")
+    if raw_handoff is not None:
+        handoff = ResearchHandoff.model_validate(raw_handoff)
+        recovered_evidence_ids = [
+            evidence_id
+            for submission in recovery.submissions
+            for evidence_id in submission.evidence_ids
+        ]
+        update["research_handoff"] = handoff.model_copy(
+            update={
+                "supplemental_evidence_ids": list(
+                    dict.fromkeys(
+                        [
+                            *handoff.supplemental_evidence_ids,
+                            *recovered_evidence_ids,
+                        ]
+                    )
+                )
+            }
+        ).model_dump(mode="json")
+    return update

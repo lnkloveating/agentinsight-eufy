@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -40,6 +40,9 @@ from app.workflows.handoff import affected_research_agents, build_research_hando
 from app.workflows.planning import parse_task_plan, task_for_agent
 from app.workflows.runtime import AgentRuntime
 from app.workflows.source_recovery import prepare_source_recovery_resume
+
+if TYPE_CHECKING:
+    from app.agents.red_team_policy_revision.contracts import RedTeamArtifact
 
 CompiledResearchGraph = CompiledStateGraph[
     ResearchState,
@@ -118,16 +121,10 @@ class ResearchWorkflow:
         )
         builder.add_node("prepare_security_policy", self._prepare_security_policy)
         builder.add_node("security_policy", self._security_policy)
-        builder.add_node(
-            "prepare_policy_verification", self._prepare_policy_verification
-        )
+        builder.add_node("prepare_policy_verification", self._prepare_policy_verification)
         builder.add_node("policy_verification", self._policy_verification)
-        builder.add_node(
-            "policy_verification_complete", self._policy_verification_complete
-        )
-        builder.add_node(
-            "prepare_commercial_evaluation", self._prepare_commercial_evaluation
-        )
+        builder.add_node("policy_verification_complete", self._policy_verification_complete)
+        builder.add_node("prepare_commercial_evaluation", self._prepare_commercial_evaluation)
         builder.add_node("commercial_evaluation", self._commercial_evaluation)
         builder.add_node(
             "prepare_commercial_source_recovery",
@@ -138,6 +135,22 @@ class ResearchWorkflow:
             self._commercial_source_recovery_gate,
         )
         builder.add_node("commercial_complete", self._commercial_complete)
+        builder.add_node("prepare_red_team", self._prepare_red_team)
+        builder.add_node("red_team", self._red_team)
+        builder.add_node(
+            "prepare_red_team_source_recovery",
+            self._prepare_red_team_source_recovery,
+        )
+        builder.add_node(
+            "red_team_source_recovery_gate",
+            self._red_team_source_recovery_gate,
+        )
+        builder.add_node("prepare_red_team_revision", self._prepare_red_team_revision)
+        builder.add_node("red_team_revision_dispatch", self._red_team_revision_dispatch)
+        builder.add_node("red_team_research_revision", self._red_team_research_revision)
+        builder.add_node("red_team_complete", self._red_team_complete)
+        builder.add_node("red_team_human_review", self._red_team_human_review)
+        builder.add_node("red_team_rejected", self._red_team_rejected)
         builder.add_node("awaiting_policy_revision", self._awaiting_policy_revision)
         builder.add_node("reject", self._reject)
         builder.add_node("terminate", self._terminate)
@@ -228,12 +241,43 @@ class ResearchWorkflow:
                 "inconclusive": "inconclusive",
             },
         )
-        builder.add_edge(
-            "prepare_commercial_source_recovery", "commercial_source_recovery_gate"
-        )
+        builder.add_edge("prepare_commercial_source_recovery", "commercial_source_recovery_gate")
         builder.add_edge("commercial_source_recovery_gate", "commercial_evaluation")
+        builder.add_edge("commercial_complete", "prepare_red_team")
+        builder.add_edge("prepare_red_team", "red_team")
+        builder.add_conditional_edges(
+            "red_team",
+            self._route_red_team,
+            {
+                "pass": "red_team_complete",
+                "revise": "prepare_red_team_revision",
+                "needs_more_evidence": "prepare_red_team_source_recovery",
+                "human_review": "red_team_human_review",
+                "reject": "red_team_rejected",
+                "inconclusive": "inconclusive",
+            },
+        )
+        builder.add_edge("prepare_red_team_source_recovery", "red_team_source_recovery_gate")
+        builder.add_edge("red_team_source_recovery_gate", "red_team")
+        builder.add_edge("prepare_red_team_revision", "red_team_revision_dispatch")
+        builder.add_conditional_edges(
+            "red_team_revision_dispatch",
+            self._route_red_team_revision,
+            {
+                "research": "red_team_research_revision",
+                "ecosystem_opportunity": "ecosystem_opportunity",
+                "technical_feasibility": "prepare_technical_feasibility",
+                "security_policy": "prepare_security_policy",
+                "policy_verification": "prepare_policy_verification",
+                "commercial_evaluation": "prepare_commercial_evaluation",
+            },
+        )
+        builder.add_edge("red_team_research_revision", "user_research")
+        builder.add_edge("red_team_research_revision", "competitor_research")
         for terminal_node in (
-            "commercial_complete",
+            "red_team_complete",
+            "red_team_human_review",
+            "red_team_rejected",
             "awaiting_policy_revision",
             "reject",
             "terminate",
@@ -321,20 +365,15 @@ class ResearchWorkflow:
             ],
         }
 
-    async def _prepare_commercial_evaluation(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
-        verification_task = self._task(
-            state, ResearchAgentType.POLICY_VERIFICATION
-        )
+    async def _prepare_commercial_evaluation(self, state: ResearchState) -> dict[str, Any]:
+        verification_task = self._task(state, ResearchAgentType.POLICY_VERIFICATION)
         selected_ids = list(dict.fromkeys(state.get("selected_innovation_ids", [])))
         task = ResearchTask(
             task_id=f"task_{state['project_id']}_commercial_evaluation_v2",
             project_id=state["project_id"],
             agent_type=ResearchAgentType.COMMERCIAL_EVALUATION,
             goal=(
-                "Evaluate user value, business hypotheses and delivery conditions "
-                "without scoring."
+                "Evaluate user value, business hypotheses and delivery conditions without scoring."
             ),
             scope={"opportunity_ids": selected_ids},
             required_artifacts=[
@@ -365,9 +404,7 @@ class ResearchWorkflow:
             "outcome": WorkflowOutcome.RUNNING.value,
             "current_stage": "commercial_evaluation_preparation",
             "progress": 89,
-            "node_history": [
-                self._event("prepare_commercial_evaluation", task, "prepared")
-            ],
+            "node_history": [self._event("prepare_commercial_evaluation", task, "prepared")],
         }
 
     async def _commercial_evaluation(self, state: ResearchState) -> dict[str, Any]:
@@ -379,15 +416,11 @@ class ResearchWorkflow:
             accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
         )
 
-    async def _prepare_commercial_source_recovery(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _prepare_commercial_source_recovery(self, state: ResearchState) -> dict[str, Any]:
         artifact = self._artifact(state, ResearchAgentType.COMMERCIAL_EVALUATION)
         gaps = artifact.payload.get("commercial_gaps", [])
         gap_ids = [
-            str(item["gap_id"])
-            for item in gaps
-            if isinstance(item, dict) and item.get("gap_id")
+            str(item["gap_id"]) for item in gaps if isinstance(item, dict) and item.get("gap_id")
         ]
         questions = [
             str(item["question"])
@@ -422,9 +455,7 @@ class ResearchWorkflow:
             ],
         }
 
-    async def _commercial_source_recovery_gate(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _commercial_source_recovery_gate(self, state: ResearchState) -> dict[str, Any]:
         pending = state.get("pending_source_recovery")
         if pending is None:
             raise WorkflowContractError("commercial source recovery has no pending request")
@@ -446,18 +477,237 @@ class ResearchWorkflow:
         artifact = self._artifact(state, ResearchAgentType.COMMERCIAL_EVALUATION)
         recommendation = str(artifact.payload.get("recommendation", "unknown"))
         return {
-            "outcome": WorkflowOutcome.AWAITING_RED_TEAM_REVIEW.value,
+            "outcome": WorkflowOutcome.RUNNING.value,
             "current_stage": "commercial_evaluation_complete",
             "progress": 95,
             "pending_gate": None,
-            "terminal_reason": "red_team_policy_revision_not_implemented",
+            "terminal_reason": None,
             "node_history": [
                 WorkflowEvent(
                     event_type="workflow_phase_completed",
                     node="commercial_complete",
                     task_id=artifact.task_id,
-                    status=WorkflowOutcome.AWAITING_RED_TEAM_REVIEW,
+                    status="completed",
                     message=f"Commercial Evaluation v2 completed: {recommendation}.",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _prepare_red_team(self, state: ResearchState) -> dict[str, Any]:
+        commercial_task = self._task(state, ResearchAgentType.COMMERCIAL_EVALUATION)
+        task = ResearchTask(
+            task_id=f"task_{state['project_id']}_red_team_policy_revision_v2",
+            project_id=state["project_id"],
+            agent_type=ResearchAgentType.RED_TEAM,
+            goal=("攻击 AI 原生家庭安防策略、验证和商业结论，生成证据约束的定向返工要求。"),
+            scope={
+                "opportunity_ids": list(dict.fromkeys(state.get("selected_innovation_ids", []))),
+                "challenges": [],
+            },
+            required_artifacts=[
+                ResearchAgentType.USER_RESEARCH.value,
+                ResearchAgentType.COMPETITOR_RESEARCH.value,
+                ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value,
+                ResearchAgentType.TECHNICAL_FEASIBILITY.value,
+                ResearchAgentType.SECURITY_POLICY.value,
+                ResearchAgentType.POLICY_VERIFICATION.value,
+                ResearchAgentType.COMMERCIAL_EVALUATION.value,
+            ],
+            evidence_rules=commercial_task.evidence_rules,
+            budget=ResearchBudget(
+                max_pages=commercial_task.budget.max_pages,
+                max_iterations=state.get("max_iterations", 2),
+                deadline_seconds=180,
+            ),
+            depends_on=[commercial_task.task_id],
+            acceptance_checks=[
+                "all_attack_dimensions_covered",
+                "all_factual_findings_evidence_bound",
+                "verdict_computed_by_backend",
+                "retry_targets_derived_from_current_artifacts",
+                "rejected_scope_has_safe_fallback",
+            ],
+        )
+        plan = [
+            item
+            for item in self._task_plan(state)
+            if item.agent_type is not ResearchAgentType.RED_TEAM
+        ]
+        plan.append(task)
+        return {
+            "task_plan": [item.model_dump(mode="json") for item in plan],
+            "outcome": WorkflowOutcome.RUNNING.value,
+            "current_stage": "red_team_preparation",
+            "progress": 96,
+            "node_history": [self._event("prepare_red_team", task, "prepared")],
+        }
+
+    async def _red_team(self, state: ResearchState) -> dict[str, Any]:
+        return await self._run_planned_agent(
+            state,
+            ResearchAgentType.RED_TEAM,
+            "red_team_policy_revision",
+            97,
+            accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
+        )
+
+    async def _prepare_red_team_source_recovery(self, state: ResearchState) -> dict[str, Any]:
+        artifact = _parse_red_team_artifact(
+            self._artifact(state, ResearchAgentType.RED_TEAM)
+        )
+        gaps = artifact.payload.red_team_gaps
+        if not gaps:
+            raise WorkflowContractError(
+                "needs_more_evidence red-team result requires explicit gaps"
+            )
+        request = WorkflowSourceRecoveryRequest(
+            project_id=state["project_id"],
+            source_artifact_id=artifact.artifact_id,
+            source_task_id=artifact.task_id,
+            gap_ids=[item.gap_id for item in gaps][:30],
+            questions=[item.question for item in gaps][:30],
+            affected_agent_types=[ResearchAgentType.RED_TEAM.value],
+        )
+        return {
+            "pending_source_recovery": request.model_dump(mode="json"),
+            "outcome": WorkflowOutcome.AWAITING_SOURCE_RECOVERY.value,
+            "current_stage": "red_team_source_recovery",
+            "progress": 97,
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_source_recovery_pending",
+                    node="prepare_red_team_source_recovery",
+                    task_id=artifact.task_id,
+                    status="waiting",
+                    message="等待用户补充红队要求的证据、企业资料或授权说明。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _red_team_source_recovery_gate(self, state: ResearchState) -> dict[str, Any]:
+        pending = state.get("pending_source_recovery")
+        if pending is None:
+            raise WorkflowContractError("red-team source recovery has no pending request")
+        request = WorkflowSourceRecoveryRequest.model_validate(pending)
+        recovery = SourceRecovery.model_validate(interrupt(request.model_dump(mode="json")))
+        update = prepare_source_recovery_resume(state, recovery)
+        task = self._task(state, ResearchAgentType.RED_TEAM)
+        if task.task_id not in update["affected_task_ids"]:
+            raise WorkflowContractError("source recovery does not target red-team task")
+        return {
+            **update,
+            "pending_source_recovery": None,
+            "outcome": WorkflowOutcome.RUNNING.value,
+        }
+
+    async def _prepare_red_team_revision(self, state: ResearchState) -> dict[str, Any]:
+        artifact = _parse_red_team_artifact(
+            self._artifact(state, ResearchAgentType.RED_TEAM)
+        )
+        if not artifact.payload.revision_requests:
+            raise WorkflowContractError("revise verdict requires a RevisionRequest")
+        request = artifact.payload.revision_requests[0]
+        return {
+            "iteration": state.get("iteration", 0) + 1,
+            "affected_task_ids": request.affected_task_ids,
+            "outcome": WorkflowOutcome.RUNNING.value,
+            "current_stage": "red_team_targeted_revision",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_revision_started",
+                    node="prepare_red_team_revision",
+                    task_id=artifact.task_id,
+                    status="running",
+                    message=(
+                        f"红队从 {request.resume_from_agent} 恢复；"
+                        f"受影响任务：{','.join(request.affected_task_ids)}"
+                    ),
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _red_team_revision_dispatch(self, state: ResearchState) -> dict[str, Any]:
+        return {
+            "current_stage": "red_team_revision_dispatch",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_revision_dispatched",
+                    node="red_team_revision_dispatch",
+                    status="completed",
+                    message="已定位最早受影响 Agent；后续依赖节点将按主图重新运行。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _red_team_research_revision(self, state: ResearchState) -> dict[str, Any]:
+        return {
+            "current_stage": "red_team_research_revision",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_revision_dispatched",
+                    node="red_team_research_revision",
+                    status="running",
+                    message="只重跑受影响的用户研究或竞品研究，再重新汇合。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _red_team_complete(self, state: ResearchState) -> dict[str, Any]:
+        artifact = _parse_red_team_artifact(
+            self._artifact(state, ResearchAgentType.RED_TEAM)
+        )
+        return {
+            "outcome": WorkflowOutcome.AWAITING_SCENARIO_VALIDATION.value,
+            "current_stage": "red_team_passed",
+            "progress": 98,
+            "terminal_reason": "goal_to_guard_demo_not_implemented",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_phase_completed",
+                    node="red_team_complete",
+                    task_id=artifact.task_id,
+                    status="passed",
+                    message="红队通过，等待 Goal-to-Guard 场景 Demo。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _red_team_human_review(self, state: ResearchState) -> dict[str, Any]:
+        artifact = _parse_red_team_artifact(
+            self._artifact(state, ResearchAgentType.RED_TEAM)
+        )
+        return {
+            "outcome": WorkflowOutcome.AWAITING_RED_TEAM_REVIEW.value,
+            "current_stage": "red_team_human_review",
+            "progress": 97,
+            "terminal_reason": "privacy_consent_or_intervention_requires_human_review",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_phase_completed",
+                    node="red_team_human_review",
+                    task_id=artifact.task_id,
+                    status="waiting",
+                    message="隐私、授权或高风险干预需要人工决定。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _red_team_rejected(self, state: ResearchState) -> dict[str, Any]:
+        artifact = _parse_red_team_artifact(
+            self._artifact(state, ResearchAgentType.RED_TEAM)
+        )
+        return {
+            "outcome": WorkflowOutcome.REJECTED.value,
+            "current_stage": "red_team_rejected",
+            "progress": 100,
+            "terminal_reason": "irreducible_critical_red_team_finding",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_finished",
+                    node="red_team_rejected",
+                    task_id=artifact.task_id,
+                    status="rejected",
+                    message="当前方案被淘汰；Artifact 已保留安全降级方案和重启条件。",
                 ).model_dump(mode="json")
             ],
         }
@@ -598,9 +848,7 @@ class ResearchWorkflow:
             "outcome": WorkflowOutcome.RUNNING.value,
         }
 
-    async def _prepare_technical_feasibility(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _prepare_technical_feasibility(self, state: ResearchState) -> dict[str, Any]:
         selected_ids = list(dict.fromkeys(state.get("selected_innovation_ids", [])))
         if not selected_ids:
             raise WorkflowContractError(
@@ -643,9 +891,7 @@ class ResearchWorkflow:
             "outcome": WorkflowOutcome.RUNNING.value,
             "current_stage": "technical_feasibility_preparation",
             "progress": 60,
-            "node_history": [
-                self._event("prepare_technical_feasibility", task, "prepared")
-            ],
+            "node_history": [self._event("prepare_technical_feasibility", task, "prepared")],
         }
 
     async def _technical_feasibility(self, state: ResearchState) -> dict[str, Any]:
@@ -660,9 +906,7 @@ class ResearchWorkflow:
             },
         )
 
-    async def _prepare_technical_source_recovery(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _prepare_technical_source_recovery(self, state: ResearchState) -> dict[str, Any]:
         artifact = self._artifact(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
         gaps = artifact.payload.get("portfolio_gaps", [])
         gap_ids = list(
@@ -707,16 +951,12 @@ class ResearchWorkflow:
             ],
         }
 
-    async def _technical_source_recovery_gate(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _technical_source_recovery_gate(self, state: ResearchState) -> dict[str, Any]:
         pending = state.get("pending_source_recovery")
         if pending is None:
             raise WorkflowContractError("technical source recovery has no pending request")
         request = WorkflowSourceRecoveryRequest.model_validate(pending)
-        recovery = SourceRecovery.model_validate(
-            interrupt(request.model_dump(mode="json"))
-        )
+        recovery = SourceRecovery.model_validate(interrupt(request.model_dump(mode="json")))
         update = prepare_source_recovery_resume(state, recovery)
         task = self._task(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
         if task.task_id not in update["affected_task_ids"]:
@@ -778,9 +1018,7 @@ class ResearchWorkflow:
             accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
         )
 
-    async def _prepare_policy_verification(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _prepare_policy_verification(self, state: ResearchState) -> dict[str, Any]:
         policy_task = self._task(state, ResearchAgentType.SECURITY_POLICY)
         task = ResearchTask(
             task_id=f"task_{state['project_id']}_policy_verification",
@@ -807,9 +1045,7 @@ class ResearchWorkflow:
             "outcome": WorkflowOutcome.RUNNING.value,
             "current_stage": "policy_verification_preparation",
             "progress": 80,
-            "node_history": [
-                self._event("prepare_policy_verification", task, "prepared")
-            ],
+            "node_history": [self._event("prepare_policy_verification", task, "prepared")],
         }
 
     async def _policy_verification(self, state: ResearchState) -> dict[str, Any]:
@@ -821,9 +1057,7 @@ class ResearchWorkflow:
             accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
         )
 
-    async def _policy_verification_complete(
-        self, state: ResearchState
-    ) -> dict[str, Any]:
+    async def _policy_verification_complete(self, state: ResearchState) -> dict[str, Any]:
         artifact = self._artifact(state, ResearchAgentType.POLICY_VERIFICATION)
         verification_status = artifact.payload.get("verification_status")
         if verification_status == "failed":
@@ -1069,9 +1303,7 @@ class ResearchWorkflow:
 
     @staticmethod
     def _route_technical_feasibility(state: ResearchState) -> str:
-        raw = state.get("artifacts", {}).get(
-            ResearchAgentType.TECHNICAL_FEASIBILITY.value
-        )
+        raw = state.get("artifacts", {}).get(ResearchAgentType.TECHNICAL_FEASIBILITY.value)
         if raw is None:
             raise WorkflowContractError("missing technical feasibility artifact")
         artifact = ResearchArtifact.model_validate(raw)
@@ -1088,9 +1320,7 @@ class ResearchWorkflow:
 
     @staticmethod
     def _route_policy_verification_complete(state: ResearchState) -> str:
-        raw = state.get("artifacts", {}).get(
-            ResearchAgentType.POLICY_VERIFICATION.value
-        )
+        raw = state.get("artifacts", {}).get(ResearchAgentType.POLICY_VERIFICATION.value)
         if raw is None:
             raise WorkflowContractError("missing policy verification artifact")
         artifact = ResearchArtifact.model_validate(raw)
@@ -1100,16 +1330,12 @@ class ResearchWorkflow:
         if status == "inconclusive":
             return "inconclusive"
         if status not in {"passed", "conditionally_passed"}:
-            raise WorkflowContractError(
-                f"unsupported policy verification status: {status}"
-            )
+            raise WorkflowContractError(f"unsupported policy verification status: {status}")
         return "advance"
 
     @staticmethod
     def _route_commercial_evaluation(state: ResearchState) -> str:
-        raw = state.get("artifacts", {}).get(
-            ResearchAgentType.COMMERCIAL_EVALUATION.value
-        )
+        raw = state.get("artifacts", {}).get(ResearchAgentType.COMMERCIAL_EVALUATION.value)
         if raw is None:
             raise WorkflowContractError("missing commercial evaluation artifact")
         artifact = ResearchArtifact.model_validate(raw)
@@ -1123,10 +1349,46 @@ class ResearchWorkflow:
             "conditional",
             "do_not_recommend",
         }:
-            raise WorkflowContractError(
-                f"unsupported commercial recommendation: {recommendation}"
-            )
+            raise WorkflowContractError(f"unsupported commercial recommendation: {recommendation}")
         return "advance"
+
+    @staticmethod
+    def _route_red_team(state: ResearchState) -> str:
+        raw = state.get("artifacts", {}).get(ResearchAgentType.RED_TEAM.value)
+        if raw is None:
+            raise WorkflowContractError("missing red-team artifact")
+        artifact = _parse_red_team_artifact(ResearchArtifact.model_validate(raw))
+        verdict = artifact.payload.verdict
+        if verdict.value in {
+            "revise",
+            "needs_more_evidence",
+        } and state.get("iteration", 0) >= state.get("max_iterations", 2):
+            return "inconclusive"
+        return verdict.value
+
+    @staticmethod
+    def _route_red_team_revision(state: ResearchState) -> str:
+        raw = state.get("artifacts", {}).get(ResearchAgentType.RED_TEAM.value)
+        if raw is None:
+            raise WorkflowContractError("missing red-team artifact")
+        artifact = _parse_red_team_artifact(ResearchArtifact.model_validate(raw))
+        if not artifact.payload.revision_requests:
+            raise WorkflowContractError("red-team revision has no RevisionRequest")
+        resume_from = artifact.payload.revision_requests[0].resume_from_agent
+        if resume_from in {
+            ResearchAgentType.USER_RESEARCH.value,
+            ResearchAgentType.COMPETITOR_RESEARCH.value,
+        }:
+            return "research"
+        if resume_from not in {
+            ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value,
+            ResearchAgentType.TECHNICAL_FEASIBILITY.value,
+            ResearchAgentType.SECURITY_POLICY.value,
+            ResearchAgentType.POLICY_VERIFICATION.value,
+            ResearchAgentType.COMMERCIAL_EVALUATION.value,
+        }:
+            raise WorkflowContractError(f"unsupported red-team resume agent: {resume_from}")
+        return resume_from
 
     @staticmethod
     def _event(
@@ -1168,3 +1430,10 @@ def compile_research_graph(
     checkpointer: BaseCheckpointSaver[Any],
 ) -> CompiledResearchGraph:
     return ResearchWorkflow(runtime, checkpointer).graph
+
+
+def _parse_red_team_artifact(artifact: ResearchArtifact) -> RedTeamArtifact:
+    # Local import keeps workflow contracts independent from Agent adapter imports.
+    from app.agents.red_team_policy_revision.contracts import RedTeamArtifact
+
+    return RedTeamArtifact.from_research_artifact(artifact)
