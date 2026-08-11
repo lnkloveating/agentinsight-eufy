@@ -86,6 +86,9 @@ def test_context_builder_exposes_only_allowed_upstream_artifacts() -> None:
     ecosystem_context = build_agent_context(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
     technical_context = build_agent_context(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
     policy_context = build_agent_context(state, ResearchAgentType.SECURITY_POLICY)
+    verification_context = build_agent_context(
+        state, ResearchAgentType.POLICY_VERIFICATION
+    )
 
     assert user_context.upstream_artifacts == {}
     assert set(commercial_context.upstream_artifacts) == {
@@ -105,6 +108,7 @@ def test_context_builder_exposes_only_allowed_upstream_artifacts() -> None:
         "technical_feasibility",
         "security_policy",
     }
+    assert set(verification_context.upstream_artifacts) == {"security_policy"}
 
 
 def test_gate_rejects_wrong_id_and_scenario_approval_without_selection() -> None:
