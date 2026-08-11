@@ -112,7 +112,7 @@ async def _seed(database: Database, project_id: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_langgraph_runs_all_nodes_through_persistent_runtime_gateway(
+async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway(
     tmp_path: Path,
 ) -> None:
     database = Database(f"sqlite+aiosqlite:///{tmp_path / 'runtime-graph.db'}")
@@ -142,28 +142,24 @@ async def test_langgraph_runs_all_nodes_through_persistent_runtime_gateway(
         result = await graph.ainvoke(
             Command(resume=_decision(_request(result), DecisionAction.APPROVE)), config
         )
-        assert _request(result).gate is GateName.SCENARIO
+        assert _request(result).gate is GateName.AI_NATIVE_ECOSYSTEM
         result = await graph.ainvoke(
             Command(
                 resume=_decision(
                     _request(result),
                     DecisionAction.APPROVE,
-                    selected=["inv_one"],
+                    selected=["eco_continuous_guard"],
                 )
             ),
             config,
         )
-        assert _request(result).gate is GateName.FINAL
-        result = await graph.ainvoke(
-            Command(resume=_decision(_request(result), DecisionAction.APPROVE)), config
-        )
 
-        assert result["outcome"] == WorkflowOutcome.COMPLETED
+        assert result["outcome"] == WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY
         async with database.session() as session:
             repository = ProjectRepository(session)
             runs = await repository.list_agent_runs(project_id)
             events = await repository.list_events(project_id, limit=200)
-        # 主图执行 RESEARCH_MANAGER 加上 PLANNED_AGENT_TYPES；新增枚举暂不接入主图。
+        # 当前主图执行到 AI Native Gate；后续技术可行性分支再继续接线。
         main_path_types = {ResearchAgentType.RESEARCH_MANAGER, *PLANNED_AGENT_TYPES}
         assert len(runs) == len(main_path_types)
         assert all(run.output_artifact_id is not None for run in runs)

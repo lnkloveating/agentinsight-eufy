@@ -58,7 +58,7 @@ async def test_manager_plan_requires_all_roles_and_dependencies() -> None:
     )
 
     tasks = parse_task_plan(artifact, "proj_test")
-    # 主路径计划覆盖 PLANNED_AGENT_TYPES；ECOSYSTEM_OPPORTUNITY 等新增枚举暂不进入主图。
+    # 当前主路径只规划已经接线的用户、竞品生态与生态机会 Agent。
     assert {item.agent_type for item in tasks} == set(PLANNED_AGENT_TYPES)
 
     invalid_payload = deepcopy(artifact.model_dump(mode="json"))
@@ -83,6 +83,7 @@ def test_context_builder_exposes_only_allowed_upstream_artifacts() -> None:
 
     user_context = build_agent_context(state, ResearchAgentType.USER_RESEARCH)
     commercial_context = build_agent_context(state, ResearchAgentType.COMMERCIAL_EVALUATION)
+    ecosystem_context = build_agent_context(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
 
     assert user_context.upstream_artifacts == {}
     assert set(commercial_context.upstream_artifacts) == {
@@ -91,6 +92,10 @@ def test_context_builder_exposes_only_allowed_upstream_artifacts() -> None:
         "product_technical",
     }
     assert "red_team" not in commercial_context.upstream_artifacts
+    assert set(ecosystem_context.upstream_artifacts) == {
+        "user_research",
+        "competitor_research",
+    }
 
 
 def test_gate_rejects_wrong_id_and_scenario_approval_without_selection() -> None:
@@ -110,3 +115,26 @@ def test_gate_rejects_wrong_id_and_scenario_approval_without_selection() -> None
     no_selection.selected_innovation_ids = []
     with pytest.raises(WorkflowContractError, match="select at least one"):
         validate_stage_decision(no_selection, request)
+
+
+def test_ai_native_gate_only_approves_deterministically_eligible_opportunities() -> None:
+    request = build_gate_request(
+        "proj_test",
+        GateName.AI_NATIVE_ECOSYSTEM,
+        0,
+        {
+            "eligible_opportunity_ids": ["eco_allowed"],
+            "source_recovery_gap_ids": [],
+        },
+    )
+    assert DecisionAction.RESEARCH_MORE not in request.allowed_actions
+    invalid = StageDecision(
+        decision_id=request.decision_id,
+        gate=request.gate,
+        action=DecisionAction.APPROVE,
+        actor="tester",
+        reason="select a blocked candidate",
+        selected_innovation_ids=["eco_blocked"],
+    )
+    with pytest.raises(WorkflowContractError, match="did not pass"):
+        validate_stage_decision(invalid, request)
