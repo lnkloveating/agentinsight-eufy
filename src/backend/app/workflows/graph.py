@@ -106,7 +106,17 @@ class ResearchWorkflow:
         builder.add_node("prepare_ecosystem_revision", self._prepare_ecosystem_revision)
         builder.add_node("prepare_source_recovery", self._prepare_source_recovery)
         builder.add_node("source_recovery_gate", self._source_recovery_gate)
-        builder.add_node("awaiting_technical_feasibility", self._awaiting_technical_feasibility)
+        builder.add_node("prepare_technical_feasibility", self._prepare_technical_feasibility)
+        builder.add_node("technical_feasibility", self._technical_feasibility)
+        builder.add_node(
+            "prepare_technical_source_recovery",
+            self._prepare_technical_source_recovery,
+        )
+        builder.add_node(
+            "technical_source_recovery_gate",
+            self._technical_source_recovery_gate,
+        )
+        builder.add_node("awaiting_security_policy", self._awaiting_security_policy)
         builder.add_node("reject", self._reject)
         builder.add_node("terminate", self._terminate)
         builder.add_node("inconclusive", self._inconclusive)
@@ -147,7 +157,7 @@ class ResearchWorkflow:
             "ai_native_gate",
             self._route_ai_native_decision,
             {
-                "approve": "awaiting_technical_feasibility",
+                "approve": "prepare_technical_feasibility",
                 "research_more": "prepare_source_recovery",
                 "revise": "prepare_ecosystem_revision",
                 "reject": "reject",
@@ -158,8 +168,23 @@ class ResearchWorkflow:
         builder.add_edge("prepare_ecosystem_revision", "ecosystem_opportunity")
         builder.add_edge("prepare_source_recovery", "source_recovery_gate")
         builder.add_edge("source_recovery_gate", "ecosystem_opportunity")
+        builder.add_edge("prepare_technical_feasibility", "technical_feasibility")
+        builder.add_conditional_edges(
+            "technical_feasibility",
+            self._route_technical_feasibility,
+            {
+                "advance": "awaiting_security_policy",
+                "research_more": "prepare_technical_source_recovery",
+                "inconclusive": "inconclusive",
+            },
+        )
+        builder.add_edge(
+            "prepare_technical_source_recovery",
+            "technical_source_recovery_gate",
+        )
+        builder.add_edge("technical_source_recovery_gate", "technical_feasibility")
         for terminal_node in (
-            "awaiting_technical_feasibility",
+            "awaiting_security_policy",
             "reject",
             "terminate",
             "inconclusive",
@@ -364,20 +389,157 @@ class ResearchWorkflow:
             "outcome": WorkflowOutcome.RUNNING.value,
         }
 
-    async def _awaiting_technical_feasibility(self, state: ResearchState) -> dict[str, Any]:
-        del state
+    async def _prepare_technical_feasibility(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        selected_ids = list(dict.fromkeys(state.get("selected_innovation_ids", [])))
+        if not selected_ids:
+            raise WorkflowContractError(
+                "technical feasibility requires Human Gate selected opportunities"
+            )
+        opportunity_task = self._task(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
+        task = ResearchTask(
+            task_id=f"task_{state['project_id']}_technical_feasibility",
+            project_id=state["project_id"],
+            agent_type=ResearchAgentType.TECHNICAL_FEASIBILITY,
+            goal=(
+                "逐项验证已批准生态机会所需的设备能力、数据、接口、部署、性能、"
+                "隐私、权限与失败降级条件，并限定可验证 Demo 的技术边界。"
+            ),
+            scope={"selected_opportunity_ids": selected_ids},
+            required_artifacts=[
+                ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value,
+                "device_capability_graph",
+            ],
+            evidence_rules=opportunity_task.evidence_rules,
+            budget=ResearchBudget(
+                max_pages=opportunity_task.budget.max_pages,
+                max_iterations=state.get("max_iterations", 2),
+                deadline_seconds=180,
+            ),
+            depends_on=[opportunity_task.task_id],
+            acceptance_checks=[
+                "selected_opportunities_assessed",
+                "technical_dimensions_complete",
+                "device_capability_graph_reconciled",
+                "deterministic_verdict",
+            ],
+        )
+        plan = self._task_plan(state)
+        plan = [item for item in plan if item.agent_type is not task.agent_type]
+        plan.append(task)
         return {
-            "outcome": WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY.value,
-            "current_stage": "technical_feasibility_pending",
+            "task_plan": [item.model_dump(mode="json") for item in plan],
+            "affected_task_ids": [],
+            "outcome": WorkflowOutcome.RUNNING.value,
+            "current_stage": "technical_feasibility_preparation",
             "progress": 60,
+            "node_history": [
+                self._event("prepare_technical_feasibility", task, "prepared")
+            ],
+        }
+
+    async def _technical_feasibility(self, state: ResearchState) -> dict[str, Any]:
+        return await self._run_planned_agent(
+            state,
+            ResearchAgentType.TECHNICAL_FEASIBILITY,
+            "technical_feasibility",
+            68,
+            accepted_statuses={
+                ResearchTaskStatus.COMPLETED,
+                ResearchTaskStatus.PARTIAL,
+            },
+        )
+
+    async def _prepare_technical_source_recovery(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
+        gaps = artifact.payload.get("portfolio_gaps", [])
+        gap_ids = list(
+            dict.fromkeys(
+                str(item.get("gap_id"))
+                for item in gaps
+                if isinstance(item, dict) and item.get("gap_id")
+            )
+        )
+        questions = list(
+            dict.fromkeys(
+                str(item.get("question"))
+                for item in gaps
+                if isinstance(item, dict) and item.get("question")
+            )
+        )
+        if not gap_ids or not questions:
+            raise WorkflowContractError(
+                "insufficient technical feasibility requires explicit source gaps"
+            )
+        request = WorkflowSourceRecoveryRequest(
+            project_id=state["project_id"],
+            source_artifact_id=artifact.artifact_id,
+            source_task_id=artifact.task_id,
+            gap_ids=gap_ids[:30],
+            questions=questions[:30],
+            affected_agent_types=[ResearchAgentType.TECHNICAL_FEASIBILITY.value],
+        )
+        return {
+            "pending_source_recovery": request.model_dump(mode="json"),
+            "outcome": WorkflowOutcome.AWAITING_SOURCE_RECOVERY.value,
+            "current_stage": "technical_feasibility_source_recovery",
+            "progress": 68,
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_source_recovery_pending",
+                    node="prepare_technical_source_recovery",
+                    task_id=artifact.task_id,
+                    status="waiting",
+                    message="等待用户补充设备 API、部署、性能或内部测试证据。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _technical_source_recovery_gate(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        pending = state.get("pending_source_recovery")
+        if pending is None:
+            raise WorkflowContractError("technical source recovery has no pending request")
+        request = WorkflowSourceRecoveryRequest.model_validate(pending)
+        recovery = SourceRecovery.model_validate(
+            interrupt(request.model_dump(mode="json"))
+        )
+        update = prepare_source_recovery_resume(state, recovery)
+        task = self._task(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
+        if task.task_id not in update["affected_task_ids"]:
+            raise WorkflowContractError(
+                "source recovery does not target technical feasibility task"
+            )
+        return {
+            **update,
+            "pending_source_recovery": None,
+            "outcome": WorkflowOutcome.RUNNING.value,
+        }
+
+    async def _awaiting_security_policy(self, state: ResearchState) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.TECHNICAL_FEASIBILITY)
+        coverage = artifact.payload.get("coverage", {})
+        return {
+            "outcome": WorkflowOutcome.AWAITING_SECURITY_POLICY.value,
+            "current_stage": "security_policy_pending",
+            "progress": 70,
             "pending_gate": None,
-            "terminal_reason": "technical_feasibility_not_implemented",
+            "terminal_reason": "security_policy_not_implemented",
             "node_history": [
                 WorkflowEvent(
                     event_type="workflow_phase_completed",
-                    node="awaiting_technical_feasibility",
-                    status=WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY,
-                    message="AI 原生生态机会已获批，等待技术可行性 Agent。",
+                    node="awaiting_security_policy",
+                    task_id=artifact.task_id,
+                    status=WorkflowOutcome.AWAITING_SECURITY_POLICY,
+                    message=(
+                        "技术可行性评估完成："
+                        f"{coverage.get('demo_feasible_count', 0)} 个可直接验证，"
+                        f"{coverage.get('conditionally_feasible_count', 0)} 个有条件可验证。"
+                    ),
                 ).model_dump(mode="json")
             ],
         }
@@ -591,6 +753,25 @@ class ResearchWorkflow:
         ) >= state.get("max_iterations", 2):
             return "inconclusive"
         return decision
+
+    @staticmethod
+    def _route_technical_feasibility(state: ResearchState) -> str:
+        raw = state.get("artifacts", {}).get(
+            ResearchAgentType.TECHNICAL_FEASIBILITY.value
+        )
+        if raw is None:
+            raise WorkflowContractError("missing technical feasibility artifact")
+        artifact = ResearchArtifact.model_validate(raw)
+        coverage = artifact.payload.get("coverage", {})
+        advancing = int(coverage.get("demo_feasible_count", 0)) + int(
+            coverage.get("conditionally_feasible_count", 0)
+        )
+        if advancing:
+            return "advance"
+        if int(coverage.get("insufficient_evidence_count", 0)):
+            if state.get("iteration", 0) < state.get("max_iterations", 2):
+                return "research_more"
+        return "inconclusive"
 
     @staticmethod
     def _event(

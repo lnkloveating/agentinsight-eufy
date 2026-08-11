@@ -26,6 +26,11 @@ from app.agents.ecosystem_opportunity import (
     EcosystemOpportunityModelAgentAdapter,
     register_ecosystem_opportunity_prompt,
 )
+from app.agents.technical_feasibility import (
+    TechnicalFeasibilityContextBuilder,
+    TechnicalFeasibilityModelAgentAdapter,
+    register_technical_feasibility_prompt,
+)
 from app.agents.user_research import UserResearchModelAgentAdapter
 from app.agents.user_research.prompt import register_user_research_prompt
 from app.api.v1.router import api_router
@@ -88,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_brief_clarifier_prompt(prompt_registry)
     register_user_research_prompt(prompt_registry)
     register_ecosystem_opportunity_prompt(prompt_registry)
+    register_technical_feasibility_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
     register_competitor_ecosystem_prompt(prompt_registry)
     register_competitor_synthesis_prompt(prompt_registry)
@@ -248,6 +254,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     max_total_chars=(
                         resolved_settings.ecosystem_opportunity_max_total_evidence_chars
                     ),
+                ),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.TECHNICAL_FEASIBILITY,
+            TechnicalFeasibilityModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.technical_feasibility_model_timeout_seconds
+                ),
+                context_builder=TechnicalFeasibilityContextBuilder(
+                    EcosystemOpportunityContextBuilder(
+                        database,
+                        max_items=(
+                            resolved_settings.technical_feasibility_max_evidence_items
+                        ),
+                        max_excerpt_chars=(
+                            resolved_settings.technical_feasibility_max_excerpt_chars
+                        ),
+                        max_total_chars=(
+                            resolved_settings.technical_feasibility_max_total_evidence_chars
+                        ),
+                    )
                 ),
             ),
         )

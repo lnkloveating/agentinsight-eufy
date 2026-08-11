@@ -499,7 +499,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 - `revise` 只重跑 Ecosystem Opportunity；
 - `research_more` 进入统一 Source Recovery，恢复后不重复用户与竞品研究；
 - Checkpoint 能只恢复失败的 Ecosystem Opportunity 节点；
-- 当前批准后明确停在 `awaiting_technical_feasibility`；旧 Product Technical v1 已不存在，也不会调用旧商业链路。
+- 当前批准后进入 Technical Feasibility；旧 Product Technical v1 已不存在，也不会调用旧商业链路。
 
 详细契约和前端状态见 `docs/ai-native-ecosystem-gate.md`。
 
@@ -514,19 +514,36 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 - 技术资料路由、上下文策略和通用 Source Recovery 改为面向生态机会；
 - 前端只能调用 ecosystem-opportunity 接口，不得保留旧单产品入口。
 
-### 下一分支：`agent/technical-feasibility`
+### 已完成：`agent/technical-feasibility`
 
 目标：消费已获 AI Native Gate 批准的生态机会和 Device Capability Graph，判断现有设备、数据、API、
 隐私、部署、延迟和失效模式是否足以支持试点或首个 Demo。不得把技术假设写成现有能力，也不得用论文
 替代真实设备/API Evidence。
+
+已完成：
+
+- 公共运行与 Artifact 历史接口；
+- 真实 Model Gateway/Runtime Adapter、Prompt、Context Builder 和版本化 Artifact；
+- 模型只拆解需求，最终四类 verdict 由后端结合 Evidence 与 Device Capability Graph 计算；
+- data/interface、deployment、performance、privacy、resilience 强制覆盖；
+- 支持授权、离线降级、冲突、不支持与未知能力的不同语义；
+- 技术 Gap 接入统一 Source Recovery，补证后只重跑技术 Agent；
+- 主图至少有一个可验证机会后停在 `awaiting_security_policy`，不会提前宣称商业可行或上架。
+
+详细说明见 `docs/technical-feasibility-agent.md`。
+
+### 下一分支：`agent/security-policy-compiler`
+
+目标：把通过技术可行性验证的开放安全目标编译为可解释的跨设备策略，包括状态变量、感知请求、
+风险升级、动作阶梯、权限边界、离线 fallback 与策略版本；不直接执行真实家庭动作。
 
 ### 后续顺序
 
 ```text
 1. agent/ecosystem-opportunity
 2. workflow/ai-native-ecosystem-gate
-3. agent/technical-feasibility
-4. agent/security-policy-compiler
+3. agent/technical-feasibility（已完成）
+4. agent/security-policy-compiler（下一步）
 5. workflow/security-policy-verification
 6. agent/commercial-evaluation-v2
 7. agent/redteam-policy-revision

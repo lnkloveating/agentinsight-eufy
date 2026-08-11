@@ -670,8 +670,7 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - 只有 Artifact 存在真实 `portfolio_gaps` 时才允许 `research_more`；统一 Source Recovery 完成后只恢复
   Ecosystem Opportunity，不重复用户与竞品研究；
 - Checkpoint 能在 Ecosystem Opportunity 节点失败后恢复该节点，不重复已完成并行研究；
-- 技术可行性尚未实现时，批准后明确停在 `awaiting_technical_feasibility`，不得调用旧单产品链路或显示
-  已可落地、可商业化、可上架；
+- 批准后只能把确定性合格且由用户选择的 Opportunity 交给技术可行性 Agent，不得调用旧单产品链路；
 - 本分支不新增公共 HTTP API，详细状态与前端语义见 `docs/ai-native-ecosystem-gate.md`。
 
 自动化映射：
@@ -699,6 +698,31 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/unit/test_workflow_contracts.py`
 - `tests/unit/test_agent_gap_projector.py`
 - 全量 Ruff、Mypy 与 Pytest。
+
+## AC-24 技术可行性 Agent（分支 `agent/technical-feasibility`）
+
+Human Gate 选中的生态机会必须经过 Evidence 与 Device Capability Graph 约束的技术评估，模型不能
+自行宣布可落地。
+
+验收要求：
+
+- OpenAPI 与 FastAPI 提供运行和 Artifact 历史接口，请求必须选择 1–5 个唯一 Opportunity ID；
+- 只消费最新 Ecosystem Opportunity、Research Handoff、共享 Evidence、设备能力图和已解决补研证据；
+- 模型输出只包含技术需求、架构、Demo 边界、失败模式和补研问题，不包含最终 verdict；
+- data/interface、deployment、performance、privacy、resilience 必须全部覆盖；
+- 非 unknown 技术状态必须引用当前受控 Evidence，编造或越界 Evidence ID 被拒绝；
+- 设备必需能力由后端与 Capability Graph 精确匹配，`unknown` 不得改写为 unsupported；
+- 后端确定性生成 `demo_feasible / conditionally_feasible / insufficient_evidence / not_feasible`；
+- 缺证据时生成稳定 Gap，主图进入通用 Source Recovery，补证后只重跑技术 Agent；
+- 至少一个可验证机会才进入 `awaiting_security_policy`；全部明确不可行或补研预算耗尽时返回 inconclusive；
+- Runtime 保存 Agent Run、模型审计、Artifact 版本和上游血缘，不保存 Key 或家庭原始媒体。
+
+自动化映射：
+
+- `tests/unit/test_technical_feasibility_agent.py`
+- `tests/unit/test_workflow_contracts.py`
+- `tests/integration/test_research_workflow.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
 
 ## Release gate
 

@@ -22,11 +22,13 @@ class TestAgentRuntime:
         fail_once: set[ResearchAgentType] | None = None,
         competitor_ready_with_gaps: bool = False,
         invalid_competitor_attempts: int = 0,
+        technical_verdict: str = "demo_feasible",
     ) -> None:
         self.evidence_ready_on_attempt = evidence_ready_on_attempt
         self.fail_once = set(fail_once or set())
         self.competitor_ready_with_gaps = competitor_ready_with_gaps
         self.invalid_competitor_attempts = invalid_competitor_attempts
+        self.technical_verdict = technical_verdict
         self.calls: list[ResearchAgentType] = []
         self.call_counts: Counter[ResearchAgentType] = Counter()
         self.contexts: dict[ResearchAgentType, AgentContext] = {}
@@ -106,6 +108,13 @@ class TestAgentRuntime:
         elif task.agent_type is ResearchAgentType.ECOSYSTEM_OPPORTUNITY:
             evidence_ids = _upstream_evidence(context)
             payload = _ecosystem_opportunity_payload(evidence_ids)
+        elif task.agent_type is ResearchAgentType.TECHNICAL_FEASIBILITY:
+            evidence_ids = _upstream_evidence(context)
+            payload = _technical_feasibility_payload(
+                context.selected_innovation_ids,
+                evidence_ids,
+                verdict=self.technical_verdict,
+            )
 
         return ResearchArtifact(
             artifact_id=f"artifact_{task.task_id}_{self.call_counts[task.agent_type]}",
@@ -372,5 +381,59 @@ def _ecosystem_opportunity_payload(evidence_ids: list[str]) -> dict[str, object]
             "cited_competitor_evidence_count": 1,
             "evidence_context_hash": "a" * 64,
             "handoff_status": "ready",
+        },
+    }
+
+
+def _technical_feasibility_payload(
+    selected_ids: list[str],
+    evidence_ids: list[str],
+    *,
+    verdict: str,
+) -> dict[str, object]:
+    gaps = (
+        [
+            {
+                "gap_id": "gap_technical_api",
+                "question": "Which authorized API proves the required event interface?",
+                "reason": "Current technical evidence is insufficient.",
+                "required_evidence_types": ["api_documentation"],
+                "affected_opportunity_ids": selected_ids,
+            }
+        ]
+        if verdict == "insufficient_evidence"
+        else []
+    )
+    return {
+        "schema_name": "technical_feasibility_portfolio",
+        "schema_version": "1.0",
+        "source_opportunity_artifact_id": "artifact_ecosystem_opportunity",
+        "selected_opportunity_ids": selected_ids,
+        "summary": "The selected ecosystem opportunity can proceed to a bounded Demo.",
+        "summary_evidence_ids": evidence_ids,
+        "assessments": [
+            {
+                "opportunity_id": opportunity_id,
+                "verdict": verdict,
+                "source_requirements": gaps,
+            }
+            for opportunity_id in selected_ids
+        ],
+        "portfolio_gaps": gaps,
+        "coverage": {
+            "selected_opportunity_count": len(selected_ids),
+            "assessed_opportunity_count": len(selected_ids),
+            "demo_feasible_count": (
+                len(selected_ids) if verdict == "demo_feasible" else 0
+            ),
+            "conditionally_feasible_count": 0,
+            "insufficient_evidence_count": (
+                len(selected_ids) if verdict == "insufficient_evidence" else 0
+            ),
+            "not_feasible_count": (
+                len(selected_ids) if verdict == "not_feasible" else 0
+            ),
+            "evidence_context_hash": "a" * 64,
+            "capability_graph_hash": "b" * 64,
         },
     }
