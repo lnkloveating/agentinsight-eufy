@@ -2,11 +2,16 @@ from fastapi import APIRouter, status
 
 from app.agents.competitor import CompetitorEcosystemArtifact
 from app.agents.ecosystem_opportunity import EcosystemOpportunityArtifact
+from app.agents.technical_feasibility import (
+    TechnicalFeasibilityArtifact,
+    TechnicalFeasibilityRunCreate,
+)
 from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
     CompetitorEcosystemServiceDependency,
     EcosystemOpportunityServiceDependency,
     SourceRecoveryServiceDependency,
+    TechnicalFeasibilityServiceDependency,
     UserResearchServiceDependency,
 )
 from app.schemas.source_recovery import (
@@ -99,6 +104,35 @@ async def list_ecosystem_opportunity_artifacts(
     project_id: str,
     service: EcosystemOpportunityServiceDependency,
 ) -> list[EcosystemOpportunityArtifact]:
+    return await service.list_artifacts(project_id)
+
+
+@router.post(
+    "/{project_id}/agents/technical-feasibility",
+    response_model=TechnicalFeasibilityArtifact,
+    summary="运行技术可行性 Agent",
+    description=(
+        "只评估 AI Native Ecosystem Gate 已选择的机会；模型提出技术需求，后端结合"
+        " Evidence 与 Device Capability Graph 确定可行性结论和补研缺口。"
+    ),
+)
+async def run_technical_feasibility(
+    project_id: str,
+    payload: TechnicalFeasibilityRunCreate,
+    service: TechnicalFeasibilityServiceDependency,
+) -> TechnicalFeasibilityArtifact:
+    return await service.run(project_id, payload)
+
+
+@router.get(
+    "/{project_id}/agents/technical-feasibility/artifacts",
+    response_model=list[TechnicalFeasibilityArtifact],
+    summary="查询技术可行性 Artifact 历史版本",
+)
+async def list_technical_feasibility_artifacts(
+    project_id: str,
+    service: TechnicalFeasibilityServiceDependency,
+) -> list[TechnicalFeasibilityArtifact]:
     return await service.list_artifacts(project_id)
 
 

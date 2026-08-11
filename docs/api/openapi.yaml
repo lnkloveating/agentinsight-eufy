@@ -330,6 +330,52 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/agents/technical-feasibility:
+    post:
+      tags: [Research]
+      summary: Run the Technical Feasibility Agent
+      description: |
+        Assesses only Human Gate selected ecosystem opportunities. Model-authored technical
+        requirements are evidence-bounded; capability support and final verdicts are computed
+        deterministically from the Device Capability Graph. This does not approve production launch.
+      operationId: runTechnicalFeasibilityAgent
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TechnicalFeasibilityRunCreate"
+      responses:
+        "200":
+          description: A persisted technical feasibility portfolio.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TechnicalFeasibilityArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/technical-feasibility/artifacts:
+    get:
+      tags: [Research]
+      summary: List Technical Feasibility Artifact versions
+      operationId: listTechnicalFeasibilityArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Technical Feasibility Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TechnicalFeasibilityArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps:
     get:
       tags: [Research, Evidence]
@@ -1842,6 +1888,7 @@ components:
           - user_research
           - competitor_research
           - ecosystem_opportunity
+          - technical_feasibility
           - commercial_evaluation
           - red_team
           - candidate_synthesis
@@ -2540,7 +2587,7 @@ components:
         task_id: { type: [string, "null"] }
         agent_type:
           type: string
-          enum: [research_manager, user_research, competitor_research, ecosystem_opportunity, business, red_team]
+          enum: [research_manager, user_research, competitor_research, ecosystem_opportunity, technical_feasibility, business, red_team]
         agent_name: { type: string }
         status:
           $ref: "#/components/schemas/AgentRunStatus"
@@ -3562,6 +3609,236 @@ components:
         quality_score: { type: number, minimum: 0, maximum: 100 }
         errors:
           type: array
+          items: { type: string }
+
+    TechnicalFeasibilityRunCreate:
+      type: object
+      additionalProperties: false
+      required: [selected_opportunity_ids]
+      properties:
+        selected_opportunity_ids:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    TechnicalRequirementKind:
+      type: string
+      enum: [capability, data, interface, deployment, performance, privacy, permission, resilience, hardware]
+
+    TechnicalSupportStatus:
+      type: string
+      enum: [supported, conditional, unknown, unsupported, conflict]
+
+    TechnicalFeasibilityVerdict:
+      type: string
+      enum: [demo_feasible, conditionally_feasible, insufficient_evidence, not_feasible]
+
+    TechnicalRequirement:
+      type: object
+      additionalProperties: false
+      required: [requirement_id, kind, description, status, rationale, evidence_ids, condition]
+      properties:
+        requirement_id: { type: string, minLength: 1, maxLength: 80 }
+        kind: { $ref: "#/components/schemas/TechnicalRequirementKind" }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        status: { $ref: "#/components/schemas/TechnicalSupportStatus" }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          maxItems: 40
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        condition: { type: [string, "null"], maxLength: 1000 }
+
+    CapabilityFeasibilityAssessment:
+      type: object
+      additionalProperties: false
+      required: [capability, status, matched_device_ids, evidence_ids, issues]
+      properties:
+        capability: { type: string, minLength: 1, maxLength: 200 }
+        status: { $ref: "#/components/schemas/TechnicalSupportStatus" }
+        matched_device_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        evidence_ids:
+          type: array
+          maxItems: 80
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        issues:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string }
+
+    TechnicalFeasibilityGap:
+      type: object
+      additionalProperties: false
+      required: [gap_id, question, reason, required_evidence_types, affected_opportunity_ids]
+      properties:
+        gap_id: { type: string, minLength: 1, maxLength: 80 }
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        required_evidence_types:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+        affected_opportunity_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    TechnicalFeasibilityAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        - opportunity_id
+        - architecture_summary
+        - requirements
+        - capability_assessments
+        - demo_scope
+        - limitations
+        - failure_modes
+        - verdict
+        - gate_issues
+        - source_requirements
+      properties:
+        opportunity_id: { type: string, minLength: 1, maxLength: 80 }
+        architecture_summary: { type: string, minLength: 1, maxLength: 2000 }
+        requirements:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items: { $ref: "#/components/schemas/TechnicalRequirement" }
+        capability_assessments:
+          type: array
+          maxItems: 80
+          items: { $ref: "#/components/schemas/CapabilityFeasibilityAssessment" }
+        demo_scope: { type: string, minLength: 1, maxLength: 2000 }
+        limitations:
+          type: array
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 2000 }
+        failure_modes:
+          type: array
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 2000 }
+        verdict: { $ref: "#/components/schemas/TechnicalFeasibilityVerdict" }
+        gate_issues:
+          type: array
+          maxItems: 60
+          items: { type: string }
+        source_requirements:
+          type: array
+          maxItems: 30
+          items: { $ref: "#/components/schemas/TechnicalFeasibilityGap" }
+
+    TechnicalFeasibilityCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - selected_opportunity_count
+        - assessed_opportunity_count
+        - demo_feasible_count
+        - conditionally_feasible_count
+        - insufficient_evidence_count
+        - not_feasible_count
+        - evidence_context_hash
+        - capability_graph_hash
+      properties:
+        selected_opportunity_count: { type: integer, minimum: 1, maximum: 5 }
+        assessed_opportunity_count: { type: integer, minimum: 0, maximum: 5 }
+        demo_feasible_count: { type: integer, minimum: 0, maximum: 5 }
+        conditionally_feasible_count: { type: integer, minimum: 0, maximum: 5 }
+        insufficient_evidence_count: { type: integer, minimum: 0, maximum: 5 }
+        not_feasible_count: { type: integer, minimum: 0, maximum: 5 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        capability_graph_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    TechnicalFeasibilityPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_name
+        - schema_version
+        - source_opportunity_artifact_id
+        - selected_opportunity_ids
+        - summary
+        - summary_evidence_ids
+        - assessments
+        - portfolio_gaps
+        - coverage
+      properties:
+        schema_name: { type: string, const: technical_feasibility_portfolio }
+        schema_version: { type: string, const: "1.0" }
+        source_opportunity_artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        selected_opportunity_ids:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        summary: { type: string, minLength: 1, maxLength: 5000 }
+        summary_evidence_ids:
+          type: array
+          maxItems: 80
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        assessments:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/TechnicalFeasibilityAssessment" }
+        portfolio_gaps:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/TechnicalFeasibilityGap" }
+        coverage: { $ref: "#/components/schemas/TechnicalFeasibilityCoverage" }
+
+    TechnicalFeasibilityArtifact:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact_id
+        - task_id
+        - artifact_type
+        - schema_version
+        - status
+        - payload
+        - evidence_ids
+        - contradictions
+        - unknowns
+        - quality_score
+        - errors
+      properties:
+        artifact_id: { type: string, minLength: 1, maxLength: 80 }
+        task_id: { type: string, minLength: 1, maxLength: 80 }
+        artifact_type: { type: string, const: technical_feasibility }
+        schema_version: { type: string, const: "1.0" }
+        status: { type: string, enum: [completed, partial, blocked, needs_revision] }
+        payload: { $ref: "#/components/schemas/TechnicalFeasibilityPayload" }
+        evidence_ids:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        contradictions:
+          type: array
+          maxItems: 100
+          items: { type: string }
+        unknowns:
+          type: array
+          maxItems: 100
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          maxItems: 100
           items: { type: string }
 
     CompetitorDiscoveryRunCreate:

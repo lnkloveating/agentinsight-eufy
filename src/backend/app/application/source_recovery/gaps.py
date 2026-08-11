@@ -17,6 +17,7 @@ from app.workflows.contracts import ResearchArtifact
 _GAP_COLLECTION_KEYS = {
     "research_gaps",
     "portfolio_gaps",
+    "source_requirements",
     "commercial_gaps",
     "validation_gaps",
     "red_team_gaps",

@@ -16,6 +16,7 @@ class RecoverableAgentType(StrEnum):
     USER_RESEARCH = "user_research"
     COMPETITOR_RESEARCH = "competitor_research"
     ECOSYSTEM_OPPORTUNITY = "ecosystem_opportunity"
+    TECHNICAL_FEASIBILITY = "technical_feasibility"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
     CANDIDATE_SYNTHESIS = "candidate_synthesis"

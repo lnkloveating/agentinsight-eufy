@@ -11,6 +11,7 @@ from app.agents.competitor.ecosystem_context import (
     CompetitorEcosystemEvidenceContextBuilder,
 )
 from app.agents.ecosystem_opportunity import EcosystemOpportunityContextBuilder
+from app.agents.technical_feasibility import TechnicalFeasibilityContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
 from app.application.brief_clarification import BriefClarificationService
 from app.application.competitor_discovery import CompetitorDiscoveryService
@@ -39,6 +40,7 @@ from app.application.projects import ProjectService
 from app.application.research import (
     CompetitorEcosystemAnalysisService,
     EcosystemOpportunityService,
+    TechnicalFeasibilityService,
     UserResearchService,
 )
 from app.application.runtime import AgentRegistry, AgentRuntimeGateway, ExternalRuntimeCatalog
@@ -495,6 +497,34 @@ def get_ecosystem_opportunity_service(request: Request) -> EcosystemOpportunityS
 
 EcosystemOpportunityServiceDependency = Annotated[
     EcosystemOpportunityService, Depends(get_ecosystem_opportunity_service)
+]
+
+
+def get_technical_feasibility_service(
+    request: Request,
+) -> TechnicalFeasibilityService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    trace_id = str(getattr(request.state, "trace_id", "trace_unknown"))
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        trace_id,
+    )
+    context_builder = TechnicalFeasibilityContextBuilder(
+        EcosystemOpportunityContextBuilder(
+            database,
+            max_items=settings.technical_feasibility_max_evidence_items,
+            max_excerpt_chars=settings.technical_feasibility_max_excerpt_chars,
+            max_total_chars=settings.technical_feasibility_max_total_evidence_chars,
+        )
+    )
+    return TechnicalFeasibilityService(database, runtime, context_builder)
+
+
+TechnicalFeasibilityServiceDependency = Annotated[
+    TechnicalFeasibilityService, Depends(get_technical_feasibility_service)
 ]
 
 
