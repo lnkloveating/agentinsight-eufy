@@ -20,7 +20,7 @@ def register_competitor_synthesis_prompt(registry: PromptRegistry) -> None:
                 "专家证据；user_review 维度只能引用用户评价专家证据；cross_dimension 可以组合。"
                 "逐产品判断只能引用 product 与 scope_label 相同的证据。"
                 "资料未覆盖不等于产品没有该能力。\n"
-                "opportunity_signals 不是未来产品结论，只是交给 Product Technical Agent "
+                "opportunity_signals 不是未来产品结论，只是交给 Ecosystem Opportunity Agent "
                 "继续验证的假设，必须保留 requires_product_agent_validation 状态和明确验证问题。"
                 "证据不足时写入 research_gaps，"
                 "不要猜测。输出必须是符合 JSON Schema 的单个中文 JSON 对象。"

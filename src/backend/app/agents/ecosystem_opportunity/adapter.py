@@ -59,7 +59,7 @@ class EcosystemOpportunityModelAgentAdapter:
         invocation.cancellation_token.raise_if_cancelled()
         context, graph = await self._prepare_context(invocation)
         handoff = context.research_handoff
-        if handoff is None or not handoff.ready_for_product_technical:
+        if handoff is None or not handoff.ready_for_ecosystem_opportunity:
             issues = handoff.issues if handoff is not None else ["missing_research_handoff"]
             return self.validator.build_blocked(invocation.task, context, graph, issues)
         user = context.upstream_artifacts.get(ResearchAgentType.USER_RESEARCH.value)

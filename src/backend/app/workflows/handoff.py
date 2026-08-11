@@ -219,7 +219,7 @@ def build_research_handoff(
     if blocking_issues:
         return ResearchHandoff(
             status=ResearchHandoffStatus.BLOCKED,
-            ready_for_product_technical=False,
+            ready_for_ecosystem_opportunity=False,
             user_research=_project(user),
             competitor_research=_project(competitor),
             merged_evidence_ids=_merged_evidence(user, competitor),
@@ -249,7 +249,7 @@ def build_research_handoff(
             if has_gaps
             else ResearchHandoffStatus.READY
         ),
-        ready_for_product_technical=True,
+        ready_for_ecosystem_opportunity=True,
         user_research=_project(user),
         competitor_research=_project(competitor),
         competitor_projection=competitor_projection,

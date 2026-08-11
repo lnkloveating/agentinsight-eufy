@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, TypedDict
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 from app.schemas.project import DecisionAction, ResearchBrief
 
@@ -16,7 +16,6 @@ class ResearchAgentType(StrEnum):
     RESEARCH_MANAGER = "research_manager"
     USER_RESEARCH = "user_research"
     COMPETITOR_RESEARCH = "competitor_research"
-    PRODUCT_TECHNICAL = "product_technical"
     ECOSYSTEM_OPPORTUNITY = "ecosystem_opportunity"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
@@ -164,7 +163,12 @@ class CompetitorResearchProjection(BaseModel):
 
 class ResearchHandoff(BaseModel):
     status: ResearchHandoffStatus
-    ready_for_product_technical: bool
+    ready_for_ecosystem_opportunity: bool = Field(
+        validation_alias=AliasChoices(
+            "ready_for_ecosystem_opportunity",
+            "ready_for_product_technical",
+        )
+    )
     user_research: ResearchArtifactProjection | None = None
     competitor_research: ResearchArtifactProjection | None = None
     competitor_projection: CompetitorResearchProjection | None = None
@@ -174,13 +178,16 @@ class ResearchHandoff(BaseModel):
 
     @model_validator(mode="after")
     def status_matches_readiness(self) -> ResearchHandoff:
-        if self.status is ResearchHandoffStatus.BLOCKED and self.ready_for_product_technical:
-            raise ValueError("blocked handoff cannot be ready for product technical")
+        if (
+            self.status is ResearchHandoffStatus.BLOCKED
+            and self.ready_for_ecosystem_opportunity
+        ):
+            raise ValueError("blocked handoff cannot be ready for ecosystem opportunity")
         if (
             self.status is not ResearchHandoffStatus.BLOCKED
-            and not self.ready_for_product_technical
+            and not self.ready_for_ecosystem_opportunity
         ):
-            raise ValueError("ready handoff must allow product technical")
+            raise ValueError("ready handoff must allow ecosystem opportunity")
         return self
 
 

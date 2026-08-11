@@ -53,12 +53,6 @@ class Settings(BaseSettings):
     competitor_ecosystem_max_total_evidence_chars: int = Field(
         default=200_000, ge=1_000, le=500_000
     )
-    product_technical_max_evidence_items: int = Field(default=80, ge=1, le=200)
-    product_technical_max_excerpt_chars: int = Field(default=2_000, ge=200, le=10_000)
-    product_technical_max_total_evidence_chars: int = Field(
-        default=80_000, ge=1_000, le=500_000
-    )
-    product_technical_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
     ecosystem_opportunity_max_evidence_items: int = Field(default=120, ge=1, le=200)
     ecosystem_opportunity_max_excerpt_chars: int = Field(default=2_000, ge=200, le=10_000)
     ecosystem_opportunity_max_total_evidence_chars: int = Field(

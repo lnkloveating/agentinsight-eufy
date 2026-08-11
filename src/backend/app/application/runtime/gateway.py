@@ -46,7 +46,6 @@ AGENT_NAMES: dict[ResearchAgentType, str] = {
     ResearchAgentType.RESEARCH_MANAGER: "调研总管 Agent",
     ResearchAgentType.USER_RESEARCH: "用户研究 Agent",
     ResearchAgentType.COMPETITOR_RESEARCH: "竞品研究 Agent",
-    ResearchAgentType.PRODUCT_TECHNICAL: "产品技术 Agent",
     ResearchAgentType.ECOSYSTEM_OPPORTUNITY: "生态机会 Agent",
     ResearchAgentType.COMMERCIAL_EVALUATION: "商业分析 Agent",
     ResearchAgentType.RED_TEAM: "红队 Agent",

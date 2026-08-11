@@ -322,7 +322,7 @@ class EcosystemOpportunityOutputValidator:
     @staticmethod
     def _require_ready_handoff(context: AgentContext) -> ResearchHandoff:
         handoff = context.research_handoff
-        if handoff is None or not handoff.ready_for_product_technical:
+        if handoff is None or not handoff.ready_for_ecosystem_opportunity:
             raise EcosystemOpportunityValidationError(
                 "Ecosystem Opportunity Agent requires a ready ResearchHandoff.",
                 {"handoff_status": handoff.status if handoff is not None else None},

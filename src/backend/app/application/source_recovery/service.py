@@ -43,7 +43,6 @@ from app.schemas.source_recovery import (
     AgentArtifactGap,
     AgentArtifactGapPage,
     AgentArtifactSourceRecoveryCreate,
-    ProductTechnicalSourceRecoveryCreate,
     RecoverableAgentType,
     SourceRecovery,
     SourceRecoveryAnswer,
@@ -109,9 +108,9 @@ _AGENT_BY_ROUTE: dict[SourceRouteTarget, tuple[ResearchAgentType, ...]] = {
     SourceRouteTarget.USER_REVIEW: (ResearchAgentType.COMPETITOR_RESEARCH,),
     SourceRouteTarget.USER_RESEARCH: (ResearchAgentType.USER_RESEARCH,),
     SourceRouteTarget.MEDIA_REVIEW: (ResearchAgentType.USER_RESEARCH,),
-    SourceRouteTarget.TECHNICAL_DOCUMENT: (ResearchAgentType.PRODUCT_TECHNICAL,),
+    SourceRouteTarget.TECHNICAL_DOCUMENT: (ResearchAgentType.ECOSYSTEM_OPPORTUNITY,),
     SourceRouteTarget.MARKET_RESEARCH: (
-        ResearchAgentType.PRODUCT_TECHNICAL,
+        ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
         ResearchAgentType.COMMERCIAL_EVALUATION,
     ),
     SourceRouteTarget.COMMERCIAL_DATA: (ResearchAgentType.COMMERCIAL_EVALUATION,),
@@ -236,19 +235,6 @@ class SourceRecoveryService:
                 raise
         await self.event_broker.notify(project_id)
         return await self.get(project_id, recovery.source_recovery_id)
-
-    async def create_from_product_technical(
-        self,
-        project_id: str,
-        artifact_id: str,
-        payload: ProductTechnicalSourceRecoveryCreate,
-    ) -> SourceRecovery:
-        return await self.create_from_agent_artifact(
-            project_id,
-            RecoverableAgentType.PRODUCT_TECHNICAL,
-            artifact_id,
-            payload,
-        )
 
     async def list_agent_artifact_gaps(
         self,
@@ -1098,7 +1084,7 @@ class SourceRecoveryService:
             return (
                 EvidenceClaimType.TECHNICAL_FACT,
                 SourceRouteTarget.TECHNICAL_DOCUMENT,
-                (ResearchAgentType.PRODUCT_TECHNICAL,),
+                (ResearchAgentType.ECOSYSTEM_OPPORTUNITY,),
                 "数据接口、信号可用性和授权事实",
             )
         if "market" in normalized or "commercial" in normalized:
