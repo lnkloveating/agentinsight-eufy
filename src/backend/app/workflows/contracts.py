@@ -22,9 +22,6 @@ class ResearchAgentType(StrEnum):
     POLICY_VERIFICATION = "policy_verification"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
-    CANDIDATE_SYNTHESIS = "candidate_synthesis"
-    VALIDATION = "validation"
-    FINAL_SYNTHESIS = "final_synthesis"
 
 
 class ResearchTaskStatus(StrEnum):
@@ -254,21 +251,6 @@ class WorkflowSourceRecoveryRequest(BaseModel):
 class EvidenceGateResult(BaseModel):
     passed: bool
     issues: list[str] = Field(default_factory=list)
-
-
-class RedTeamDirective(BaseModel):
-    decision: str
-    severity: str
-    affected_task_ids: list[str] = Field(default_factory=list)
-    required_actions: list[str] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def reject_high_severity_pass(self) -> RedTeamDirective:
-        if self.severity == "high" and self.decision == "pass":
-            raise ValueError("high severity red-team findings cannot pass")
-        if self.decision not in {"pass", "revise", "research_more", "reject"}:
-            raise ValueError("unsupported red-team decision")
-        return self
 
 
 class WorkflowEvent(BaseModel):
