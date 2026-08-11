@@ -10,6 +10,7 @@ from app.agents.policy_verification import (
     PolicyVerificationArtifact,
     PolicyVerificationRunCreate,
 )
+from app.agents.red_team_policy_revision import RedTeamArtifact, RedTeamRunCreate
 from app.agents.security_policy import SecurityPolicyArtifact, SecurityPolicyRunCreate
 from app.agents.technical_feasibility import (
     TechnicalFeasibilityArtifact,
@@ -21,6 +22,7 @@ from app.api.dependencies import (
     CompetitorEcosystemServiceDependency,
     EcosystemOpportunityServiceDependency,
     PolicyVerificationServiceDependency,
+    RedTeamPolicyRevisionServiceDependency,
     SecurityPolicyServiceDependency,
     SourceRecoveryServiceDependency,
     TechnicalFeasibilityServiceDependency,
@@ -34,6 +36,31 @@ from app.schemas.source_recovery import (
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/{project_id}/agents/red-team-policy-revision",
+    response_model=RedTeamArtifact,
+    summary="运行证据约束的红队策略审查",
+)
+async def run_red_team_policy_revision(
+    project_id: str,
+    payload: RedTeamRunCreate,
+    service: RedTeamPolicyRevisionServiceDependency,
+) -> RedTeamArtifact:
+    return await service.run(project_id, payload)
+
+
+@router.get(
+    "/{project_id}/agents/red-team-policy-revision/artifacts",
+    response_model=list[RedTeamArtifact],
+    summary="查询红队策略审查 Artifact 历史版本",
+)
+async def list_red_team_policy_revision_artifacts(
+    project_id: str,
+    service: RedTeamPolicyRevisionServiceDependency,
+) -> list[RedTeamArtifact]:
+    return await service.list_artifacts(project_id)
 
 
 @router.post(

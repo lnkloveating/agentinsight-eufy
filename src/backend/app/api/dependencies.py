@@ -12,6 +12,7 @@ from app.agents.competitor.ecosystem_context import (
     CompetitorEcosystemEvidenceContextBuilder,
 )
 from app.agents.ecosystem_opportunity import EcosystemOpportunityContextBuilder
+from app.agents.red_team_policy_revision import RedTeamContextBuilder
 from app.agents.security_policy import SecurityPolicyContextBuilder
 from app.agents.technical_feasibility import TechnicalFeasibilityContextBuilder
 from app.agents.user_research.context import UserResearchEvidenceContextBuilder
@@ -44,6 +45,7 @@ from app.application.research import (
     CompetitorEcosystemAnalysisService,
     EcosystemOpportunityService,
     PolicyVerificationService,
+    RedTeamPolicyRevisionService,
     SecurityPolicyService,
     TechnicalFeasibilityService,
     UserResearchService,
@@ -601,6 +603,35 @@ def get_commercial_evaluation_v2_service(
 
 CommercialEvaluationV2ServiceDependency = Annotated[
     CommercialEvaluationV2Service, Depends(get_commercial_evaluation_v2_service)
+]
+
+
+def get_red_team_policy_revision_service(
+    request: Request,
+) -> RedTeamPolicyRevisionService:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+    context_builder = RedTeamContextBuilder(
+        CommercialEvaluationContextBuilder(
+            EcosystemOpportunityContextBuilder(
+                database,
+                max_items=settings.red_team_max_evidence_items,
+                max_excerpt_chars=settings.red_team_max_excerpt_chars,
+                max_total_chars=settings.red_team_max_total_evidence_chars,
+            )
+        )
+    )
+    return RedTeamPolicyRevisionService(database, runtime, context_builder)
+
+
+RedTeamPolicyRevisionServiceDependency = Annotated[
+    RedTeamPolicyRevisionService, Depends(get_red_team_policy_revision_service)
 ]
 
 

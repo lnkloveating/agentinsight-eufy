@@ -77,6 +77,12 @@ class Settings(BaseSettings):
         default=240_000, ge=1_000, le=1_000_000
     )
     commercial_evaluation_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    red_team_max_evidence_items: int = Field(default=240, ge=1, le=300)
+    red_team_max_excerpt_chars: int = Field(default=3_000, ge=200, le=10_000)
+    red_team_max_total_evidence_chars: int = Field(
+        default=300_000, ge=1_000, le=1_000_000
+    )
+    red_team_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
     competitor_discovery_model_timeout_seconds: float = Field(default=180, ge=1, le=600)
     competitor_discovery_runtime_timeout_seconds: float = Field(default=600, ge=1, le=1_800)
     competitor_discovery_max_input_candidates: int = Field(default=50, ge=1, le=50)
