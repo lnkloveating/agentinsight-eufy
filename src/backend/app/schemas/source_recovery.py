@@ -21,9 +21,6 @@ class RecoverableAgentType(StrEnum):
     POLICY_VERIFICATION = "policy_verification"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
-    CANDIDATE_SYNTHESIS = "candidate_synthesis"
-    VALIDATION = "validation"
-    FINAL_SYNTHESIS = "final_synthesis"
 
 
 _RECOVERABLE_AGENT_TYPES = {item.value for item in RecoverableAgentType}

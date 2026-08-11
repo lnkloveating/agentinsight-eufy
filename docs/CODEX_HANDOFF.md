@@ -283,7 +283,7 @@ stash@{0}: 归档旧商业评估未完成草稿
 - Policy Compiler / Verification；
 - Commercial；
 - Red Team；
-- Final Synthesis。
+- Final Human Gate 与确定性报告装配。
 
 每个节点显示 waiting/running/completed/partial/blocked/failed、使用模型、Evidence 数量、耗时和错误。前端通过 SSE
 展示运行历史，不轮询伪造进度条。
@@ -554,10 +554,11 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 4. agent/security-policy-compiler（已完成）
 5. workflow/security-policy-verification（已完成）
 6. agent/commercial-evaluation-v2（已完成）
-7. agent/redteam-policy-revision（下一步）
-8. demo/package-goal-to-guard
-9. integration/feishu-aily
-10. backend/e2e-ecosystem-hardening
+7. cleanup/remove-legacy-orchestration-v1（已完成）
+8. agent/redteam-policy-revision（下一步）
+9. demo/package-goal-to-guard
+10. integration/feishu-aily
+11. backend/e2e-ecosystem-hardening
 ```
 
 `integration/eufy-device-api` 是可选等待分支：只有企业明确提供授权流、设备列表、事件、动作、HomeBase 能力、隐私
@@ -575,8 +576,18 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 公共接口、结果字段、缺证恢复与前端展示见 `docs/commercial-evaluation-v2.md`。
 
-合并前验证：353 个后端测试全部通过；Ruff、Mypy（244 个 app 源文件）、OpenAPI YAML、
+合并前验证：356 个后端测试全部通过；Ruff、Mypy（244 个 app 源文件）、OpenAPI YAML、
 `git diff --check`、前端 ESLint 与生产构建通过。唯一警告来自第三方 Starlette TestClient 弃用提示。
+
+### 已完成：`cleanup/remove-legacy-orchestration-v1`
+
+- 删除未接入当前主图的 `candidate_synthesis / validation / final_synthesis` 角色；
+- 同步删除 Runtime 名称、Context Policy、Source Recovery/OpenAPI 枚举和测试占位；
+- 删除旧版宽松 `RedTeamDirective`，避免下一步误用单产品时期契约；
+- 保留 `red_team`、Scenario/Final Human Gate，以及旧 Checkpoint 的只读兼容别名；
+- Red Team 当前 Context 已明确包括用户、竞品、生态机会、技术、策略、验证和商业 Artifact。
+
+清理边界和当前主路径见 `docs/legacy-orchestration-v1-cleanup.md`。
 
 ## 7. 每个后续 Agent 的判断方式
 

@@ -7,7 +7,6 @@ from app.workflows.contracts import (
     EvidenceGateResult,
     GateName,
     GateRequest,
-    RedTeamDirective,
     ResearchArtifact,
     StageDecision,
     WorkflowContractError,
@@ -113,13 +112,6 @@ def evaluate_research_artifacts(
         passed=handoff.ready_for_ecosystem_opportunity,
         issues=handoff.issues,
     )
-
-
-def parse_red_team_directive(artifact: ResearchArtifact) -> RedTeamDirective:
-    raw = artifact.payload.get("directive")
-    if not isinstance(raw, dict):
-        raise WorkflowContractError("red-team artifact must contain a directive object")
-    return RedTeamDirective.model_validate(raw)
 
 
 def summarize_artifacts(

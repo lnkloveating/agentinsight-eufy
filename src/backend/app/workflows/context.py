@@ -40,22 +40,11 @@ CONTEXT_POLICY: dict[ResearchAgentType, set[ResearchAgentType]] = {
         ResearchAgentType.USER_RESEARCH,
         ResearchAgentType.COMPETITOR_RESEARCH,
         ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
+        ResearchAgentType.TECHNICAL_FEASIBILITY,
+        ResearchAgentType.SECURITY_POLICY,
+        ResearchAgentType.POLICY_VERIFICATION,
         ResearchAgentType.COMMERCIAL_EVALUATION,
     },
-    ResearchAgentType.CANDIDATE_SYNTHESIS: {
-        ResearchAgentType.USER_RESEARCH,
-        ResearchAgentType.COMPETITOR_RESEARCH,
-        ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
-        ResearchAgentType.COMMERCIAL_EVALUATION,
-        ResearchAgentType.RED_TEAM,
-    },
-    ResearchAgentType.VALIDATION: {
-        ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
-        ResearchAgentType.COMMERCIAL_EVALUATION,
-        ResearchAgentType.RED_TEAM,
-        ResearchAgentType.CANDIDATE_SYNTHESIS,
-    },
-    ResearchAgentType.FINAL_SYNTHESIS: set(ResearchAgentType),
 }
 
 

@@ -52,9 +52,6 @@ AGENT_NAMES: dict[ResearchAgentType, str] = {
     ResearchAgentType.POLICY_VERIFICATION: "安全策略验证工作流",
     ResearchAgentType.COMMERCIAL_EVALUATION: "商业分析 Agent",
     ResearchAgentType.RED_TEAM: "红队 Agent",
-    ResearchAgentType.CANDIDATE_SYNTHESIS: "候选综合 Agent",
-    ResearchAgentType.VALIDATION: "验证分发 Agent",
-    ResearchAgentType.FINAL_SYNTHESIS: "最终综合 Agent",
 }
 
 

@@ -4,7 +4,6 @@ from collections import Counter
 
 from app.workflows.contracts import (
     AgentContext,
-    RedTeamDirective,
     ResearchAgentType,
     ResearchArtifact,
     ResearchTask,
@@ -106,27 +105,6 @@ class TestAgentRuntime:
                 "recommendation": self.commercial_recommendation,
                 "commercial_gaps": gaps,
             }
-        elif task.agent_type is ResearchAgentType.RED_TEAM:
-            evidence_ids = _upstream_evidence(context)
-            payload = {
-                "directive": RedTeamDirective(
-                    decision="pass",
-                    severity="medium",
-                    required_actions=[],
-                ).model_dump(mode="json")
-            }
-        elif task.agent_type is ResearchAgentType.CANDIDATE_SYNTHESIS:
-            evidence_ids = _upstream_evidence(context)
-            payload = {
-                "innovation_ids": ["inv_one", "inv_two", "inv_three"],
-                "recommendation": "investigate",
-            }
-        elif task.agent_type is ResearchAgentType.VALIDATION:
-            evidence_ids = _upstream_evidence(context)
-            payload = {"status": "test_validation_completed"}
-        elif task.agent_type is ResearchAgentType.FINAL_SYNTHESIS:
-            evidence_ids = _upstream_evidence(context)
-            payload = {"recommendation": "investigate"}
         elif task.agent_type is ResearchAgentType.ECOSYSTEM_OPPORTUNITY:
             evidence_ids = _upstream_evidence(context)
             payload = _ecosystem_opportunity_payload(evidence_ids)

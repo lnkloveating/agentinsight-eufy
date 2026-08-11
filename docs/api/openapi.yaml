@@ -2032,9 +2032,6 @@ components:
           - policy_verification
           - commercial_evaluation
           - red_team
-          - candidate_synthesis
-          - validation
-          - final_synthesis
     SourceFragmentId:
       name: source_fragment_id
       in: path

@@ -77,6 +77,24 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_research_workflow.py`
 - `tests/integration/test_runtime_langgraph_integration.py`
 
+## AC-28 移除旧编排 v1（分支 `cleanup/remove-legacy-orchestration-v1`）
+
+- `ResearchAgentType`、Runtime 名称、Context Policy 和测试 Runtime 不再包含
+  `candidate_synthesis / validation / final_synthesis`；
+- 通用 Source Recovery 与 OpenAPI 不再对外宣称上述未实现角色可恢复；
+- 删除旧版宽松 `RedTeamDirective`，下一分支必须按当前 Artifact 和 Evidence 重新定义红队契约；
+- 正式 `red_team` 角色必须保留，并能读取用户、竞品、生态机会、技术、策略、验证和商业 Artifact；
+- Scenario/Final Human Gate 保留，它们是审批节点而不是旧 Agent；
+- `ready_for_product_technical` 只保留为旧 Checkpoint 输入别名，新状态不得输出；
+- 当前 LangGraph、Commercial v2、Source Recovery、OpenAPI 和前端运行状态不得回归。
+
+自动化映射：
+
+- `tests/unit/test_legacy_orchestration_cleanup.py`
+- `tests/unit/test_legacy_single_product_cleanup.py`
+- `tests/unit/test_workflow_contracts.py`
+- 全量 Ruff、Mypy、Pytest 与前端构建。
+
 ## AC-03C 竞品官方产品专家
 
 官方产品专家只能读取当前项目中状态为 `verified` 或 `partially_verified`，且 Claim 类型为
