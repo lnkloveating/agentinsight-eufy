@@ -2,6 +2,7 @@ from fastapi import APIRouter, status
 
 from app.agents.competitor import CompetitorEcosystemArtifact
 from app.agents.ecosystem_opportunity import EcosystemOpportunityArtifact
+from app.agents.security_policy import SecurityPolicyArtifact, SecurityPolicyRunCreate
 from app.agents.technical_feasibility import (
     TechnicalFeasibilityArtifact,
     TechnicalFeasibilityRunCreate,
@@ -10,6 +11,7 @@ from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
     CompetitorEcosystemServiceDependency,
     EcosystemOpportunityServiceDependency,
+    SecurityPolicyServiceDependency,
     SourceRecoveryServiceDependency,
     TechnicalFeasibilityServiceDependency,
     UserResearchServiceDependency,
@@ -22,6 +24,31 @@ from app.schemas.source_recovery import (
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/{project_id}/agents/security-policy-compiler",
+    response_model=SecurityPolicyArtifact,
+    summary="编译 dry-run 家庭安防策略",
+)
+async def run_security_policy_compiler(
+    project_id: str,
+    payload: SecurityPolicyRunCreate,
+    service: SecurityPolicyServiceDependency,
+) -> SecurityPolicyArtifact:
+    return await service.run(project_id, payload)
+
+
+@router.get(
+    "/{project_id}/agents/security-policy-compiler/artifacts",
+    response_model=list[SecurityPolicyArtifact],
+    summary="查询安全策略 Artifact 历史版本",
+)
+async def list_security_policy_artifacts(
+    project_id: str,
+    service: SecurityPolicyServiceDependency,
+) -> list[SecurityPolicyArtifact]:
+    return await service.list_artifacts(project_id)
 
 
 @router.post(

@@ -26,6 +26,11 @@ from app.agents.ecosystem_opportunity import (
     EcosystemOpportunityModelAgentAdapter,
     register_ecosystem_opportunity_prompt,
 )
+from app.agents.security_policy import (
+    SecurityPolicyContextBuilder,
+    SecurityPolicyModelAgentAdapter,
+    register_security_policy_prompt,
+)
 from app.agents.technical_feasibility import (
     TechnicalFeasibilityContextBuilder,
     TechnicalFeasibilityModelAgentAdapter,
@@ -94,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_user_research_prompt(prompt_registry)
     register_ecosystem_opportunity_prompt(prompt_registry)
     register_technical_feasibility_prompt(prompt_registry)
+    register_security_policy_prompt(prompt_registry)
     register_competitor_discovery_prompt(prompt_registry)
     register_competitor_ecosystem_prompt(prompt_registry)
     register_competitor_synthesis_prompt(prompt_registry)
@@ -278,6 +284,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         max_total_chars=(
                             resolved_settings.technical_feasibility_max_total_evidence_chars
                         ),
+                    )
+                ),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.SECURITY_POLICY,
+            SecurityPolicyModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.security_policy_model_timeout_seconds
+                ),
+                context_builder=SecurityPolicyContextBuilder(
+                    TechnicalFeasibilityContextBuilder(
+                        EcosystemOpportunityContextBuilder(
+                            database,
+                            max_items=resolved_settings.security_policy_max_evidence_items,
+                            max_excerpt_chars=(
+                                resolved_settings.security_policy_max_excerpt_chars
+                            ),
+                            max_total_chars=(
+                                resolved_settings.security_policy_max_total_evidence_chars
+                            ),
+                        )
                     )
                 ),
             ),

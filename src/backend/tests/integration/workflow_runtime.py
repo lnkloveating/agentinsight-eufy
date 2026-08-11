@@ -115,6 +115,15 @@ class TestAgentRuntime:
                 evidence_ids,
                 verdict=self.technical_verdict,
             )
+        elif task.agent_type is ResearchAgentType.SECURITY_POLICY:
+            evidence_ids = _upstream_evidence(context)
+            payload = {
+                "schema_name": "security_policy_dsl_portfolio",
+                "execution_mode": "dry_run",
+                "coverage": {
+                    "compiled_policy_count": len(context.selected_innovation_ids)
+                },
+            }
 
         return ResearchArtifact(
             artifact_id=f"artifact_{task.task_id}_{self.call_counts[task.agent_type]}",

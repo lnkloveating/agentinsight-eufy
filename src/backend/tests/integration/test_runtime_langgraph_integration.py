@@ -154,7 +154,7 @@ async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway
             config,
         )
 
-        assert result["outcome"] == WorkflowOutcome.AWAITING_SECURITY_POLICY
+        assert result["outcome"] == WorkflowOutcome.AWAITING_POLICY_VERIFICATION
         async with database.session() as session:
             repository = ProjectRepository(session)
             runs = await repository.list_agent_runs(project_id)
@@ -163,6 +163,7 @@ async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway
             ResearchAgentType.RESEARCH_MANAGER,
             *PLANNED_AGENT_TYPES,
             ResearchAgentType.TECHNICAL_FEASIBILITY,
+            ResearchAgentType.SECURITY_POLICY,
         }
         assert len(runs) == len(main_path_types)
         assert all(run.output_artifact_id is not None for run in runs)

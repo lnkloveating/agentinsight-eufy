@@ -720,6 +720,23 @@ Human Gate 选中的生态机会必须经过 Evidence 与 Device Capability Grap
 自动化映射：
 
 - `tests/unit/test_technical_feasibility_agent.py`
+
+## AC-25 Security Policy Compiler（分支 `agent/security-policy-compiler`）
+
+- 只编译用户选择且技术 verdict 为 `demo_feasible` 或 `conditionally_feasible` 的生态机会；
+- 模型只能生成策略意图，不能生成后端拥有的执行模式、ID、版本、fallback、invariant 或 Hash；
+- Brief 未授权的信号、生态蓝图不存在的设备角色、未允许的干预和越界 Evidence ID 必须失败；
+- 输出固定为 `dry_run`，且包含信号不可用、设备离线、网络离线、不确定状态和权限拒绝五类降级；
+- 高影响动作必须显式要求人工批准，任何策略均不得直接控制真实家庭设备；
+- 同一语义策略保留稳定 Hash，新 Artifact 提升版本并输出新增、删除、改变或未改变差异；
+- LangGraph 在技术验证后执行 Compiler，成功后进入 `awaiting_policy_verification`；
+- HTTP API 与 `docs/api/openapi.yaml` 一致，Artifact 可按版本查询并通过 Evidence ID 下钻。
+
+验收测试：
+
+- `tests/unit/test_security_policy_compiler.py`
+- `tests/integration/test_research_workflow.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
 - `tests/unit/test_workflow_contracts.py`
 - `tests/integration/test_research_workflow.py`
 - `tests/integration/test_runtime_langgraph_integration.py`

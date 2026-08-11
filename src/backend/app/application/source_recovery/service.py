@@ -111,6 +111,7 @@ _AGENT_BY_ROUTE: dict[SourceRouteTarget, tuple[ResearchAgentType, ...]] = {
     SourceRouteTarget.TECHNICAL_DOCUMENT: (
         ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
         ResearchAgentType.TECHNICAL_FEASIBILITY,
+        ResearchAgentType.SECURITY_POLICY,
     ),
     SourceRouteTarget.MARKET_RESEARCH: (
         ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
@@ -1088,7 +1089,10 @@ class SourceRecoveryService:
             return (
                 EvidenceClaimType.TECHNICAL_FACT,
                 SourceRouteTarget.TECHNICAL_DOCUMENT,
-                (ResearchAgentType.TECHNICAL_FEASIBILITY,),
+                (
+                    ResearchAgentType.TECHNICAL_FEASIBILITY,
+                    ResearchAgentType.SECURITY_POLICY,
+                ),
                 "数据接口、信号可用性和授权事实",
             )
         if "market" in normalized or "commercial" in normalized:

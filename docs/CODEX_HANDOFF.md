@@ -532,7 +532,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 详细说明见 `docs/technical-feasibility-agent.md`。
 
-### 下一分支：`agent/security-policy-compiler`
+### 已完成：`agent/security-policy-compiler`
 
 目标：把通过技术可行性验证的开放安全目标编译为可解释的跨设备策略，包括状态变量、感知请求、
 风险升级、动作阶梯、权限边界、离线 fallback 与策略版本；不直接执行真实家庭动作。
@@ -543,8 +543,8 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 1. agent/ecosystem-opportunity
 2. workflow/ai-native-ecosystem-gate
 3. agent/technical-feasibility（已完成）
-4. agent/security-policy-compiler（下一步）
-5. workflow/security-policy-verification
+4. agent/security-policy-compiler（已完成）
+5. workflow/security-policy-verification（下一步）
 6. agent/commercial-evaluation-v2
 7. agent/redteam-policy-revision
 8. demo/package-goal-to-guard
