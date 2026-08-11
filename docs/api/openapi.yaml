@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgentInsight × eufy API
-  version: 0.14.0
+  version: 0.15.0
   description: |
     AIPDF 事件理解产品研究工作台的 v2 目标契约。
     v1 继续服务现有前端骨架；v2 在后续实现分支中落地新的研究状态、Innovation、Demo 和飞书集成。
@@ -512,6 +512,54 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CommercialEvaluationArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/red-team-policy-revision:
+    post:
+      tags: [Research]
+      summary: Run evidence-bound red-team policy review
+      description: |
+        Attacks the current AI-native opportunity, technical verdict, compiled policy,
+        dry-run verification and commercial conclusion. Optional user challenges are reviewed in
+        the same bounded Evidence context. The backend validates every citation and deterministically
+        computes pass, revise, needs_more_evidence, human_review or reject; the model cannot choose the
+        final verdict or arbitrary retry targets.
+      operationId: runRedTeamPolicyRevision
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedTeamRunCreate"
+      responses:
+        "200":
+          description: Persisted Red Team Policy Revision Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedTeamArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/agents/red-team-policy-revision/artifacts:
+    get:
+      tags: [Research]
+      summary: List Red Team Policy Revision Artifact versions
+      operationId: listRedTeamPolicyRevisionArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Red Team Artifacts in ascending version order, including deterministic diffs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RedTeamArtifact"
         default:
           $ref: "#/components/responses/Error"
 
@@ -4936,7 +4984,7 @@ components:
 
     AgentGapSeverity:
       type: string
-      enum: [low, medium, high, unknown]
+      enum: [low, medium, high, critical, unknown]
 
     AgentArtifactGap:
       type: object
@@ -4952,6 +5000,7 @@ components:
         - recommended_source_types
         - required_evidence_types
         - affected_candidate_ids
+        - affected_agent_types
         - scope_label
         - dimension
         - source_path
@@ -4977,6 +5026,11 @@ components:
         affected_candidate_ids:
           type: array
           maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        affected_agent_types:
+          type: array
+          maxItems: 10
           uniqueItems: true
           items: { type: string, minLength: 1, maxLength: 80 }
         scope_label: { type: [string, "null"], maxLength: 240 }
@@ -7600,6 +7654,343 @@ components:
         unknowns:
           type: array
           maxItems: 100
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          maxItems: 100
+          items: { type: string }
+
+    RedTeamAttackDimension:
+      type: string
+      enum:
+        - evidence_integrity
+        - technical_feasibility
+        - safety_failure
+        - privacy_consent
+        - false_positive_negative
+        - offline_degradation
+        - intervention_authority
+        - commercial_claim
+        - ai_native_distinction
+        - user_challenge
+
+    RedTeamSeverity:
+      type: string
+      enum: [low, medium, high, critical]
+
+    RedTeamVerdict:
+      type: string
+      enum: [pass, revise, needs_more_evidence, human_review, reject]
+
+    ChallengeResponseStatus:
+      type: string
+      enum: [answered, partially_answered, unresolved, requires_human_decision]
+
+    RedTeamChallengeCreate:
+      type: object
+      additionalProperties: false
+      required: [question, actor, target_artifact_ids, target_policy_ids, target_scenario_ids]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 2000 }
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        target_artifact_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        target_policy_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        target_scenario_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    RedTeamRunCreate:
+      type: object
+      additionalProperties: false
+      required: [challenges]
+      properties:
+        challenges:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/RedTeamChallengeCreate"
+
+    RedTeamFinding:
+      type: object
+      additionalProperties: false
+      required: [finding_id, dimension, severity, title, description, evidence_ids, affected_artifact_ids, affected_agent_types, affected_opportunity_ids, affected_policy_ids, affected_scenario_ids, required_actions, requires_source_recovery, requires_human_decision, irreducible]
+      properties:
+        finding_id: { type: string, minLength: 1, maxLength: 80 }
+        dimension:
+          $ref: "#/components/schemas/RedTeamAttackDimension"
+        severity:
+          $ref: "#/components/schemas/RedTeamSeverity"
+        title: { type: string, minLength: 1, maxLength: 500 }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        affected_artifact_ids:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        affected_agent_types:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items:
+            type: string
+            enum: [user_research, competitor_research, ecosystem_opportunity, technical_feasibility, security_policy, policy_verification, commercial_evaluation]
+        affected_opportunity_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        affected_policy_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        affected_scenario_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        required_actions:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 1500 }
+        requires_source_recovery: { type: boolean }
+        requires_human_decision: { type: boolean }
+        irreducible: { type: boolean }
+
+    RedTeamChallengeResponse:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, question, status, answer, evidence_ids, related_finding_ids]
+      properties:
+        challenge_id: { type: string, minLength: 1, maxLength: 80 }
+        question: { type: string, minLength: 1, maxLength: 2000 }
+        status:
+          $ref: "#/components/schemas/ChallengeResponseStatus"
+        answer: { type: string, minLength: 1, maxLength: 4000 }
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+        related_finding_ids:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    RedTeamGap:
+      type: object
+      additionalProperties: false
+      required: [gap_id, question, reason, severity, dimension, recommended_source_types, required_evidence_types, affected_agent_types, affected_opportunity_ids]
+      properties:
+        gap_id: { type: string, minLength: 1, maxLength: 80 }
+        question: { type: string, minLength: 1, maxLength: 1500 }
+        reason: { type: string, minLength: 1, maxLength: 1500 }
+        severity:
+          $ref: "#/components/schemas/RedTeamSeverity"
+        dimension:
+          $ref: "#/components/schemas/RedTeamAttackDimension"
+        recommended_source_types:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        required_evidence_types:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 120 }
+        affected_agent_types:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items: { type: string }
+        affected_opportunity_ids:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string }
+
+    RedTeamRevisionRequest:
+      type: object
+      additionalProperties: false
+      required: [revision_id, finding_ids, affected_agent_types, affected_task_ids, required_actions, resume_from_agent, reason]
+      properties:
+        revision_id: { type: string, minLength: 1, maxLength: 80 }
+        finding_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string }
+        affected_agent_types:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items: { type: string }
+        affected_task_ids:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+        required_actions:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string }
+        resume_from_agent: { type: string }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    RedTeamVersionDiff:
+      type: object
+      additionalProperties: false
+      required: [previous_artifact_id, added_finding_ids, resolved_finding_ids, unchanged_finding_ids]
+      properties:
+        previous_artifact_id: { type: [string, "null"] }
+        added_finding_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        resolved_finding_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        unchanged_finding_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+
+    RedTeamFallbackPlan:
+      type: object
+      additionalProperties: false
+      required: [safe_scope, blocked_reason, reentry_conditions, validation_demo]
+      properties:
+        safe_scope: { type: string, minLength: 1, maxLength: 2000 }
+        blocked_reason: { type: string, minLength: 1, maxLength: 2000 }
+        reentry_conditions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string }
+        validation_demo: { type: string, minLength: 1, maxLength: 2000 }
+
+    RedTeamCoverage:
+      type: object
+      additionalProperties: false
+      required: [required_dimension_count, attacked_dimension_count, finding_count, challenge_count, unresolved_challenge_count, evidence_context_hash]
+      properties:
+        required_dimension_count: { type: integer, minimum: 9, maximum: 9 }
+        attacked_dimension_count: { type: integer, minimum: 0 }
+        finding_count: { type: integer, minimum: 0 }
+        challenge_count: { type: integer, minimum: 0 }
+        unresolved_challenge_count: { type: integer, minimum: 0 }
+        evidence_context_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+
+    RedTeamPayload:
+      type: object
+      additionalProperties: false
+      required: [schema_name, schema_version, source_artifact_ids, summary, summary_evidence_ids, findings, challenge_responses, red_team_gaps, revision_requests, fallback_plan, verdict, verdict_reason, version_diff, coverage]
+      properties:
+        schema_name: { type: string, const: red_team_policy_revision }
+        schema_version: { type: string, const: "2.0" }
+        source_artifact_ids:
+          type: object
+          minProperties: 7
+          maxProperties: 7
+          additionalProperties: { type: string }
+        summary: { type: string, minLength: 1, maxLength: 5000 }
+        summary_evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string }
+        findings:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/RedTeamFinding"
+        challenge_responses:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/RedTeamChallengeResponse"
+        red_team_gaps:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/RedTeamGap"
+        revision_requests:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/RedTeamRevisionRequest"
+        fallback_plan:
+          oneOf:
+            - $ref: "#/components/schemas/RedTeamFallbackPlan"
+            - type: "null"
+        verdict:
+          $ref: "#/components/schemas/RedTeamVerdict"
+        verdict_reason: { type: string, minLength: 1, maxLength: 2000 }
+        version_diff:
+          $ref: "#/components/schemas/RedTeamVersionDiff"
+        coverage:
+          $ref: "#/components/schemas/RedTeamCoverage"
+
+    RedTeamArtifact:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, task_id, artifact_type, schema_version, status, payload, evidence_ids, contradictions, unknowns, quality_score, errors]
+      properties:
+        artifact_id: { type: string }
+        task_id: { type: string }
+        artifact_type: { type: string, const: red_team }
+        schema_version: { type: string, const: "2.0" }
+        status:
+          $ref: "#/components/schemas/ResearchTaskStatus"
+        payload:
+          $ref: "#/components/schemas/RedTeamPayload"
+        evidence_ids:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: string }
+        contradictions:
+          type: array
+          maxItems: 200
+          items: { type: string }
+        unknowns:
+          type: array
+          maxItems: 200
           items: { type: string }
         quality_score: { type: number, minimum: 0, maximum: 100 }
         errors:
