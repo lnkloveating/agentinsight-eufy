@@ -36,6 +36,26 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/integration/test_competitor_a2a_supervisor.py`
 - `tests/integration/test_runtime_langgraph_integration.py`
 
+## AC-26 Security Policy Verification（分支 `workflow/security-policy-verification`）
+
+- 只能消费当前项目已经持久化的 `SecurityPolicyArtifact`，跨项目 Artifact 必须拒绝；
+- 验证器不得连接设备控制接口、发送真实通知或把 dry-run 表述为真实部署；
+- 每条可合成风险规则必须生成确定性测试场景，每条策略必须覆盖五类 fallback；
+- 用户场景只能引用策略声明的 state/signal 和源策略已有 Evidence ID；
+- 风险等级、命中规则、干预动作、fallback、断言及 trace 必须结构化返回；
+- 场景更新支持时间戳并输出状态 trace；无法可靠合成的缺失或冲突条件必须生成
+  `validation_gaps`，不得伪造通过；
+- 任一断言失败时进入 `awaiting_policy_revision`；通过或有条件通过才进入
+  `awaiting_commercial_evaluation`；
+- Gap 可通过统一 Source Recovery 投影，补研时只针对受影响策略与场景；
+- OpenAPI、运行 API、Artifact 历史和 LangGraph 持久化链路保持一致。
+
+验收测试：
+
+- `tests/unit/test_policy_verification.py`
+- `tests/integration/test_research_workflow.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
+
 ## AC-03C 竞品官方产品专家
 
 官方产品专家只能读取当前项目中状态为 `verified` 或 `partially_verified`，且 Claim 类型为

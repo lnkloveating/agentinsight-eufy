@@ -25,8 +25,8 @@
 - `GET /api/v1/projects/{project_id}/agents/security-policy-compiler/artifacts`
   - 输出所有已持久化版本及版本差异。
 
-主工作流在技术可行性通过后自动运行该 Agent，完成后停在
-`awaiting_policy_verification`。下一分支应实现策略仿真和验证，而不是开启真实设备控制。
+主工作流在技术可行性通过后自动运行该 Agent，随后进入 Security Policy Verification。验证仍然只在
+dry-run 环境解释 DSL，不开启真实设备控制。
 
 ## 前端展示建议
 

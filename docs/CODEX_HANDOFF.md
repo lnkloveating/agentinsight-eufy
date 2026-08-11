@@ -537,6 +537,14 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 目标：把通过技术可行性验证的开放安全目标编译为可解释的跨设备策略，包括状态变量、感知请求、
 风险升级、动作阶梯、权限边界、离线 fallback 与策略版本；不直接执行真实家庭动作。
 
+### 已完成：`workflow/security-policy-verification`
+
+目标：把已编译策略作为数据放入确定性 dry-run 引擎，自动覆盖风险规则和五类失败降级，并允许用户
+提交受策略 state/signal/Evidence 范围约束的结构化场景。输出场景、trace、风险、动作、断言、Gap 和
+总体结论；不调用真实设备。通过或有条件通过后等待 Commercial v2，失败后等待策略修订。
+
+前端“场景实验”页应按 `docs/security-policy-verification.md` 展示，并始终显示 Dry Run 标识。
+
 ### 后续顺序
 
 ```text
@@ -544,8 +552,8 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 2. workflow/ai-native-ecosystem-gate
 3. agent/technical-feasibility（已完成）
 4. agent/security-policy-compiler（已完成）
-5. workflow/security-policy-verification（下一步）
-6. agent/commercial-evaluation-v2
+5. workflow/security-policy-verification（已完成）
+6. agent/commercial-evaluation-v2（下一步）
 7. agent/redteam-policy-revision
 8. demo/package-goal-to-guard
 9. integration/feishu-aily
