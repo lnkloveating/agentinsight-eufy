@@ -475,7 +475,7 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 - 不固定 Guardian Agent、门铃或包裹模板；
 - 输出版本化 `EcosystemOpportunityArtifact`；
 - 实现已经定义的 `/api/v2` 目标契约对应 `/api/v1` 可运行 Route；
-- 暂不接入 LangGraph 主图，先独立真实链路测试，再由 Gate 分支接线。
+- 该 Agent 分支最初独立验证；现已由 `workflow/ai-native-ecosystem-gate` 接入 LangGraph 主图。
 
 验收示例：
 
@@ -489,11 +489,26 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 
 真实运行接口、设备能力约束、前端字段和失败语义见 `docs/ecosystem-opportunity-agent.md`。
 
-### 下一分支：`workflow/ai-native-ecosystem-gate`
+### 已完成：`workflow/ai-native-ecosystem-gate`
 
-目标：对生态机会执行独立的 AI 原生门禁，识别“普通检测通知/固定自动化包装成 AI”的伪创新，
-验证开放安全目标、持续状态、主动补证、不确定性降级、人工授权、失败修订和 AI removal test。
-本分支不得重复生成候选，也不得替代后续技术可行性与商业判断。
+该分支已经把生态机会接入 LangGraph 主路径，并新增不调用模型的 AI Native Gate：
+
+- 确定性检查生态范围、跨设备闭环、AI removal test、职责分离、失败修订、隐私/fallback、人工授权和
+  部署前失败/对抗验证；
+- 普通通知、单设备固定规则和移除 AI 后价值仍成立的候选被阻止；
+- 语义性判断投影为 Human Gate，批准只能选择确定性合格候选；
+- `revise` 只重跑 Ecosystem Opportunity；
+- `research_more` 进入统一 Source Recovery，恢复后不重复用户与竞品研究；
+- Checkpoint 能只恢复失败的 Ecosystem Opportunity 节点；
+- 当前批准后明确停在 `awaiting_technical_feasibility`，没有调用旧 Product Technical v1 或商业链路。
+
+详细契约和前端状态见 `docs/ai-native-ecosystem-gate.md`。
+
+### 下一分支：`agent/technical-feasibility`
+
+目标：消费已获 AI Native Gate 批准的生态机会和 Device Capability Graph，判断现有设备、数据、API、
+隐私、部署、延迟和失效模式是否足以支持试点或首个 Demo。不得把技术假设写成现有能力，也不得用论文
+替代真实设备/API Evidence。
 
 ### 后续顺序
 

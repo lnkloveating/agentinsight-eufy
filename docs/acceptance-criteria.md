@@ -652,6 +652,39 @@ AI 辅助组和传统组可以比较完成时间、有效 Evidence、引用覆�
 - `tests/unit/test_ecosystem_opportunity_contracts.py`
 - `tests/integration/test_ecosystem_opportunity_agent.py`
 
+## AC-22 AI Native Ecosystem Gate（分支 `workflow/ai-native-ecosystem-gate`）
+
+生态机会必须经过独立确定性检查和 Human Gate，普通检测通知、单设备固定规则或移除 AI 后核心价值仍
+成立的候选不能冒充 AI 原生家庭安防生态。
+
+验收要求：
+
+- 主图从 Evidence Readiness 进入 Ecosystem Opportunity，再进入 AI Native Gate；Product Technical v1、
+  旧 Commercial 和旧 Red Team 不再属于当前新项目任务计划；
+- Gate 不调用模型、不生成候选、不修改原 Artifact，只消费版本化 `EcosystemOpportunityArtifact`；
+- `ecosystem_service` 必须至少有两个必需设备角色进入跨设备信息流；
+- AI removal test 必须说明移除 AI 后核心价值不能成立，并列出丢失能力；
+- 模型职责与权限、动作和安全等确定性职责必须分离；
+- 候选必须包含失败修订闭环、隐私边界、离线/fallback、Human Review Point，以及 failure 和 adversarial
+  部署前验证；
+- 上游 Evidence/Capability Gate 已阻止的候选不能晋级；失败候选生成稳定 Revision Request；
+- 通过确定性检查后仍暂停 Human Gate，由人确认开放目标、持续状态、主动补证与失败修订语义；
+- 批准必须选择至少一个确定性合格 Opportunity，后端拒绝被阻止、未知或重复 ID；
+- `revise` 只重跑 Ecosystem Opportunity；达到最大迭代后返回 inconclusive；
+- 只有 Artifact 存在真实 `portfolio_gaps` 时才允许 `research_more`；统一 Source Recovery 完成后只恢复
+  Ecosystem Opportunity，不重复用户与竞品研究；
+- Checkpoint 能在 Ecosystem Opportunity 节点失败后恢复该节点，不重复已完成并行研究；
+- 技术可行性尚未实现时，批准后明确停在 `awaiting_technical_feasibility`，不得调用旧单产品链路或显示
+  已可落地、可商业化、可上架；
+- 本分支不新增公共 HTTP API，详细状态与前端语义见 `docs/ai-native-ecosystem-gate.md`。
+
+自动化映射：
+
+- `tests/unit/test_ai_native_ecosystem_gate.py`
+- `tests/unit/test_workflow_contracts.py`
+- `tests/integration/test_research_workflow.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
+
 ## Release gate
 
 MVP 只有同时满足以下条件才可通过：
