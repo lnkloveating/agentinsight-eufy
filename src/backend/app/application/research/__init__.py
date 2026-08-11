@@ -6,6 +6,10 @@ from app.application.research.ecosystem_opportunity import (
     ECOSYSTEM_OPPORTUNITY_TASK_ID,
     EcosystemOpportunityService,
 )
+from app.application.research.policy_verification import (
+    POLICY_VERIFICATION_TASK_ID,
+    PolicyVerificationService,
+)
 from app.application.research.security_policy import (
     SECURITY_POLICY_TASK_ID,
     SecurityPolicyService,
@@ -24,6 +28,8 @@ __all__ = [
     "CompetitorEcosystemAnalysisService",
     "ECOSYSTEM_OPPORTUNITY_TASK_ID",
     "EcosystemOpportunityService",
+    "POLICY_VERIFICATION_TASK_ID",
+    "PolicyVerificationService",
     "SECURITY_POLICY_TASK_ID",
     "SecurityPolicyService",
     "TECHNICAL_FEASIBILITY_TASK_ID",

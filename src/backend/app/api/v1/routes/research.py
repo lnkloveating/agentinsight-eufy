@@ -2,6 +2,10 @@ from fastapi import APIRouter, status
 
 from app.agents.competitor import CompetitorEcosystemArtifact
 from app.agents.ecosystem_opportunity import EcosystemOpportunityArtifact
+from app.agents.policy_verification import (
+    PolicyVerificationArtifact,
+    PolicyVerificationRunCreate,
+)
 from app.agents.security_policy import SecurityPolicyArtifact, SecurityPolicyRunCreate
 from app.agents.technical_feasibility import (
     TechnicalFeasibilityArtifact,
@@ -11,6 +15,7 @@ from app.agents.user_research import UserResearchArtifact
 from app.api.dependencies import (
     CompetitorEcosystemServiceDependency,
     EcosystemOpportunityServiceDependency,
+    PolicyVerificationServiceDependency,
     SecurityPolicyServiceDependency,
     SourceRecoveryServiceDependency,
     TechnicalFeasibilityServiceDependency,
@@ -24,6 +29,31 @@ from app.schemas.source_recovery import (
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/{project_id}/workflows/security-policy-verification",
+    response_model=PolicyVerificationArtifact,
+    summary="运行安全策略 dry-run 验证",
+)
+async def run_policy_verification(
+    project_id: str,
+    payload: PolicyVerificationRunCreate,
+    service: PolicyVerificationServiceDependency,
+) -> PolicyVerificationArtifact:
+    return await service.run(project_id, payload)
+
+
+@router.get(
+    "/{project_id}/workflows/security-policy-verification/artifacts",
+    response_model=list[PolicyVerificationArtifact],
+    summary="查询安全策略验证 Artifact 历史版本",
+)
+async def list_policy_verification_artifacts(
+    project_id: str,
+    service: PolicyVerificationServiceDependency,
+) -> list[PolicyVerificationArtifact]:
+    return await service.list_artifacts(project_id)
 
 
 @router.post(

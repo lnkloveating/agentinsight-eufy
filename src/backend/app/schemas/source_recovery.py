@@ -18,6 +18,7 @@ class RecoverableAgentType(StrEnum):
     ECOSYSTEM_OPPORTUNITY = "ecosystem_opportunity"
     TECHNICAL_FEASIBILITY = "technical_feasibility"
     SECURITY_POLICY = "security_policy"
+    POLICY_VERIFICATION = "policy_verification"
     COMMERCIAL_EVALUATION = "commercial_evaluation"
     RED_TEAM = "red_team"
     CANDIDATE_SYNTHESIS = "candidate_synthesis"

@@ -61,7 +61,9 @@ class AgentGapProjector:
         dimension = self._optional_text(raw.get("dimension"))
         recommended = self._string_list(raw.get("recommended_source_types"))
         required = self._string_list(raw.get("required_evidence_types"))
-        affected = self._string_list(raw.get("affected_candidate_ids"))
+        affected = self._string_list(
+            raw.get("affected_candidate_ids") or raw.get("affected_policy_ids")
+        )
         supplied_id = self._text(raw.get("gap_id"))
         gap_id = supplied_id or self._stable_gap_id(
             agent_type=agent_type,

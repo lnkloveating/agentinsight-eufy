@@ -41,6 +41,7 @@ from app.application.projects import ProjectService
 from app.application.research import (
     CompetitorEcosystemAnalysisService,
     EcosystemOpportunityService,
+    PolicyVerificationService,
     SecurityPolicyService,
     TechnicalFeasibilityService,
     UserResearchService,
@@ -555,6 +556,22 @@ def get_security_policy_service(request: Request) -> SecurityPolicyService:
 
 SecurityPolicyServiceDependency = Annotated[
     SecurityPolicyService, Depends(get_security_policy_service)
+]
+
+
+def get_policy_verification_service(request: Request) -> PolicyVerificationService:
+    database: Database = request.app.state.database
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+    return PolicyVerificationService(database, runtime)
+
+
+PolicyVerificationServiceDependency = Annotated[
+    PolicyVerificationService, Depends(get_policy_verification_service)
 ]
 
 

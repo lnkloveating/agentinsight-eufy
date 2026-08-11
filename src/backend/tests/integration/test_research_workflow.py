@@ -142,8 +142,8 @@ async def test_main_graph_runs_selected_opportunity_through_technical_feasibilit
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_POLICY_VERIFICATION
-    assert result["terminal_reason"] == "policy_verification_not_implemented"
+    assert result["outcome"] == WorkflowOutcome.AWAITING_COMMERCIAL_EVALUATION
+    assert result["terminal_reason"] == "commercial_evaluation_not_implemented"
     assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 1
     technical_context = runtime.contexts[ResearchAgentType.TECHNICAL_FEASIBILITY]
     assert technical_context.selected_innovation_ids == ["eco_continuous_guard"]
@@ -154,13 +154,44 @@ async def test_main_graph_runs_selected_opportunity_through_technical_feasibilit
         "ecosystem_opportunity",
         "technical_feasibility",
     }
+    verification_context = runtime.contexts[ResearchAgentType.POLICY_VERIFICATION]
+    assert set(verification_context.upstream_artifacts) == {"security_policy"}
     assert set(runtime.call_counts) == {
         ResearchAgentType.RESEARCH_MANAGER,
         *PLANNED_AGENT_TYPES,
         ResearchAgentType.TECHNICAL_FEASIBILITY,
         ResearchAgentType.SECURITY_POLICY,
+        ResearchAgentType.POLICY_VERIFICATION,
     }
     assert len(result["decision_history"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_failed_policy_verification_waits_for_policy_revision() -> None:
+    runtime = TestAgentRuntime(policy_verification_status="failed")
+    graph = compile_research_graph(runtime, InMemorySaver())
+    config = {"configurable": {"thread_id": "proj_policy_failed"}}
+
+    result = await graph.ainvoke(
+        create_initial_state("proj_policy_failed", _brief()), config
+    )
+    result = await graph.ainvoke(
+        Command(resume=_decision(_gate_request(result), DecisionAction.APPROVE)),
+        config,
+    )
+    result = await graph.ainvoke(
+        Command(
+            resume=_decision(
+                _gate_request(result),
+                DecisionAction.APPROVE,
+                selected=["eco_continuous_guard"],
+            )
+        ),
+        config,
+    )
+
+    assert result["outcome"] == WorkflowOutcome.AWAITING_POLICY_REVISION
+    assert result["terminal_reason"] == "policy_verification_failed"
 
 
 @pytest.mark.asyncio
@@ -230,7 +261,7 @@ async def test_technical_evidence_gap_enters_universal_source_recovery() -> None
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_POLICY_VERIFICATION
+    assert result["outcome"] == WorkflowOutcome.AWAITING_COMMERCIAL_EVALUATION
     assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 2
     assert runtime.call_counts[ResearchAgentType.ECOSYSTEM_OPPORTUNITY] == 1
 

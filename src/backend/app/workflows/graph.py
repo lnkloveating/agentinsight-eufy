@@ -119,7 +119,11 @@ class ResearchWorkflow:
         builder.add_node("prepare_security_policy", self._prepare_security_policy)
         builder.add_node("security_policy", self._security_policy)
         builder.add_node(
-            "awaiting_policy_verification", self._awaiting_policy_verification
+            "prepare_policy_verification", self._prepare_policy_verification
+        )
+        builder.add_node("policy_verification", self._policy_verification)
+        builder.add_node(
+            "policy_verification_complete", self._policy_verification_complete
         )
         builder.add_node("reject", self._reject)
         builder.add_node("terminate", self._terminate)
@@ -188,9 +192,11 @@ class ResearchWorkflow:
         )
         builder.add_edge("technical_source_recovery_gate", "technical_feasibility")
         builder.add_edge("prepare_security_policy", "security_policy")
-        builder.add_edge("security_policy", "awaiting_policy_verification")
+        builder.add_edge("security_policy", "prepare_policy_verification")
+        builder.add_edge("prepare_policy_verification", "policy_verification")
+        builder.add_edge("policy_verification", "policy_verification_complete")
         for terminal_node in (
-            "awaiting_policy_verification",
+            "policy_verification_complete",
             "reject",
             "terminate",
             "inconclusive",
@@ -575,24 +581,80 @@ class ResearchWorkflow:
             accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
         )
 
-    async def _awaiting_policy_verification(self, state: ResearchState) -> dict[str, Any]:
-        artifact = self._artifact(state, ResearchAgentType.SECURITY_POLICY)
+    async def _prepare_policy_verification(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        policy_task = self._task(state, ResearchAgentType.SECURITY_POLICY)
+        task = ResearchTask(
+            task_id=f"task_{state['project_id']}_policy_verification",
+            project_id=state["project_id"],
+            agent_type=ResearchAgentType.POLICY_VERIFICATION,
+            goal="Run deterministic dry-run scenarios against the compiled policy DSL.",
+            scope={"policy_artifact_id": None, "scenarios": []},
+            required_artifacts=[ResearchAgentType.SECURITY_POLICY.value],
+            evidence_rules=policy_task.evidence_rules,
+            budget=ResearchBudget(max_pages=0, max_iterations=1, deadline_seconds=60),
+            depends_on=[policy_task.task_id],
+            acceptance_checks=[
+                "dry_run_only",
+                "risk_rules_exercised",
+                "five_fallbacks_exercised",
+                "deterministic_assertions",
+            ],
+        )
+        plan = self._task_plan(state)
+        plan = [item for item in plan if item.agent_type is not task.agent_type]
+        plan.append(task)
+        return {
+            "task_plan": [item.model_dump(mode="json") for item in plan],
+            "outcome": WorkflowOutcome.RUNNING.value,
+            "current_stage": "policy_verification_preparation",
+            "progress": 80,
+            "node_history": [
+                self._event("prepare_policy_verification", task, "prepared")
+            ],
+        }
+
+    async def _policy_verification(self, state: ResearchState) -> dict[str, Any]:
+        return await self._run_planned_agent(
+            state,
+            ResearchAgentType.POLICY_VERIFICATION,
+            "policy_verification",
+            86,
+            accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
+        )
+
+    async def _policy_verification_complete(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.POLICY_VERIFICATION)
+        verification_status = artifact.payload.get("verification_status")
+        if verification_status == "failed":
+            outcome = WorkflowOutcome.AWAITING_POLICY_REVISION
+            reason = "policy_verification_failed"
+        elif verification_status == "inconclusive":
+            outcome = WorkflowOutcome.INCONCLUSIVE
+            reason = "policy_verification_inconclusive"
+        else:
+            outcome = WorkflowOutcome.AWAITING_COMMERCIAL_EVALUATION
+            reason = "commercial_evaluation_not_implemented"
         coverage = artifact.payload.get("coverage", {})
         return {
-            "outcome": WorkflowOutcome.AWAITING_POLICY_VERIFICATION.value,
-            "current_stage": "policy_verification_pending",
-            "progress": 80,
+            "outcome": outcome.value,
+            "current_stage": "policy_verification_complete",
+            "progress": 88,
             "pending_gate": None,
-            "terminal_reason": "policy_verification_not_implemented",
+            "terminal_reason": reason,
             "node_history": [
                 WorkflowEvent(
                     event_type="workflow_phase_completed",
-                    node="awaiting_policy_verification",
+                    node="policy_verification_complete",
                     task_id=artifact.task_id,
-                    status=WorkflowOutcome.AWAITING_POLICY_VERIFICATION,
+                    status=outcome,
                     message=(
-                        "Security Policy DSL compiled in dry-run mode: "
-                        f"{coverage.get('compiled_policy_count', 0)} policies."
+                        "Security Policy dry-run verification completed: "
+                        f"{coverage.get('passed_count', 0)} passed, "
+                        f"{coverage.get('failed_count', 0)} failed."
                     ),
                 ).model_dump(mode="json")
             ],

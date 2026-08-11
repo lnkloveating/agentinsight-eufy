@@ -23,12 +23,14 @@ class TestAgentRuntime:
         competitor_ready_with_gaps: bool = False,
         invalid_competitor_attempts: int = 0,
         technical_verdict: str = "demo_feasible",
+        policy_verification_status: str = "passed",
     ) -> None:
         self.evidence_ready_on_attempt = evidence_ready_on_attempt
         self.fail_once = set(fail_once or set())
         self.competitor_ready_with_gaps = competitor_ready_with_gaps
         self.invalid_competitor_attempts = invalid_competitor_attempts
         self.technical_verdict = technical_verdict
+        self.policy_verification_status = policy_verification_status
         self.calls: list[ResearchAgentType] = []
         self.call_counts: Counter[ResearchAgentType] = Counter()
         self.contexts: dict[ResearchAgentType, AgentContext] = {}
@@ -122,6 +124,21 @@ class TestAgentRuntime:
                 "execution_mode": "dry_run",
                 "coverage": {
                     "compiled_policy_count": len(context.selected_innovation_ids)
+                },
+            }
+        elif task.agent_type is ResearchAgentType.POLICY_VERIFICATION:
+            evidence_ids = _upstream_evidence(context)
+            payload = {
+                "schema_name": "security_policy_verification",
+                "verification_status": self.policy_verification_status,
+                "coverage": {
+                    "passed_count": (
+                        0 if self.policy_verification_status == "failed" else 6
+                    ),
+                    "failed_count": (
+                        1 if self.policy_verification_status == "failed" else 0
+                    ),
+                    "inconclusive_count": 0,
                 },
             }
 
