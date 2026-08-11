@@ -402,19 +402,15 @@ function InlineEvidenceRecovery({ projectId, evidenceCount }: { projectId: strin
     setSubmitting(true);
     setError(null);
     try {
-      await api.ingestEvidence(projectId, {
+      const result = await api.createSourceLink(projectId, {
         source_url: sourceUrl,
-        source_type: 'user_reviews',
-        title,
-        original_excerpt: excerpt,
-        claim_type: 'user_opinion',
-        status: 'partially_verified',
-        collected_at: new Date().toISOString(),
-        confidence: 0.7,
-        authority_score: 0.7,
-        recency_score: 0.8,
-        diversity_score: 0.7,
+        display_name: title,
+        authorization_basis: 'publicly_available',
+        authorization_confirmed: true,
+        authorized_by: '用户',
+        purpose: excerpt || '补充用户研究资料并进入后端解析链路',
       });
+      await api.processSource(projectId, result.source_asset.source_asset_id);
       await api.retryInitialResearch(projectId);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['workspace', projectId] }),

@@ -4,6 +4,7 @@ import { useCreateProjectMutation, useProjectsQuery, useWorkspaceQuery } from '.
 import type { ProjectCreateInput } from '../shared/types/api';
 import { api } from '../shared/api/client';
 import { EmptyProjectCard, ProjectCard } from '../shared/components/ProjectCard';
+import { buildHomeSafetyBrief } from '../shared/lib/brief';
 import { EvidenceListPanel } from '../widgets/app-shell/WorkbenchComponents';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -199,15 +200,15 @@ export function ProjectsPage() {
 
   async function handleStartResearch() {
     const input: ProjectCreateInput = {
-      brief: {
+      brief: buildHomeSafetyBrief({
         question: question || 'eufy 产品机会研究',
-        category: generatedProjectName,
-        target_user: home || '未指定',
-        region: market || '未指定',
-        scenarios: [scope || '暂不限制'],
-        constraints: externalUrl ? externalUrl.split('\n').filter(Boolean) : [],
-        focus_dimensions: [direction || '暂不限制'],
-      },
+        targetEcosystem: generatedProjectName,
+        targetUsers: [home || '家庭安防用户'],
+        markets: [market || '美国'],
+        riskScenarios: [scope || '家庭安全事件识别与主动干预'],
+        evaluationDimensions: [direction || 'AI 原生安全能力'],
+        externalConstraints: externalUrl ? externalUrl.split('\n').filter(Boolean) : [],
+      }),
     };
 
     const project = await createProjectMutation.mutateAsync(input);

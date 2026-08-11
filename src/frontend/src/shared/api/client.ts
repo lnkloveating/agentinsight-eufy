@@ -2,28 +2,34 @@ import { API_BASE_URL } from '../config/app';
 import type {
   AgentRun,
   Claim,
+  Concept,
   DecisionCreateInput,
-  EvidencePage,
   EvidenceIngestInput,
   EvidenceIngestResult,
+  EvidencePage,
+  Innovation,
   Metrics,
   Project,
   ProjectCreateInput,
   Report,
-  Concept,
-  Innovation,
+  SourceAssetIngestResult,
+  SourceAssetPage,
+  SourceLinkCreateInput,
+  SourceProcessingStatus,
+  ResearchBrief,
 } from '../types/api';
-import { mockApi } from './mockData';
 
-type RequestInitLike = RequestInit & { fallbackMock?: boolean };
-const REQUEST_TIMEOUT_MS = 800;
-const ENABLE_MOCK_FALLBACK = import.meta.env.VITE_ENABLE_MOCK_FALLBACK === 'true';
+type RequestInitLike = RequestInit & { timeoutMs?: number };
+const DEFAULT_REQUEST_TIMEOUT_MS = parsePositiveIntegerEnv(import.meta.env.VITE_API_REQUEST_TIMEOUT_MS, 30_000);
+const LONG_REQUEST_TIMEOUT_MS = parsePositiveIntegerEnv(import.meta.env.VITE_API_LONG_REQUEST_TIMEOUT_MS, 800_000);
 
-function fallback<T>(enabled: boolean, value: () => T, error: unknown): T {
-  if (enabled && ENABLE_MOCK_FALLBACK) {
-    return value();
+function parsePositiveIntegerEnv(value: string | undefined, fallbackValue: number): number {
+  if (!value) {
+    return fallbackValue;
   }
-  throw error;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackValue;
 }
 
 function toLegacyConcept(innovation: Innovation): Concept {
@@ -42,33 +48,75 @@ function toLegacyConcept(innovation: Innovation): Concept {
   };
 }
 
+function normalizeBrief(brief: ResearchBrief): Project['brief'] {
+  if (
+    !brief.target_ecosystems ||
+    !brief.target_users ||
+    !brief.markets ||
+    !brief.risk_scenarios ||
+    !brief.privacy_boundary ||
+    !brief.intervention_boundary ||
+    !brief.evaluation_dimensions
+  ) {
+    return brief;
+  }
+
+  return {
+    ...brief,
+    category: brief.target_ecosystems.join(' / '),
+    target_user: brief.target_users.join(' / '),
+    region: brief.markets.join(' / '),
+    scenarios: brief.risk_scenarios,
+    constraints: [
+      brief.privacy_boundary.raw_media_allowed ? '允许原始媒体' : '不使用原始媒体',
+      brief.privacy_boundary.external_sharing_allowed ? '允许外部共享' : '禁止外部共享',
+      ...brief.privacy_boundary.restricted_zones.map((zone) => `限制区域：${zone}`),
+      ...brief.intervention_boundary.prohibited_actions.map((action) => `禁止：${action}`),
+    ],
+    focus_dimensions: brief.evaluation_dimensions,
+  };
+}
+
+function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    brief: normalizeBrief(project.brief),
+  };
+}
+
 function normalizeEvidencePage(page: EvidencePage): EvidencePage {
   return {
     ...page,
     items: page.items.map((item) => ({
       ...item,
-      excerpt: item.excerpt ?? (item as EvidencePage['items'][number] & { original_excerpt?: string }).original_excerpt ?? '',
-      captured_at: item.captured_at ?? (item as EvidencePage['items'][number] & { collected_at?: string }).collected_at ?? '',
+      excerpt: item.excerpt ?? item.original_excerpt ?? '',
+      captured_at: item.captured_at ?? item.collected_at ?? '',
     })),
   };
 }
 
 async function request<T>(path: string, init?: RequestInitLike): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const { timeoutMs, ...fetchInit } = init ?? {};
+  const isFormData = typeof FormData !== 'undefined' && fetchInit.body instanceof FormData;
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+  );
 
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(fetchInit.headers ?? {}),
       },
+      ...fetchInit,
       signal: controller.signal,
-      ...init,
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP_${response.status}`);
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail ? `HTTP_${response.status}: ${detail}` : `HTTP_${response.status}`);
     }
 
     if (response.status === 204) {
@@ -76,11 +124,6 @@ async function request<T>(path: string, init?: RequestInitLike): Promise<T> {
     }
 
     return (await response.json()) as T;
-  } catch (error) {
-    if (init?.fallbackMock === false) {
-      throw error;
-    }
-    throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -88,46 +131,26 @@ async function request<T>(path: string, init?: RequestInitLike): Promise<T> {
 
 export const api = {
   async listProjects(): Promise<Project[]> {
-    try {
-      return await request<Project[]>('/projects');
-    } catch (error) {
-      return fallback(true, () => mockApi.listProjects(), error);
-    }
+    return (await request<Project[]>('/projects')).map(normalizeProject);
   },
 
   async createProject(input: ProjectCreateInput): Promise<Project> {
-    try {
-      return await request<Project>('/projects', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      });
-    } catch (error) {
-      return fallback(true, () => mockApi.createProject(input), error);
-    }
+    return normalizeProject(await request<Project>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }));
   },
 
   async getProject(project_id: string): Promise<Project> {
-    try {
-      return await request<Project>(`/projects/${project_id}`);
-    } catch (error) {
-      return fallback(true, () => mockApi.getProject(project_id), error);
-    }
+    return normalizeProject(await request<Project>(`/projects/${project_id}`));
   },
 
   async listAgentRuns(project_id: string): Promise<AgentRun[]> {
-    try {
-      return await request<AgentRun[]>(`/projects/${project_id}/agents`);
-    } catch (error) {
-      return fallback(true, () => mockApi.listAgentRuns(project_id), error);
-    }
+    return await request<AgentRun[]>(`/projects/${project_id}/agents`);
   },
 
   async listEvidence(project_id: string): Promise<EvidencePage> {
-    try {
-      return normalizeEvidencePage(await request<EvidencePage>(`/projects/${project_id}/evidence`));
-    } catch (error) {
-      return fallback(true, () => mockApi.listEvidence(project_id), error);
-    }
+    return normalizeEvidencePage(await request<EvidencePage>(`/projects/${project_id}/evidence`));
   },
 
   async ingestEvidence(project_id: string, input: EvidenceIngestInput): Promise<EvidenceIngestResult> {
@@ -138,20 +161,12 @@ export const api = {
   },
 
   async listClaims(project_id: string): Promise<Claim[]> {
-    try {
-      return await request<Claim[]>(`/projects/${project_id}/claims`);
-    } catch (error) {
-      return fallback(true, () => mockApi.listClaims(project_id), error);
-    }
+    return await request<Claim[]>(`/projects/${project_id}/claims`);
   },
 
   async listConcepts(project_id: string): Promise<Concept[]> {
-    try {
-      const innovations = await request<Innovation[]>(`/projects/${project_id}/innovations`);
-      return innovations.map(toLegacyConcept);
-    } catch (error) {
-      return fallback(true, () => mockApi.listConcepts(project_id), error);
-    }
+    const innovations = await request<Innovation[]>(`/projects/${project_id}/innovations`);
+    return innovations.map(toLegacyConcept);
   },
 
   async getReport(project_id: string): Promise<Report | null> {
@@ -171,34 +186,75 @@ export const api = {
   },
 
   async submitDecision(project_id: string, input: DecisionCreateInput): Promise<Project> {
-    try {
-      return await request<Project>(`/projects/${project_id}/decisions`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      });
-    } catch (error) {
-      return fallback(true, () => mockApi.submitDecision(project_id, input), error);
-    }
+    return normalizeProject(await request<Project>(`/projects/${project_id}/decisions`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }));
   },
 
   async deleteProject(project_id: string): Promise<void> {
-    try {
-      await request(`/projects/${project_id}`, { method: 'DELETE' });
-    } catch (error) {
-      fallback(true, () => mockApi.deleteProject(project_id), error);
-    }
+    await request(`/projects/${project_id}`, { method: 'DELETE' });
   },
 
   async startUserResearch(project_id: string): Promise<void> {
-    try {
-      await request(`/projects/${project_id}/agents/user-research`, { method: 'POST' });
-    } catch (error) {
-      fallback(true, () => mockApi.startUserResearch(project_id), error);
-    }
+    await request(`/projects/${project_id}/agents/user-research`, {
+      method: 'POST',
+      timeoutMs: LONG_REQUEST_TIMEOUT_MS,
+    });
+  },
+
+  async runCompetitorEcosystem(project_id: string): Promise<unknown> {
+    return await request(`/projects/${project_id}/agents/competitor-ecosystem`, {
+      method: 'POST',
+      timeoutMs: LONG_REQUEST_TIMEOUT_MS,
+    });
   },
 
   async retryInitialResearch(project_id: string): Promise<void> {
-    await request(`/projects/${project_id}/research/retry`, { method: 'POST' });
+    await request(`/projects/${project_id}/research/retry`, {
+      method: 'POST',
+      timeoutMs: LONG_REQUEST_TIMEOUT_MS,
+    });
   },
 
+  async listSources(project_id: string): Promise<SourceAssetPage> {
+    return await request<SourceAssetPage>(`/projects/${project_id}/sources`);
+  },
+
+  async createSourceLink(project_id: string, input: SourceLinkCreateInput): Promise<SourceAssetIngestResult> {
+    return await request<SourceAssetIngestResult>(`/projects/${project_id}/sources/links`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async uploadSourceFile(
+    project_id: string,
+    input: {
+      file: File;
+      authorization_basis: string;
+      authorization_confirmed: boolean;
+      authorized_by: string;
+      purpose: string;
+    },
+  ): Promise<SourceAssetIngestResult> {
+    const body = new FormData();
+    body.append('file', input.file);
+    body.append('authorization_basis', input.authorization_basis);
+    body.append('authorization_confirmed', String(input.authorization_confirmed));
+    body.append('authorized_by', input.authorized_by);
+    body.append('purpose', input.purpose);
+    return await request<SourceAssetIngestResult>(`/projects/${project_id}/sources/files`, {
+      method: 'POST',
+      body,
+      timeoutMs: LONG_REQUEST_TIMEOUT_MS,
+    });
+  },
+
+  async processSource(project_id: string, source_asset_id: string): Promise<SourceProcessingStatus> {
+    return await request<SourceProcessingStatus>(`/projects/${project_id}/sources/${source_asset_id}/processing`, {
+      method: 'POST',
+      timeoutMs: LONG_REQUEST_TIMEOUT_MS,
+    });
+  },
 };

@@ -15,6 +15,7 @@ import type {
   Report,
   WorkspaceData,
 } from '../types/api';
+import { toDisplayBrief } from '../lib/brief';
 
 const STORAGE_KEY = 'agentinsight-eufy-mock-db';
 
@@ -391,7 +392,7 @@ export const mockApi = {
       status: 'awaiting_brief_approval',
       current_stage: 'brief_confirmation',
       progress: 8,
-      brief: input.brief,
+      brief: toDisplayBrief(input.brief),
       pending_decision: makePendingDecision('brief', ['approve', 'terminate']),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

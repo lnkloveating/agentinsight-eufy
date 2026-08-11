@@ -541,6 +541,8 @@ export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: 
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [title, setTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [excerpt, setExcerpt] = useState('');
   const [status, setStatus] = useState<'verified' | 'partially_verified' | 'unverified'>('partially_verified');
   const [submitting, setSubmitting] = useState(false);
@@ -559,19 +561,31 @@ export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: 
     setSubmitting(true);
     setError(null);
     try {
-      await api.ingestEvidence(projectId, {
+      if (!title.trim() || !excerpt.trim()) {
+        setError('请填写标题和资料说明。');
+        return;
+      }
+
+      if (!sourceUrl && !sourceFile) {
+        setError('请提供来源链接或上传资料文件。');
+        return;
+      }
+
+      const result = sourceFile ? await api.uploadSourceFile(projectId, {
+        file: sourceFile,
+        authorization_basis: 'user_owned',
+        authorization_confirmed: true,
+        authorized_by: '用户',
+        purpose: `${excerpt}\n\n审核状态：${status}`,
+      }) : await api.createSourceLink(projectId, {
         source_url: sourceUrl,
-        source_type: 'user_reviews',
-        title,
-        original_excerpt: excerpt,
-        claim_type: 'user_opinion',
-        status,
-        collected_at: new Date().toISOString(),
-        confidence: status === 'verified' ? 0.9 : 0.7,
-        authority_score: status === 'verified' ? 0.9 : 0.7,
-        recency_score: 0.8,
-        diversity_score: 0.7,
+        display_name: title,
+        authorization_basis: 'publicly_available',
+        authorization_confirmed: true,
+        authorized_by: '用户',
+        purpose: `${excerpt}\n\n审核状态：${status}`,
       });
+      await api.processSource(projectId, result.source_asset.source_asset_id);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['workspace', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['projects'] }),
@@ -581,6 +595,8 @@ export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: 
       }
       setTitle('');
       setSourceUrl('');
+      setSourceFile(null);
+      setFileInputKey((value) => value + 1);
       setExcerpt('');
     } catch {
       setError('证据保存失败，请检查来源链接和后端服务。');
@@ -592,7 +608,7 @@ export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: 
   return (
     <Card>
       <SectionHeading eyebrow="Evidence Lake" title="证据中心" description="来源、可信度、状态和缺口要同时可见。" />
-      <form className="evidence-ingest-form" onSubmit={handleIngest}>
+      <form className="evidence-ingest-form" noValidate onSubmit={handleIngest}>
         <strong>人工录入用户证据</strong>
         <p className="muted-copy">请输入真实评论或访谈内容，并填写可追溯的来源链接。</p>
         <div className="evidence-ingest-form__grid">
@@ -600,6 +616,7 @@ export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: 
           <label className="ui-field"><span>来源链接</span><input className="ui-input" required type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://..." /></label>
         </div>
         <label className="ui-field"><span>评论 / 访谈原文</span><textarea className="ui-textarea" required value={excerpt} onChange={(event) => setExcerpt(event.target.value)} placeholder="粘贴真实用户评论或访谈片段" /></label>
+        <label className="ui-field"><span>上传资料</span><input className="ui-input" key={fileInputKey} type="file" onChange={(event) => setSourceFile(event.target.files?.[0] ?? null)} /></label>
         <div className="evidence-ingest-form__actions">
           <label className="ui-field">
             <span>审核状态</span>
@@ -648,7 +665,7 @@ export function EvidenceListPanel({ projectId, evidence, claims }: { projectId: 
                 <div className="evidence-card__meta">
                   <span>可信度 {formatPercent(item.confidence)}</span>
                   <span>{formatDateTime(item.captured_at)}</span>
-                  <a href={item.source_url} rel="noreferrer" target="_blank">
+                  <a href={item.source_url ?? undefined} rel="noreferrer" target="_blank">
                     打开来源
                   </a>
                 </div>
