@@ -53,7 +53,8 @@ Context Builder 每次运行都会读取当前项目的 Device Capability Graph�
 - Coverage、状态、稳定 Gap ID、质量分和 Artifact Evidence 集合由后端计算。
 
 这一分支只做证据/能力边界门禁。更严格的 AI removal test、主动感知闭环和“普通自动化伪装成 AI
-原生”的判断属于下一分支 `workflow/ai-native-ecosystem-gate`。
+原生”的判断已经由 `workflow/ai-native-ecosystem-gate` 完成，见
+`docs/ai-native-ecosystem-gate.md`。
 
 ## 5. 前端展示建议
 
@@ -76,8 +77,7 @@ Context Builder 每次运行都会读取当前项目的 Device Capability Graph�
 
 ## 6. 当前不包含
 
-- 尚未接入 LangGraph 主图；
-- 尚未执行 AI Native Ecosystem Gate；
+- 已由后续分支接入 LangGraph 主图并执行 AI Native Ecosystem Gate；
 - 尚未完成技术可行性、策略编译、策略仿真、商业结论和红队修订；
 - 尚未控制真实家庭设备，也没有用假 eufy API 冒充企业联调；
 - Package Demo 仍是后续对最终晋级策略的一个可落地验证样例，不是固定研究结论。

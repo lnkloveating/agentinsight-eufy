@@ -3,7 +3,7 @@
 from app.application.model_gateway import PromptDefinition, PromptRegistry
 
 ECOSYSTEM_OPPORTUNITY_PROMPT_KEY = "agent:ecosystem_opportunity"
-ECOSYSTEM_OPPORTUNITY_PROMPT_VERSION = "1.0.0"
+ECOSYSTEM_OPPORTUNITY_PROMPT_VERSION = "1.1.0"
 
 
 def register_ecosystem_opportunity_prompt(registry: PromptRegistry) -> None:
@@ -47,10 +47,13 @@ def register_ecosystem_opportunity_prompt(registry: PromptRegistry) -> None:
                 "competitor_ecosystem_artifact={competitor_research_json}\n"
                 "device_capability_graph={device_capability_graph_json}\n"
                 "evidence_index={evidence_index_json}\n\n"
+                "human_gate_decision_history={decision_history_json}\n\n"
                 "请从用户问题与竞品生态缺口的真实交集生成机会。required_capabilities"
                 " 使用稳定、明确的能力名称；当引用图中现有能力时优先原样使用"
                 " capability_name。opportunity_id、role_id 和 flow_id 在本次输出中保持"
                 "简短、稳定且唯一。验证计划必须覆盖正常、边界、失败或对抗场景中与该机会相关的类型。"
+                "如果 decision_history 包含 AI Native Gate 的 revise 决定，只修订受影响机会并明确"
+                "解决该决定指出的问题，不得无依据改写未受影响事实。"
             ),
         ),
         activate=True,

@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, TypedDict
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.project import DecisionAction, ResearchBrief
 
@@ -38,6 +38,7 @@ class ResearchTaskStatus(StrEnum):
 
 class GateName(StrEnum):
     BRIEF = "brief"
+    AI_NATIVE_ECOSYSTEM = "ai_native_ecosystem"
     SCENARIO = "scenario"
     FINAL = "final"
 
@@ -45,6 +46,8 @@ class GateName(StrEnum):
 class WorkflowOutcome(StrEnum):
     RUNNING = "running"
     AWAITING_DECISION = "awaiting_decision"
+    AWAITING_SOURCE_RECOVERY = "awaiting_source_recovery"
+    AWAITING_TECHNICAL_FEASIBILITY = "awaiting_technical_feasibility"
     COMPLETED = "completed"
     REJECTED = "rejected"
     TERMINATED = "terminated"
@@ -214,6 +217,26 @@ class GateRequest(BaseModel):
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkflowSourceRecoveryRequest(BaseModel):
+    project_id: str = Field(min_length=1, max_length=80)
+    source_artifact_id: str = Field(min_length=1, max_length=80)
+    source_task_id: str = Field(min_length=1, max_length=80)
+    gap_ids: list[str] = Field(min_length=1, max_length=30)
+    questions: list[str] = Field(min_length=1, max_length=30)
+    affected_agent_types: list[str] = Field(
+        default_factory=lambda: [ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value],
+        min_length=1,
+        max_length=10,
+    )
+
+    @field_validator("gap_ids", "questions", "affected_agent_types")
+    @classmethod
+    def _values_are_unique(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("source recovery request values must be unique")
+        return value
+
+
 class EvidenceGateResult(BaseModel):
     passed: bool
     issues: list[str] = Field(default_factory=list)
@@ -260,6 +283,7 @@ class ResearchState(TypedDict, total=False):
     task_plan: list[dict[str, Any]]
     artifacts: Annotated[dict[str, dict[str, Any]], merge_artifacts]
     evidence_gate: dict[str, Any]
+    ai_native_gate: dict[str, Any]
     research_handoff: dict[str, Any] | None
     routing_decision: str
     iteration: int
@@ -267,6 +291,7 @@ class ResearchState(TypedDict, total=False):
     affected_task_ids: list[str]
     selected_innovation_ids: list[str]
     pending_gate: dict[str, Any] | None
+    pending_source_recovery: dict[str, Any] | None
     decision_history: Annotated[list[dict[str, Any]], operator.add]
     node_history: Annotated[list[dict[str, Any]], operator.add]
     terminal_reason: str | None

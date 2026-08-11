@@ -106,6 +106,9 @@ class TestAgentRuntime:
         elif task.agent_type is ResearchAgentType.FINAL_SYNTHESIS:
             evidence_ids = _upstream_evidence(context)
             payload = {"recommendation": "investigate"}
+        elif task.agent_type is ResearchAgentType.ECOSYSTEM_OPPORTUNITY:
+            evidence_ids = _upstream_evidence(context)
+            payload = _ecosystem_opportunity_payload(evidence_ids)
 
         return ResearchArtifact(
             artifact_id=f"artifact_{task.task_id}_{self.call_counts[task.agent_type]}",
@@ -123,43 +126,13 @@ def _task_plan(manager_task: ResearchTask) -> list[ResearchTask]:
     project_id = manager_task.project_id
     user = _task(project_id, "user", ResearchAgentType.USER_RESEARCH)
     competitor = _task(project_id, "competitor", ResearchAgentType.COMPETITOR_RESEARCH)
-    product = _task(
+    opportunity = _task(
         project_id,
-        "product",
-        ResearchAgentType.PRODUCT_TECHNICAL,
+        "ecosystem_opportunity",
+        ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
         [user.task_id, competitor.task_id],
     )
-    commercial = _task(
-        project_id,
-        "commercial",
-        ResearchAgentType.COMMERCIAL_EVALUATION,
-        [product.task_id],
-    )
-    red_team = _task(
-        project_id,
-        "redteam",
-        ResearchAgentType.RED_TEAM,
-        [commercial.task_id],
-    )
-    candidate = _task(
-        project_id,
-        "candidate",
-        ResearchAgentType.CANDIDATE_SYNTHESIS,
-        [red_team.task_id],
-    )
-    validation = _task(
-        project_id,
-        "validation",
-        ResearchAgentType.VALIDATION,
-        [candidate.task_id],
-    )
-    final = _task(
-        project_id,
-        "final",
-        ResearchAgentType.FINAL_SYNTHESIS,
-        [validation.task_id],
-    )
-    return [user, competitor, product, commercial, red_team, candidate, validation, final]
+    return [user, competitor, opportunity]
 
 
 def _task(
@@ -289,4 +262,118 @@ def _competitor_synthesis_payload(
             "evidence_context_hash": "b" * 64,
         },
         "synthesis_status": "partial" if with_gaps else "completed",
+    }
+
+
+def _ecosystem_opportunity_payload(evidence_ids: list[str]) -> dict[str, object]:
+    user_id = next(item for item in evidence_ids if "user_research" in item)
+    competitor_id = next(item for item in evidence_ids if "competitor_research" in item)
+    opportunity_id = "eco_continuous_guard"
+    return {
+        "schema_name": "ecosystem_opportunity_portfolio",
+        "schema_version": "1.0",
+        "summary": "Cross-device state understanding is ready for AI-native review.",
+        "summary_evidence_ids": [user_id, competitor_id],
+        "opportunities": [
+            {
+                "opportunity_id": opportunity_id,
+                "name": "Continuous household safety guard",
+                "scope_level": "ecosystem_service",
+                "target_user": {
+                    "persona_ids": ["persona_household"],
+                    "description": "Households authorizing safety event metadata",
+                },
+                "problem": {
+                    "pain_ids": ["pain_manual_context"],
+                    "description": "People must manually combine device events.",
+                },
+                "safety_goal": "Continuously understand changing household safety risk.",
+                "ecosystem_blueprint": {
+                    "required_device_roles": [
+                        {
+                            "role_id": "role_perception",
+                            "role_type": "primary_perception",
+                            "description": "Capture authorized event metadata.",
+                            "required_capabilities": [],
+                            "optional": False,
+                            "evidence_ids": [],
+                        },
+                        {
+                            "role_id": "role_reasoning",
+                            "role_type": "local_reasoning_hub",
+                            "description": "Maintain household safety state.",
+                            "required_capabilities": [],
+                            "optional": False,
+                            "evidence_ids": [],
+                        },
+                    ],
+                    "required_capabilities": [],
+                    "cross_device_information_flows": [
+                        {
+                            "flow_id": "flow_event_context",
+                            "from_role_id": "role_perception",
+                            "to_role_id": "role_reasoning",
+                            "data_type": "authorized_event_metadata",
+                            "purpose": "Update continuous safety state.",
+                            "privacy_constraints": ["Use minimum metadata only."],
+                            "fallback": "Fall back to a low-risk notification.",
+                        }
+                    ],
+                    "deployment_target": "hybrid",
+                    "privacy_boundary": "Raw media remains local by default.",
+                    "permission_boundary": "High-impact actions require approval.",
+                    "offline_behavior": "Run local low-risk safeguards.",
+                    "fallback_behavior": "Ask the user when evidence is insufficient.",
+                    "known_blind_spots": ["Offline devices reduce context."],
+                },
+                "ai_native_case": {
+                    "open_ended_goal": "Protect the household as conditions change.",
+                    "why_fixed_rules_are_insufficient": "Risk depends on time and context.",
+                    "model_responsibilities": ["Interpret uncertain event sequences."],
+                    "deterministic_responsibilities": ["Enforce permission boundaries."],
+                    "ai_removal_test": {
+                        "core_value_survives_without_ai": False,
+                        "rationale": "Without AI only fixed notifications remain.",
+                        "lost_capabilities_without_ai": ["Open goal interpretation."],
+                        "evidence_ids": [user_id],
+                    },
+                    "learning_or_revision_loop": ["Revise policy after failed tests."],
+                    "safety_constraints": ["Do not infer medical diagnoses."],
+                },
+                "competitor_gap_ids": ["signal_package_context"],
+                "technical_hypotheses": [],
+                "commercial_hypotheses": ["Pilot willingness requires validation."],
+                "validation_plan": {
+                    "validation_goal": "Find unsafe behavior before deployment.",
+                    "required_scenario_types": ["normal", "failure", "adversarial"],
+                    "success_conditions": ["Normal behavior avoids escalation."],
+                    "failure_conditions": ["High risk is missed."],
+                    "required_data": ["Authorized or simulated events."],
+                    "human_review_points": ["Before policy activation."],
+                },
+                "evidence_ids": [user_id, competitor_id],
+                "gate_status": "passed",
+                "gate_issues": [],
+            }
+        ],
+        "portfolio_gaps": [
+            {
+                "gap_id": "gap_more_opportunities",
+                "question": "Which additional safety goals have enough evidence?",
+                "reason": "The current evidence supports one opportunity.",
+                "required_evidence_types": ["user_opinion"],
+                "affected_opportunity_ids": [opportunity_id],
+            }
+        ],
+        "coverage": {
+            "target_candidate_count": 3,
+            "maximum_candidate_count": 5,
+            "generated_candidate_count": 1,
+            "advancing_candidate_count": 1,
+            "ecosystem_service_count": 1,
+            "cited_user_evidence_count": 1,
+            "cited_competitor_evidence_count": 1,
+            "evidence_context_hash": "a" * 64,
+            "handoff_status": "ready",
+        },
     }

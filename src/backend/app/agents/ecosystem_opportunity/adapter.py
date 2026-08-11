@@ -6,7 +6,10 @@ import json
 
 from pydantic import ValidationError
 
-from app.agents.ecosystem_opportunity.context import DeviceCapabilityGraphContext
+from app.agents.ecosystem_opportunity.context import (
+    DeviceCapabilityGraphContext,
+    EcosystemOpportunityContextBuilder,
+)
 from app.agents.ecosystem_opportunity.contracts import EcosystemOpportunityModelOutput
 from app.agents.ecosystem_opportunity.prompt import ECOSYSTEM_OPPORTUNITY_PROMPT_KEY
 from app.agents.ecosystem_opportunity.validation import (
@@ -27,7 +30,7 @@ from app.application.model_gateway.selection import (
     ProjectModelSelectionResolver,
 )
 from app.application.runtime import AgentInvocation, RuntimeErrorCode, RuntimeGatewayError
-from app.workflows.contracts import ResearchAgentType
+from app.workflows.contracts import AgentContext, ResearchAgentType
 
 
 class EcosystemOpportunityModelAgentAdapter:
@@ -41,6 +44,7 @@ class EcosystemOpportunityModelAgentAdapter:
         *,
         model_timeout_seconds: float = 180,
         validator: EcosystemOpportunityOutputValidator | None = None,
+        context_builder: EcosystemOpportunityContextBuilder | None = None,
     ) -> None:
         if model_timeout_seconds <= 0:
             raise ValueError("model_timeout_seconds must be positive")
@@ -49,11 +53,11 @@ class EcosystemOpportunityModelAgentAdapter:
         self.selection_resolver = selection_resolver
         self.model_timeout_seconds = model_timeout_seconds
         self.validator = validator or EcosystemOpportunityOutputValidator()
+        self.context_builder = context_builder
 
     async def execute(self, invocation: AgentInvocation) -> object:
         invocation.cancellation_token.raise_if_cancelled()
-        context = invocation.context
-        graph = self._graph(invocation)
+        context, graph = await self._prepare_context(invocation)
         handoff = context.research_handoff
         if handoff is None or not handoff.ready_for_product_technical:
             issues = handoff.issues if handoff is not None else ["missing_research_handoff"]
@@ -99,6 +103,14 @@ class EcosystemOpportunityModelAgentAdapter:
                     "device_capability_graph_json": graph.model_dump_json(),
                     "evidence_index_json": json.dumps(
                         evidence_index, ensure_ascii=False, sort_keys=True
+                    ),
+                    "decision_history_json": json.dumps(
+                        [
+                            item.model_dump(mode="json")
+                            for item in context.decision_history
+                        ],
+                        ensure_ascii=False,
+                        sort_keys=True,
                     ),
                 }
             )
@@ -151,12 +163,28 @@ class EcosystemOpportunityModelAgentAdapter:
                 details=exc.details,
             ) from exc
 
-    @staticmethod
-    def _graph(invocation: AgentInvocation) -> DeviceCapabilityGraphContext:
-        try:
-            return DeviceCapabilityGraphContext.model_validate(
-                invocation.task.scope.get("device_capability_graph")
+    async def _prepare_context(
+        self, invocation: AgentInvocation
+    ) -> tuple[AgentContext, DeviceCapabilityGraphContext]:
+        context = invocation.context
+        raw_graph = invocation.task.scope.get("device_capability_graph")
+        if raw_graph is None:
+            if self.context_builder is None or context.research_handoff is None:
+                raise RuntimeGatewayError(
+                    RuntimeErrorCode.DEPENDENCY_MISSING,
+                    "Ecosystem Opportunity workflow lacks a Device Capability Graph builder.",
+                    agent_run_id=invocation.agent_run_id,
+                    retryable=False,
+                )
+            bundle = await self.context_builder.build(
+                invocation.task.project_id, context.research_handoff
             )
+            return (
+                context.model_copy(update={"evidence_context": bundle.evidence_context}),
+                bundle.capability_graph,
+            )
+        try:
+            return context, DeviceCapabilityGraphContext.model_validate(raw_graph)
         except ValidationError as exc:
             raise RuntimeGatewayError(
                 RuntimeErrorCode.ARTIFACT_INVALID,

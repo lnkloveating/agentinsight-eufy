@@ -13,12 +13,7 @@ from app.workflows.contracts import (
 PLANNED_AGENT_TYPES = (
     ResearchAgentType.USER_RESEARCH,
     ResearchAgentType.COMPETITOR_RESEARCH,
-    ResearchAgentType.PRODUCT_TECHNICAL,
-    ResearchAgentType.COMMERCIAL_EVALUATION,
-    ResearchAgentType.RED_TEAM,
-    ResearchAgentType.CANDIDATE_SYNTHESIS,
-    ResearchAgentType.VALIDATION,
-    ResearchAgentType.FINAL_SYNTHESIS,
+    ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
 )
 
 
@@ -77,14 +72,6 @@ def _validate_dependencies(tasks: list[ResearchTask]) -> None:
             )
 
     require(
-        ResearchAgentType.PRODUCT_TECHNICAL,
+        ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
         {ResearchAgentType.USER_RESEARCH, ResearchAgentType.COMPETITOR_RESEARCH},
     )
-    require(
-        ResearchAgentType.COMMERCIAL_EVALUATION,
-        {ResearchAgentType.PRODUCT_TECHNICAL},
-    )
-    require(ResearchAgentType.RED_TEAM, {ResearchAgentType.COMMERCIAL_EVALUATION})
-    require(ResearchAgentType.CANDIDATE_SYNTHESIS, {ResearchAgentType.RED_TEAM})
-    require(ResearchAgentType.VALIDATION, {ResearchAgentType.CANDIDATE_SYNTHESIS})
-    require(ResearchAgentType.FINAL_SYNTHESIS, {ResearchAgentType.VALIDATION})
