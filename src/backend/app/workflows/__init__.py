@@ -1,5 +1,12 @@
 """LangGraph state, nodes, gates and routing."""
 
+from app.workflows.ai_native_gate import (
+    AINativeCandidateAssessment,
+    AINativeCandidateStatus,
+    AINativeCriterion,
+    AINativeEcosystemGate,
+    AINativeEcosystemGateResult,
+)
 from app.workflows.contracts import (
     GateName,
     ResearchAgentType,
@@ -10,6 +17,7 @@ from app.workflows.contracts import (
     ResearchTask,
     StageDecision,
     WorkflowOutcome,
+    WorkflowSourceRecoveryRequest,
 )
 from app.workflows.graph import (
     CompiledResearchGraph,
@@ -28,6 +36,11 @@ from app.workflows.source_recovery import prepare_source_recovery_resume
 __all__ = [
     "AgentRuntime",
     "AgentRuntimeNotBoundError",
+    "AINativeCandidateAssessment",
+    "AINativeCandidateStatus",
+    "AINativeCriterion",
+    "AINativeEcosystemGate",
+    "AINativeEcosystemGateResult",
     "CompiledResearchGraph",
     "GateName",
     "ResearchAgentType",
@@ -40,6 +53,7 @@ __all__ = [
     "StageDecision",
     "UnboundAgentRuntime",
     "WorkflowOutcome",
+    "WorkflowSourceRecoveryRequest",
     "WorkflowRunner",
     "WorkflowSnapshot",
     "compile_research_graph",

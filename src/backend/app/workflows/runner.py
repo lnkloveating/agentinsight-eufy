@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
+from app.schemas.source_recovery import SourceRecovery
 from app.workflows.contracts import ResearchState, StageDecision
 from app.workflows.graph import CompiledResearchGraph
 
@@ -34,6 +35,17 @@ class WorkflowRunner:
             dict[str, Any],
             await self.graph.ainvoke(
                 Command(resume=decision.model_dump(mode="json")),
+                self._config(project_id),
+            ),
+        )
+
+    async def resume_source_recovery(
+        self, project_id: str, recovery: SourceRecovery
+    ) -> dict[str, Any]:
+        return cast(
+            dict[str, Any],
+            await self.graph.ainvoke(
+                Command(resume=recovery.model_dump(mode="json")),
                 self._config(project_id),
             ),
         )

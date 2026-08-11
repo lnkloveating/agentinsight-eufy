@@ -22,6 +22,7 @@ from app.agents.competitor import (
     register_price_channel_prompt,
 )
 from app.agents.ecosystem_opportunity import (
+    EcosystemOpportunityContextBuilder,
     EcosystemOpportunityModelAgentAdapter,
     register_ecosystem_opportunity_prompt,
 )
@@ -253,6 +254,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ProjectModelSelectionResolver(database),
                 model_timeout_seconds=(
                     resolved_settings.ecosystem_opportunity_model_timeout_seconds
+                ),
+                context_builder=EcosystemOpportunityContextBuilder(
+                    database,
+                    max_items=resolved_settings.ecosystem_opportunity_max_evidence_items,
+                    max_excerpt_chars=(
+                        resolved_settings.ecosystem_opportunity_max_excerpt_chars
+                    ),
+                    max_total_chars=(
+                        resolved_settings.ecosystem_opportunity_max_total_evidence_chars
+                    ),
                 ),
             ),
         )

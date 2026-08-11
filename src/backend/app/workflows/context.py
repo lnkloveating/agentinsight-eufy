@@ -14,6 +14,10 @@ CONTEXT_POLICY: dict[ResearchAgentType, set[ResearchAgentType]] = {
     ResearchAgentType.RESEARCH_MANAGER: set(),
     ResearchAgentType.USER_RESEARCH: set(),
     ResearchAgentType.COMPETITOR_RESEARCH: set(),
+    ResearchAgentType.ECOSYSTEM_OPPORTUNITY: {
+        ResearchAgentType.USER_RESEARCH,
+        ResearchAgentType.COMPETITOR_RESEARCH,
+    },
     ResearchAgentType.PRODUCT_TECHNICAL: {
         ResearchAgentType.USER_RESEARCH,
         ResearchAgentType.COMPETITOR_RESEARCH,
@@ -60,7 +64,11 @@ def build_agent_context(
     raw_handoff = state.get("research_handoff")
     handoff = (
         ResearchHandoff.model_validate(raw_handoff)
-        if agent_type is ResearchAgentType.PRODUCT_TECHNICAL
+        if agent_type
+        in {
+            ResearchAgentType.PRODUCT_TECHNICAL,
+            ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
+        }
         and raw_handoff is not None
         else None
     )

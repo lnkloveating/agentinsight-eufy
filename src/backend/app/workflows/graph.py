@@ -10,6 +10,11 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
 from app.schemas.project import DecisionAction, ResearchBrief
+from app.schemas.source_recovery import SourceRecovery
+from app.workflows.ai_native_gate import (
+    AINativeEcosystemGate,
+    AINativeEcosystemGateResult,
+)
 from app.workflows.context import build_agent_context
 from app.workflows.contracts import (
     GateName,
@@ -24,17 +29,17 @@ from app.workflows.contracts import (
     WorkflowEvent,
     WorkflowNodeError,
     WorkflowOutcome,
+    WorkflowSourceRecoveryRequest,
 )
 from app.workflows.gates import (
     build_gate_request,
     evaluate_research_artifacts,
-    parse_red_team_directive,
-    summarize_artifacts,
     validate_stage_decision,
 )
 from app.workflows.handoff import affected_research_agents, build_research_handoff
 from app.workflows.planning import parse_task_plan, task_for_agent
 from app.workflows.runtime import AgentRuntime
+from app.workflows.source_recovery import prepare_source_recovery_resume
 
 CompiledResearchGraph = CompiledStateGraph[
     ResearchState,
@@ -60,12 +65,14 @@ def create_initial_state(
         progress=5,
         task_plan=[],
         artifacts={},
+        ai_native_gate={},
         research_handoff=None,
         iteration=0,
         max_iterations=max_iterations,
         affected_task_ids=[],
         selected_innovation_ids=[],
         pending_gate=None,
+        pending_source_recovery=None,
         decision_history=[],
         node_history=[],
         terminal_reason=None,
@@ -92,20 +99,14 @@ class ResearchWorkflow:
         builder.add_node("competitor_research", self._competitor_research)
         builder.add_node("evidence_readiness_gate", self._evidence_readiness_gate)
         builder.add_node("prepare_research_revision", self._prepare_research_revision)
-        builder.add_node("product_technical", self._product_technical)
-        builder.add_node("commercial_evaluation", self._commercial_evaluation)
-        builder.add_node("red_team", self._red_team)
-        builder.add_node("red_team_router", self._red_team_router)
-        builder.add_node("prepare_product_revision", self._prepare_product_revision)
-        builder.add_node("candidate_synthesis", self._candidate_synthesis)
-        builder.add_node("prepare_scenario_gate", self._prepare_scenario_gate)
-        builder.add_node("scenario_gate", self._scenario_gate)
-        builder.add_node("validation_dispatch", self._validation_dispatch)
-        builder.add_node("prepare_validation_revision", self._prepare_validation_revision)
-        builder.add_node("final_synthesis", self._final_synthesis)
-        builder.add_node("prepare_final_gate", self._prepare_final_gate)
-        builder.add_node("final_gate", self._final_gate)
-        builder.add_node("complete", self._complete)
+        builder.add_node("ecosystem_opportunity", self._ecosystem_opportunity)
+        builder.add_node("evaluate_ai_native_gate", self._evaluate_ai_native_gate)
+        builder.add_node("prepare_ai_native_gate", self._prepare_ai_native_gate)
+        builder.add_node("ai_native_gate", self._ai_native_gate)
+        builder.add_node("prepare_ecosystem_revision", self._prepare_ecosystem_revision)
+        builder.add_node("prepare_source_recovery", self._prepare_source_recovery)
+        builder.add_node("source_recovery_gate", self._source_recovery_gate)
+        builder.add_node("awaiting_technical_feasibility", self._awaiting_technical_feasibility)
         builder.add_node("reject", self._reject)
         builder.add_node("terminate", self._terminate)
         builder.add_node("inconclusive", self._inconclusive)
@@ -132,59 +133,33 @@ class ResearchWorkflow:
             "evidence_readiness_gate",
             self._route_evidence_gate,
             {
-                "pass": "product_technical",
+                "pass": "ecosystem_opportunity",
                 "retry": "prepare_research_revision",
                 "inconclusive": "inconclusive",
             },
         )
         builder.add_edge("prepare_research_revision", "user_research")
         builder.add_edge("prepare_research_revision", "competitor_research")
-        builder.add_edge("product_technical", "commercial_evaluation")
-        builder.add_edge("commercial_evaluation", "red_team")
-        builder.add_edge("red_team", "red_team_router")
+        builder.add_edge("ecosystem_opportunity", "evaluate_ai_native_gate")
+        builder.add_edge("evaluate_ai_native_gate", "prepare_ai_native_gate")
+        builder.add_edge("prepare_ai_native_gate", "ai_native_gate")
         builder.add_conditional_edges(
-            "red_team_router",
-            self._route_red_team,
+            "ai_native_gate",
+            self._route_ai_native_decision,
             {
-                "synthesize": "candidate_synthesis",
-                "research_more": "prepare_research_revision",
-                "revise": "prepare_product_revision",
-                "inconclusive": "inconclusive",
-            },
-        )
-        builder.add_edge("prepare_product_revision", "product_technical")
-        builder.add_edge("candidate_synthesis", "prepare_scenario_gate")
-        builder.add_edge("prepare_scenario_gate", "scenario_gate")
-        builder.add_conditional_edges(
-            "scenario_gate",
-            self._route_scenario_decision,
-            {
-                "approve": "validation_dispatch",
-                "research_more": "prepare_research_revision",
-                "revise": "prepare_product_revision",
+                "approve": "awaiting_technical_feasibility",
+                "research_more": "prepare_source_recovery",
+                "revise": "prepare_ecosystem_revision",
                 "reject": "reject",
                 "terminate": "terminate",
                 "inconclusive": "inconclusive",
             },
         )
-        builder.add_edge("validation_dispatch", "final_synthesis")
-        builder.add_edge("prepare_validation_revision", "validation_dispatch")
-        builder.add_edge("final_synthesis", "prepare_final_gate")
-        builder.add_edge("prepare_final_gate", "final_gate")
-        builder.add_conditional_edges(
-            "final_gate",
-            self._route_final_decision,
-            {
-                "approve": "complete",
-                "research_more": "prepare_research_revision",
-                "revise": "prepare_validation_revision",
-                "reject": "reject",
-                "terminate": "terminate",
-                "inconclusive": "inconclusive",
-            },
-        )
+        builder.add_edge("prepare_ecosystem_revision", "ecosystem_opportunity")
+        builder.add_edge("prepare_source_recovery", "source_recovery_gate")
+        builder.add_edge("source_recovery_gate", "ecosystem_opportunity")
         for terminal_node in (
-            "complete",
+            "awaiting_technical_feasibility",
             "reject",
             "terminate",
             "inconclusive",
@@ -274,93 +249,138 @@ class ResearchWorkflow:
     async def _prepare_research_revision(self, state: ResearchState) -> dict[str, Any]:
         return self._prepare_revision(state, "targeted_research", self._research_task_ids(state))
 
-    async def _product_technical(self, state: ResearchState) -> dict[str, Any]:
+    async def _ecosystem_opportunity(self, state: ResearchState) -> dict[str, Any]:
         return await self._run_planned_agent(
-            state, ResearchAgentType.PRODUCT_TECHNICAL, "product_technical", 50
+            state,
+            ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
+            "ecosystem_opportunity",
+            50,
+            accepted_statuses={
+                ResearchTaskStatus.COMPLETED,
+                ResearchTaskStatus.PARTIAL,
+                ResearchTaskStatus.BLOCKED,
+                ResearchTaskStatus.NEEDS_REVISION,
+            },
         )
 
-    async def _commercial_evaluation(self, state: ResearchState) -> dict[str, Any]:
-        return await self._run_planned_agent(
-            state, ResearchAgentType.COMMERCIAL_EVALUATION, "commercial_evaluation", 60
-        )
-
-    async def _red_team(self, state: ResearchState) -> dict[str, Any]:
-        return await self._run_planned_agent(state, ResearchAgentType.RED_TEAM, "red_team", 68)
-
-    async def _red_team_router(self, state: ResearchState) -> dict[str, Any]:
-        artifact = self._artifact(state, ResearchAgentType.RED_TEAM)
-        directive = parse_red_team_directive(artifact)
+    async def _evaluate_ai_native_gate(self, state: ResearchState) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
+        result = AINativeEcosystemGate().evaluate(artifact)
         return {
-            "routing_decision": directive.decision,
-            "affected_task_ids": directive.affected_task_ids,
+            "ai_native_gate": result.model_dump(mode="json"),
+            "current_stage": "ai_native_gate_evaluation",
+            "progress": 55,
             "node_history": [
                 WorkflowEvent(
-                    event_type="red_team_routed",
-                    node="red_team_router",
+                    event_type="ai_native_ecosystem_gate_evaluated",
+                    node="evaluate_ai_native_gate",
                     task_id=artifact.task_id,
-                    status=directive.decision,
-                    message="红队决定已进入确定性路由。",
+                    status=("human_review_required" if result.ready_for_human_gate else "blocked"),
+                    message=(
+                        f"{len(result.eligible_opportunity_ids)} 个机会通过确定性检查，"
+                        f"{len(result.blocked_opportunity_ids)} 个机会被阻止。"
+                    ),
                 ).model_dump(mode="json")
             ],
         }
 
-    async def _prepare_product_revision(self, state: ResearchState) -> dict[str, Any]:
-        product_task = self._task(state, ResearchAgentType.PRODUCT_TECHNICAL)
-        return self._prepare_revision(state, "product_revision", [product_task.task_id])
-
-    async def _candidate_synthesis(self, state: ResearchState) -> dict[str, Any]:
-        return await self._run_planned_agent(
-            state, ResearchAgentType.CANDIDATE_SYNTHESIS, "candidate_synthesis", 72
-        )
-
-    async def _prepare_scenario_gate(self, state: ResearchState) -> dict[str, Any]:
-        artifacts = [
-            self._artifact(state, ResearchAgentType.CANDIDATE_SYNTHESIS),
-            self._artifact(state, ResearchAgentType.RED_TEAM),
-        ]
+    async def _prepare_ai_native_gate(self, state: ResearchState) -> dict[str, Any]:
+        result = AINativeEcosystemGateResult.model_validate(state["ai_native_gate"])
+        artifact = self._artifact(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
         return self._prepare_gate(
             state,
-            GateName.SCENARIO,
-            summarize_artifacts(artifacts),
-            "scenario_approval",
-            75,
+            GateName.AI_NATIVE_ECOSYSTEM,
+            {
+                "source_artifact_id": artifact.artifact_id,
+                "eligible_opportunity_ids": result.eligible_opportunity_ids,
+                "blocked_opportunity_ids": result.blocked_opportunity_ids,
+                "assessments": [item.model_dump(mode="json") for item in result.assessments],
+                "revision_requests": [
+                    item.model_dump(mode="json") for item in result.revision_requests
+                ],
+                "source_recovery_gap_ids": result.source_recovery_gap_ids,
+                "source_recovery_questions": result.source_recovery_questions,
+            },
+            "ai_native_ecosystem_approval",
+            58,
         )
 
-    async def _scenario_gate(self, state: ResearchState) -> dict[str, Any]:
-        return self._handle_gate(state, GateName.SCENARIO)
+    async def _ai_native_gate(self, state: ResearchState) -> dict[str, Any]:
+        return self._handle_gate(state, GateName.AI_NATIVE_ECOSYSTEM)
 
-    async def _validation_dispatch(self, state: ResearchState) -> dict[str, Any]:
-        return await self._run_planned_agent(
-            state, ResearchAgentType.VALIDATION, "validation_dispatch", 82
+    async def _prepare_ecosystem_revision(self, state: ResearchState) -> dict[str, Any]:
+        task = self._task(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
+        revision_state = ResearchState(**state)
+        revision_state["affected_task_ids"] = []
+        return self._prepare_revision(
+            revision_state, "ecosystem_opportunity_revision", [task.task_id]
         )
 
-    async def _prepare_validation_revision(self, state: ResearchState) -> dict[str, Any]:
-        task = self._task(state, ResearchAgentType.VALIDATION)
-        return self._prepare_revision(state, "validation_revision", [task.task_id])
-
-    async def _final_synthesis(self, state: ResearchState) -> dict[str, Any]:
-        return await self._run_planned_agent(
-            state, ResearchAgentType.FINAL_SYNTHESIS, "final_synthesis", 90
+    async def _prepare_source_recovery(self, state: ResearchState) -> dict[str, Any]:
+        result = AINativeEcosystemGateResult.model_validate(state["ai_native_gate"])
+        if not result.source_recovery_gap_ids or not result.source_recovery_questions:
+            raise WorkflowContractError(
+                "AI-native research_more requires ecosystem opportunity source gaps"
+            )
+        request = WorkflowSourceRecoveryRequest(
+            project_id=state["project_id"],
+            source_artifact_id=result.source_artifact_id,
+            source_task_id=result.source_task_id,
+            gap_ids=result.source_recovery_gap_ids,
+            questions=result.source_recovery_questions,
         )
+        return {
+            "pending_source_recovery": request.model_dump(mode="json"),
+            "outcome": WorkflowOutcome.AWAITING_SOURCE_RECOVERY.value,
+            "current_stage": "ecosystem_opportunity_source_recovery",
+            "progress": 58,
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_source_recovery_pending",
+                    node="prepare_source_recovery",
+                    task_id=result.source_task_id,
+                    status="waiting",
+                    message="等待用户通过统一 Source Recovery 补充生态机会证据。",
+                ).model_dump(mode="json")
+            ],
+        }
 
-    async def _prepare_final_gate(self, state: ResearchState) -> dict[str, Any]:
-        artifacts = [
-            self._artifact(state, ResearchAgentType.FINAL_SYNTHESIS),
-            self._artifact(state, ResearchAgentType.VALIDATION),
-        ]
-        return self._prepare_gate(
-            state,
-            GateName.FINAL,
-            summarize_artifacts(artifacts),
-            "final_approval",
-            95,
-        )
+    async def _source_recovery_gate(self, state: ResearchState) -> dict[str, Any]:
+        pending = state.get("pending_source_recovery")
+        if pending is None:
+            raise WorkflowContractError("source recovery gate has no pending request")
+        request = WorkflowSourceRecoveryRequest.model_validate(pending)
+        raw_recovery = interrupt(request.model_dump(mode="json"))
+        recovery = SourceRecovery.model_validate(raw_recovery)
+        update = prepare_source_recovery_resume(state, recovery)
+        affected_task = self._task(state, ResearchAgentType.ECOSYSTEM_OPPORTUNITY)
+        if affected_task.task_id not in update["affected_task_ids"]:
+            raise WorkflowContractError(
+                "source recovery does not target ecosystem opportunity task"
+            )
+        return {
+            **update,
+            "pending_source_recovery": None,
+            "outcome": WorkflowOutcome.RUNNING.value,
+        }
 
-    async def _final_gate(self, state: ResearchState) -> dict[str, Any]:
-        return self._handle_gate(state, GateName.FINAL)
-
-    async def _complete(self, state: ResearchState) -> dict[str, Any]:
-        return self._terminal(state, WorkflowOutcome.COMPLETED, "final_approved", 100)
+    async def _awaiting_technical_feasibility(self, state: ResearchState) -> dict[str, Any]:
+        del state
+        return {
+            "outcome": WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY.value,
+            "current_stage": "technical_feasibility_pending",
+            "progress": 60,
+            "pending_gate": None,
+            "terminal_reason": "technical_feasibility_not_implemented",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_phase_completed",
+                    node="awaiting_technical_feasibility",
+                    status=WorkflowOutcome.AWAITING_TECHNICAL_FEASIBILITY,
+                    message="AI 原生生态机会已获批，等待技术可行性 Agent。",
+                ).model_dump(mode="json")
+            ],
+        }
 
     async def _reject(self, state: ResearchState) -> dict[str, Any]:
         return self._terminal(state, WorkflowOutcome.REJECTED, "not_recommended", 100)
@@ -392,6 +412,7 @@ class ResearchWorkflow:
         progress: int,
         *,
         allow_partial: bool = False,
+        accepted_statuses: set[ResearchTaskStatus] | None = None,
     ) -> dict[str, Any]:
         task = self._task(state, agent_type)
         affected = state.get("affected_task_ids", [])
@@ -409,8 +430,8 @@ class ResearchWorkflow:
             }
             return update
         artifact = await self._execute(state, task, stage)
-        accepted = {ResearchTaskStatus.COMPLETED}
-        if allow_partial:
+        accepted = accepted_statuses or {ResearchTaskStatus.COMPLETED}
+        if allow_partial and accepted_statuses is None:
             accepted.add(ResearchTaskStatus.PARTIAL)
         if artifact.status not in accepted:
             raise WorkflowContractError(
@@ -563,26 +584,9 @@ class ResearchWorkflow:
         return "retry"
 
     @staticmethod
-    def _route_red_team(state: ResearchState) -> str:
+    def _route_ai_native_decision(state: ResearchState) -> str:
         decision = state["routing_decision"]
-        if decision in {"pass", "reject"}:
-            return "synthesize"
-        if state.get("iteration", 0) >= state.get("max_iterations", 2):
-            return "inconclusive"
-        return decision
-
-    @staticmethod
-    def _route_scenario_decision(state: ResearchState) -> str:
-        return ResearchWorkflow._route_gate_rework(state)
-
-    @staticmethod
-    def _route_final_decision(state: ResearchState) -> str:
-        return ResearchWorkflow._route_gate_rework(state)
-
-    @staticmethod
-    def _route_gate_rework(state: ResearchState) -> str:
-        decision = state["routing_decision"]
-        if decision in {DecisionAction.RESEARCH_MORE, DecisionAction.REVISE} and state.get(
+        if decision in {DecisionAction.REVISE, DecisionAction.RESEARCH_MORE} and state.get(
             "iteration", 0
         ) >= state.get("max_iterations", 2):
             return "inconclusive"
