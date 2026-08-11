@@ -38,7 +38,6 @@ __all__ = [
     "TechnicalFeasibilityContextBundle",
     "TechnicalFeasibilityCoverage",
     "TechnicalFeasibilityGap",
-    "TechnicalFeasibilityModelAdapter",
     "TechnicalFeasibilityModelAgentAdapter",
     "TechnicalFeasibilityModelAssessment",
     "TechnicalFeasibilityModelGap",
@@ -54,5 +53,3 @@ __all__ = [
     "register_technical_feasibility_prompt",
     "technical_feasibility_gap_id",
 ]
-
-TechnicalFeasibilityModelAdapter = TechnicalFeasibilityModelAgentAdapter
