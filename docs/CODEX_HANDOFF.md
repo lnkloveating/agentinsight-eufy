@@ -106,7 +106,7 @@
 - `EcosystemBlueprint`、设备角色、跨设备信息流、部署位置、隐私边界、离线降级；
 - `AINativeCase` 与 AI Removal Test；
 - Evidence 引用、Coverage、Gap、Artifact 类型和版本的确定性校验；
-- 历史 Product Technical v1 Artifact 结构仍可读取，但不再定义新项目 Research Brief。
+- 旧 Product Technical v1 运行链路已经删除；只允许读取旧 Checkpoint 中的交接字段别名。
 
 该分支只定义“生态方案长什么样”，还没有真实生态机会 Agent。
 
@@ -180,8 +180,7 @@ git diff --check：通过
 ```
 
 迁移测试遗留目录 `src/backend/device-capability-migration-1onkisii` 已清理，功能分支工作区在合并前保持干净。
-下一位开发者不需要重新实现设备能力图或 Research Brief 追问，应从
-`agent/competitor-ecosystem-analysis` 开始。
+下一位开发者不需要重新实现设备能力图、Research Brief 追问、竞品生态、生态机会或 AI Native Gate。
 
 ### 3.3 旧商业草稿
 
@@ -215,7 +214,7 @@ stash@{0}: 归档旧商业评估未完成草稿
 - 竞品发现、Candidate Gate、来源接入和资料发现；
 - 竞品官方产品、价格渠道、用户评价三个 A2A 专家；
 - 竞品综合、证据审计和主路径桥接；
-- Product Technical v1 历史实现仍供主图迁移期间内部读取，不再定义 Research Brief 或新方向最终产物；
+- Product Technical v1 的 API、Adapter、Prompt、Service、配置和专属测试已经删除；
 - Ecosystem Opportunity 公共契约；
 - Device Capability Graph（已完成并合并到 `main`）。
 
@@ -500,9 +499,20 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 - `revise` 只重跑 Ecosystem Opportunity；
 - `research_more` 进入统一 Source Recovery，恢复后不重复用户与竞品研究；
 - Checkpoint 能只恢复失败的 Ecosystem Opportunity 节点；
-- 当前批准后明确停在 `awaiting_technical_feasibility`，没有调用旧 Product Technical v1 或商业链路。
+- 当前批准后明确停在 `awaiting_technical_feasibility`；旧 Product Technical v1 已不存在，也不会调用旧商业链路。
 
 详细契约和前端状态见 `docs/ai-native-ecosystem-gate.md`。
+
+### 已完成：`cleanup/remove-legacy-single-product-path`
+
+该分支完成主图迁移后的物理清理：
+
+- 从 OpenAPI 和 FastAPI 删除旧单产品运行、Artifact 查询和专属补研接口；
+- 删除 Product Technical v1 的 Agent、Prompt、Adapter、Service、配置与专属测试；
+- 将 `ResearchHandoff` 的当前字段改为 `ready_for_ecosystem_opportunity`；
+- 只为已保存的旧 Checkpoint 保留 `ready_for_product_technical` 输入别名，新状态不会再次输出旧字段；
+- 技术资料路由、上下文策略和通用 Source Recovery 改为面向生态机会；
+- 前端只能调用 ecosystem-opportunity 接口，不得保留旧单产品入口。
 
 ### 下一分支：`agent/technical-feasibility`
 

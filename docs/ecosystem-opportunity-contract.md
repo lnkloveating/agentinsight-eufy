@@ -56,21 +56,19 @@
 
 代码位置：`src/backend/app/agents/ecosystem_opportunity/contracts.py`。
 
-## 3. 新旧 Artifact 的区别
+## 3. 当前 Artifact 边界
 
-| 维度 | `ProductTechnicalArtifact`（v1，保留兼容） | `EcosystemOpportunityArtifact`（新） |
-|---|---|---|
-| 语义单元 | 未来单产品候选 `ProductOpportunityCandidate` | 生态级解决方案 `EcosystemOpportunityCandidate` |
-| 层级区分 | 无 `scope_level` | `SolutionScope`（device_feature / device_product / ecosystem_service） |
-| 核心结构 | `EventUnderstanding` + `ProductTechnicalAssessment` | `EcosystemBlueprint` + `AINativeCase` + `EcosystemValidationPlan` |
-| schema_name | `product_technical_opportunity_portfolio` | `ecosystem_opportunity_portfolio` |
-| artifact_type | `product_technical` | `ecosystem_opportunity` |
+`EcosystemOpportunityArtifact` 是新项目唯一的机会生成契约。它以生态级解决方案
+`EcosystemOpportunityCandidate` 为语义单元，通过 `SolutionScope` 区分 device_feature、
+device_product 与 ecosystem_service，并用 `EcosystemBlueprint`、`AINativeCase` 和
+`EcosystemValidationPlan` 表达跨设备协作、AI 必要性和验证计划。
 
-两者都通过通用 `ResearchArtifact` 双向转换，互不覆盖。v1 契约、API 和测试保持不变。
+旧单产品 Product Technical v1 契约、API、模型 Adapter 和专属恢复入口已删除。通用
+`ResearchArtifact`、Evidence 和 Source Recovery 能力继续保留。
 
 ## 4. 前端未来如何读取
 
-目标 `/api/v2` 契约已在 `docs/api/openapi.yaml` 定义（本分支只定义 schema，尚无 FastAPI 实现）：
+`docs/api/openapi.yaml` 与 FastAPI 已实现以下接口：
 
 - `POST /projects/{project_id}/agents/ecosystem-opportunity`
 - `GET  /projects/{project_id}/agents/ecosystem-opportunity/artifacts`

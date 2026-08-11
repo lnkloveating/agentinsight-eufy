@@ -67,14 +67,14 @@ Source Requirements 尚未覆盖的用户研究、产品技术或商业任务，
 资料恢复服务本身不直接启动模型调用；它保存事件和恢复指令，由当前项目的工作流主管在有效
 Checkpoint 上消费。这避免 API 请求重复触发 Agent，也保留后续飞书审批和重试的统一入口。
 
-## 产品技术候选补研
+## 生态机会补研
 
-产品技术 Agent 生成候选组合后，如果少于三个候选通过 Gate，或某个候选仍缺用户事件、竞品
-差异、上下文信号、数据接口等证据，后端会在 `portfolio_gaps` 中返回稳定的 `gap_id`。前端可
-按用户选择的缺口调用：
+生态机会 Agent 生成候选组合后，如果真实证据不足，或某个候选仍缺用户事件、竞品生态差异、
+上下文信号、设备能力或数据接口证据，后端会在 `portfolio_gaps` 中返回稳定的 `gap_id`。前端按
+用户选择的缺口调用领域 Agent 通用接口：
 
 ```http
-POST /api/v1/projects/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery
+POST /api/v1/projects/{project_id}/agents/ecosystem_opportunity/artifacts/{artifact_id}/source-recovery
 ```
 
 后端把缺口确定性转换为 `requested_fields`，字段会带上证据类型提示、受影响候选 ID、Claim
@@ -83,10 +83,9 @@ POST /api/v1/projects/{project_id}/agents/product-technical/artifacts/{artifact_
 
 用户提交并确认授权与准确性后，答案沿用统一资料恢复链路生成 `user_declaration` Evidence。
 Recovery 保存 `source_artifact_id → source_gap_ids → submission → evidence_ids` 的完整血缘，并
-返回受影响的用户研究、竞品研究或产品技术任务。下一次运行产品技术 Agent 时，已解决补研
-产生的 Evidence 会加入受控 Evidence Context；Validator 仍会检查 Evidence ID，不能因为用户
-填写过内容就绕过引用门禁。旧版没有 `gap_id` 的产品技术 Artifact 会在读取时生成相同的稳定
-ID，不需要迁移历史 Artifact 内容。
+返回受影响的用户研究、竞品研究或生态机会任务。下一次恢复 Ecosystem Opportunity 时，已解决
+补研产生的 Evidence 会加入受控 Evidence Context；Validator 仍会检查 Evidence ID，不能因为
+用户填写过内容就绕过引用门禁。旧单产品专属补研 API 已删除。
 
 ## 明确不包含
 
