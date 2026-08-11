@@ -555,8 +555,8 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 5. workflow/security-policy-verification（已完成）
 6. agent/commercial-evaluation-v2（已完成）
 7. cleanup/remove-legacy-orchestration-v1（已完成）
-8. agent/redteam-policy-revision（下一步）
-9. demo/package-goal-to-guard
+8. agent/redteam-policy-revision（已完成）
+9. demo/package-goal-to-guard（下一步）
 10. integration/feishu-aily
 11. backend/e2e-ecosystem-hardening
 ```
@@ -572,11 +572,11 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 - 不使用商业加权总分，`recommend_for_validation` 不代表上架或保证收益；
 - 技术和交付判断直接消费 Technical Feasibility 与 Policy Verification，不重复猜测；
 - 商业资料不足时进入通用 Source Recovery，补充后只重跑 Commercial Evaluation；
-- 主图完成后进入 `awaiting_red_team_review`；下一分支必须让红队和用户质疑真实改变结论或策略。
+- 主图完成后进入 Red Team 节点；红队和用户质疑会真实改变结论或触发策略返工。
 
 公共接口、结果字段、缺证恢复与前端展示见 `docs/commercial-evaluation-v2.md`。
 
-合并前验证：356 个后端测试全部通过；Ruff、Mypy（244 个 app 源文件）、OpenAPI YAML、
+最新验证基线：368 个后端测试全部通过；Ruff、Mypy（251 个 app 源文件）、OpenAPI YAML、
 `git diff --check`、前端 ESLint 与生产构建通过。唯一警告来自第三方 Starlette TestClient 弃用提示。
 
 ### 已完成：`cleanup/remove-legacy-orchestration-v1`
@@ -588,6 +588,19 @@ Web 负责复杂证据下钻、设备图、竞品生态矩阵、场景验证和 
 - Red Team 当前 Context 已明确包括用户、竞品、生态机会、技术、策略、验证和商业 Artifact。
 
 清理边界和当前主路径见 `docs/legacy-orchestration-v1-cleanup.md`。
+
+### 已完成：`agent/redteam-policy-revision`
+
+- 真实 Model Gateway Adapter、Prompt、Context Builder、Service、API 和版本化 Artifact 已完成；
+- 自动攻击证据、技术、安全、隐私、误报漏报、离线、干预、商业和 AI Native 九个维度；
+- 用户可以提交一般质疑或定位当前 Artifact、Policy、Scenario，红队必须逐条回答；
+- 模型不能决定 verdict、返工 Task ID、分数或部署批准，全部由后端校验和计算；
+- 资料不足复用 Universal Source Recovery，并把已验证补充 Evidence 写回共享 Handoff；
+- 可修订问题从最早受影响 Agent 恢复，依赖下游和红队重新运行，保留 Finding 版本差异；
+- critical 且不可修复的问题必须输出安全 fallback 和重启条件，不能返回空报告；
+- pass 后主图进入 `awaiting_scenario_validation`，下一分支实现 Goal-to-Guard Demo。
+
+公共接口、结果字段、返工逻辑和前端展示见 `docs/red-team-policy-revision.md`。
 
 ## 7. 每个后续 Agent 的判断方式
 
@@ -632,35 +645,22 @@ git status -sb
 git diff --stat
 ```
 
-检查重点：
+红队分支检查重点：
 
 - `docs/api/openapi.yaml` 可解析；
 - Migration 从空库升级到 head；
 - 新增 API 与 OpenAPI 字段一致；
-- 家庭快照不接收序列号、精确地址和原始视频；
-- 其他项目 Evidence 被拒绝；
-- 不合格 Evidence 被拒绝；
-- conflict 不被覆盖；
-- unknown/unavailable 不被模型补造；
-- 新项目不再接受旧单品 Research Brief；竞品、资料和现有主图底座测试无回归。
+- Red Team 必须读取七类当前 Artifact，不能使用其他项目或旧版本 ID；
+- 每个事实 Finding 和用户质疑回答必须使用受控 Evidence ID；
+- 模型不得输出 verdict、返工 Task ID、分数或部署批准；
+- 补研必须复用 Universal Source Recovery 和共享 Evidence；
+- 修订只从最早受影响 Agent 开始，依赖下游自然重跑；
+- reject 必须保留安全 fallback 与重新进入条件；
+- 通过后只进入 `awaiting_scenario_validation`，不能显示为真实部署或上架获批；
+- 旧单品、竞品、资料、设备图和现有主图底座测试无回归。
 
-本分支已完成的中文 Commit：
-
-```text
-实现证据约束的设备能力图
-补充设备能力图接口与迁移测试
-完善设备能力图文档和开发交接
-```
-
-本分支合并记录：
-
-```text
-已切换 main
-已执行 merge --no-ff evidence/device-capability-graph
-已推送 main
-```
-
-GitHub Actions 通过后再开始 `agent/competitor-ecosystem-analysis`。
+下一分支：`demo/package-goal-to-guard`。它只消费红队通过的当前策略和验证结果，不能绕过红队 Artifact，
+也不能把 dry-run 包装成真实设备联调。
 
 ## 9. 密钥和本地环境
 
