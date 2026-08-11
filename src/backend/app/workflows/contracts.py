@@ -51,6 +51,7 @@ class WorkflowOutcome(StrEnum):
     AWAITING_COMMERCIAL_EVALUATION = "awaiting_commercial_evaluation"
     AWAITING_POLICY_REVISION = "awaiting_policy_revision"
     AWAITING_RED_TEAM_REVIEW = "awaiting_red_team_review"
+    AWAITING_SCENARIO_VALIDATION = "awaiting_scenario_validation"
     COMPLETED = "completed"
     REJECTED = "rejected"
     TERMINATED = "terminated"

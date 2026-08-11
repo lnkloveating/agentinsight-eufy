@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.schemas.source_recovery import SourceRecovery
+from app.schemas.source_recovery import SourceRecovery, SourceRecoverySubmission
 from app.workflows.contracts import WorkflowContractError
 from app.workflows.source_recovery import prepare_source_recovery_resume
 
@@ -90,3 +90,41 @@ def test_source_recovery_resume_maps_agent_type_to_only_affected_planned_task() 
 def test_source_recovery_cannot_resume_before_user_input_or_decision() -> None:
     with pytest.raises(WorkflowContractError, match="not ready"):
         prepare_source_recovery_resume(_state(), _recovery(ready=False))  # type: ignore[arg-type]
+
+
+def test_source_recovery_adds_verified_submission_to_shared_handoff_context() -> None:
+    state = _state()
+    state["research_handoff"] = {
+        "status": "ready_with_gaps",
+        "ready_for_ecosystem_opportunity": True,
+        "merged_evidence_ids": ["ev_existing"],
+        "supplemental_evidence_ids": ["ev_previous"],
+        "issues": [],
+    }
+    recovery = _recovery(ready=True).model_copy(
+        update={
+            "submissions": [
+                SourceRecoverySubmission.model_validate(
+                    {
+                    "submission_id": "submission_one",
+                    "request_id": "request_one",
+                    "submission_kind": "existing_evidence",
+                    "source_asset_id": "source_one",
+                    "field_ids": ["field_one"],
+                    "evidence_ids": ["ev_recovered"],
+                    "answer_count": 1,
+                    "actor": "reviewer",
+                        "created_at": datetime.now(UTC),
+                    }
+                )
+            ]
+        }
+    )
+    recovery = SourceRecovery.model_validate(recovery.model_dump(mode="json"))
+
+    update = prepare_source_recovery_resume(state, recovery)  # type: ignore[arg-type]
+
+    assert update["research_handoff"]["supplemental_evidence_ids"] == [  # type: ignore[index]
+        "ev_previous",
+        "ev_recovered",
+    ]

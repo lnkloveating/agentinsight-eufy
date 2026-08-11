@@ -68,7 +68,7 @@ Evidence Context 中允许类型的 Evidence ID。
 - `recommend_for_validation` 只允许继续受控验证，不得表示正式上架或保证收益；
 - 证据不足必须生成结构化 Commercial Gap；主图进入通用 Source Recovery，恢复后只重跑商业 Agent；
 - 达到最大补研次数仍证据不足时返回 `inconclusive`，不得强行给出肯定结论；
-- 完成后进入 `awaiting_red_team_review`，包括 `do_not_recommend` 在内的结论都保留给红队审查；
+- 完成后进入 Red Team 节点，包括 `do_not_recommend` 在内的结论都保留给红队审查；
 - OpenAPI、FastAPI、Prompt Registry、Model Gateway、Runtime、Artifact 版本和主图契约保持一致。
 
 自动化映射：
@@ -94,6 +94,28 @@ Evidence Context 中允许类型的 Evidence ID。
 - `tests/unit/test_legacy_single_product_cleanup.py`
 - `tests/unit/test_workflow_contracts.py`
 - 全量 Ruff、Mypy、Pytest 与前端构建。
+
+## AC-29 红队策略审查与定向返工（分支 `agent/redteam-policy-revision`）
+
+- Red Team 必须读取用户、竞品生态、生态机会、技术、策略、验证和商业七类当前 Artifact；
+- 模型必须覆盖九个自动攻击维度；存在用户质疑时还必须覆盖 `user_challenge`；
+- 每个事实性 Finding 和用户质疑回答必须引用当前受控 Evidence ID；越界引用失败；
+- 模型不得输出最终 verdict、Task ID、RevisionRequest、分数或部署批准；
+- 后端必须校验 Artifact、Opportunity、Policy、Scenario 和 Agent 范围，并确定性计算
+  `pass / revise / needs_more_evidence / human_review / reject`；
+- 每条用户质疑必须恰好回答一次；无答案时生成具体 `red_team_gaps`，进入统一 Source Recovery；
+- `revise` 必须从最早受影响 Agent 恢复，只让它和依赖下游重新运行，并保存前后 Finding 差异；
+- `reject` 必须输出范围更小的安全 fallback、阻断原因、重启条件和验证 Demo，不能返回空方案；
+- 达到最大返工次数仍未通过时返回 `inconclusive`，不得无限循环；
+- `pass` 只进入 `awaiting_scenario_validation`，不表示上架、盈利或真实部署获批。
+
+自动化映射：
+
+- `tests/unit/test_red_team_policy_revision.py`
+- `tests/unit/test_source_recovery_workflow.py`
+- `tests/integration/test_research_workflow.py`
+- `tests/integration/test_runtime_langgraph_integration.py`
+- 全量 Ruff、Mypy、Pytest、OpenAPI 解析与前端构建。
 
 ## AC-03C 竞品官方产品专家
 

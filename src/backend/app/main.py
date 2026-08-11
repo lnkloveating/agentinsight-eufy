@@ -32,6 +32,11 @@ from app.agents.ecosystem_opportunity import (
     register_ecosystem_opportunity_prompt,
 )
 from app.agents.policy_verification import PolicyVerificationRuntimeAdapter
+from app.agents.red_team_policy_revision import (
+    RedTeamContextBuilder,
+    RedTeamModelAgentAdapter,
+    register_red_team_prompt,
+)
 from app.agents.security_policy import (
     SecurityPolicyContextBuilder,
     SecurityPolicyModelAgentAdapter,
@@ -103,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     prompt_registry = PromptRegistry()
     register_brief_clarifier_prompt(prompt_registry)
     register_commercial_evaluation_prompt(prompt_registry)
+    register_red_team_prompt(prompt_registry)
     register_user_research_prompt(prompt_registry)
     register_ecosystem_opportunity_prompt(prompt_registry)
     register_technical_feasibility_prompt(prompt_registry)
@@ -261,9 +267,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 context_builder=EcosystemOpportunityContextBuilder(
                     database,
                     max_items=resolved_settings.ecosystem_opportunity_max_evidence_items,
-                    max_excerpt_chars=(
-                        resolved_settings.ecosystem_opportunity_max_excerpt_chars
-                    ),
+                    max_excerpt_chars=(resolved_settings.ecosystem_opportunity_max_excerpt_chars),
                     max_total_chars=(
                         resolved_settings.ecosystem_opportunity_max_total_evidence_chars
                     ),
@@ -282,9 +286,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 context_builder=TechnicalFeasibilityContextBuilder(
                     EcosystemOpportunityContextBuilder(
                         database,
-                        max_items=(
-                            resolved_settings.technical_feasibility_max_evidence_items
-                        ),
+                        max_items=(resolved_settings.technical_feasibility_max_evidence_items),
                         max_excerpt_chars=(
                             resolved_settings.technical_feasibility_max_excerpt_chars
                         ),
@@ -301,17 +303,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 application.state.model_gateway,
                 prompt_registry,
                 ProjectModelSelectionResolver(database),
-                model_timeout_seconds=(
-                    resolved_settings.security_policy_model_timeout_seconds
-                ),
+                model_timeout_seconds=(resolved_settings.security_policy_model_timeout_seconds),
                 context_builder=SecurityPolicyContextBuilder(
                     TechnicalFeasibilityContextBuilder(
                         EcosystemOpportunityContextBuilder(
                             database,
                             max_items=resolved_settings.security_policy_max_evidence_items,
-                            max_excerpt_chars=(
-                                resolved_settings.security_policy_max_excerpt_chars
-                            ),
+                            max_excerpt_chars=(resolved_settings.security_policy_max_excerpt_chars),
                             max_total_chars=(
                                 resolved_settings.security_policy_max_total_evidence_chars
                             ),
@@ -336,15 +334,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 context_builder=CommercialEvaluationContextBuilder(
                     EcosystemOpportunityContextBuilder(
                         database,
-                        max_items=(
-                            resolved_settings.commercial_evaluation_max_evidence_items
-                        ),
+                        max_items=(resolved_settings.commercial_evaluation_max_evidence_items),
                         max_excerpt_chars=(
                             resolved_settings.commercial_evaluation_max_excerpt_chars
                         ),
                         max_total_chars=(
                             resolved_settings.commercial_evaluation_max_total_evidence_chars
                         ),
+                    )
+                ),
+            ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.RED_TEAM,
+            RedTeamModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=resolved_settings.red_team_model_timeout_seconds,
+                context_builder=RedTeamContextBuilder(
+                    CommercialEvaluationContextBuilder(
+                        EcosystemOpportunityContextBuilder(
+                            database,
+                            max_items=resolved_settings.red_team_max_evidence_items,
+                            max_excerpt_chars=resolved_settings.red_team_max_excerpt_chars,
+                            max_total_chars=(resolved_settings.red_team_max_total_evidence_chars),
+                        )
                     )
                 ),
             ),

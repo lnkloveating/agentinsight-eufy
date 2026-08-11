@@ -66,6 +66,7 @@ http://localhost:8000/api/v1
 | Security Policy Verification | 从已编译 DSL 生成风险规则和五类 fallback 场景，运行确定性断言，并接受受策略范围约束的用户场景 | 可以展示场景、trace、命中规则、风险、动作、失败和 Gap；只证明当前 dry-run 场景行为，不代表真实部署或商业可行 |
 | Commercial Evaluation v2 | 分别判断用户价值、商业假设与交付运营条件；交付结论消费技术和策略验证结果，最终 recommendation 由后端计算 | 可以展示四类 recommendation、Evidence 下钻、商业假设与补研 Gap；没有商业总分，也不承诺上架或收益 |
 | 旧编排 v1 清理 | 删除未接入主图的候选综合、验证分发、最终综合角色及宽松旧红队 Directive；保留正式 Red Team 和 Human Gate | 前端运行时间线只展示真实存在的当前节点，不再出现三个永远不会运行的占位 Agent |
+| Red Team Policy Revision v2 | 模型攻击九个维度并回答用户质疑；后端校验 Evidence/ID、计算 verdict、生成定向 RevisionRequest 和版本差异 | 可以展示 Finding、补研、人工审查、淘汰 fallback 和最早返工节点；通过只允许进入 Demo，不代表部署或上架 |
 | 设备能力图 | 保存带 Evidence 的厂商设备能力、用户授权家庭快照和 `available/unavailable/unknown/conflict` 确定性查询；不保存家庭视频或序列号 | 可以实现“方案需要什么能力、已有设备能否支撑、还缺什么”的设备覆盖页；企业 API 未接入时不得显示实时设备状态 |
 
 ### 2.2 已完成底座、但还没有形成完整业务运行
@@ -102,11 +103,11 @@ http://localhost:8000/api/v1
 28. 主图在技术证据不足时进入统一 Source Recovery，补证后只重跑技术 Agent；至少一个 `demo_feasible` 或 `conditionally_feasible` 才进入 `awaiting_security_policy`。
 29. Commercial Evaluation v2 已接入 Model Gateway、Runtime、共享 Evidence 和主图；用户价值、商业模式与交付运营独立输出，缺证时只重跑商业 Agent。
 30. 旧编排 v1 的三个占位角色和旧 Red Team Directive 已删除；新版红队将直接消费当前七类上游 Artifact。
+31. Red Team v2 已接入 Model Gateway、Runtime、API、共享 Evidence 和 LangGraph；用户质疑无法回答时进入统一补研，可修订问题只重跑最早受影响 Agent 及下游。
 
 当前仍缺少：
 
 - HTTP 项目生命周期与 LangGraph 完整启动/恢复的生产接线；
-- 红队 Prompt、用户质疑与定向策略修订；
 - 真实 ASR 和视觉模型 Connector（当前主办方两个文本模型不能替代）；
 - 最终报告、Package Risk Demo 和飞书集成。
 
@@ -132,6 +133,8 @@ http://localhost:8000/api/v1
 | `GET` | `/projects/{project_id}/agents/ecosystem-opportunity/artifacts` | 可用 | 查询版本化生态机会、AI Native 结构、Evidence IDs 和补研问题 |
 | `POST` | `/projects/{project_id}/agents/commercial-evaluation-v2` | 可用 | 运行证据约束的生态商业评估；不计算商业总分，不代表上架或收益保证 |
 | `GET` | `/projects/{project_id}/agents/commercial-evaluation-v2/artifacts` | 可用 | 查询用户价值、商业假设、交付运营、recommendation 和补研 Gap 历史版本 |
+| `POST` | `/projects/{project_id}/agents/red-team-policy-revision` | 可用 | 运行九维红队攻击，并携带最多 20 条用户质疑；最终 verdict 和返工任务由后端计算 |
+| `GET` | `/projects/{project_id}/agents/red-team-policy-revision/artifacts` | 可用 | 查询 Finding、质疑回答、补研、RevisionRequest、fallback 和版本差异 |
 | `POST` | `/projects/{project_id}/agents/ecosystem_opportunity/artifacts/{artifact_id}/source-recovery` | 可用 | 通过领域 Agent 通用接口把生态机会缺口转换为前端补充弹窗，并保存定向恢复血缘 |
 | `GET` | `/projects/{project_id}/events` | 可用 | SSE 实时事件和历史回放 |
 | `POST` | `/projects/{project_id}/decisions` | 可用 | 提交当前 Human Gate 决定 |
@@ -480,8 +483,9 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 
 Security Policy Verification 合并前全量 Pytest：345 passed，1 个第三方 Starlette TestClient 弃用警告
 Commercial Evaluation v2 合并前全量 Pytest：353 passed，1 个第三方 Starlette TestClient 弃用警告
+Red Team Policy Revision v2 合并前全量 Pytest：368 passed，1 个第三方 Starlette TestClient 弃用警告
 ruff: 全量通过
-mypy: 通过（244 个 app 源文件）
+mypy: 通过（251 个 app 源文件）
 前端：ESLint 与生产构建通过
 Alembic: 当前迁移头为 0019_device_capability_graph；内存数据库从空库升级到 head 并降级到 0018 通过
 OpenAPI: 3.1 YAML 解析通过
@@ -507,7 +511,7 @@ Ecosystem Opportunity Contract（已完成）
 → Security Policy Compiler（已完成）
 → Security Policy Verification（已完成）
 → Commercial Evaluation v2（已完成）
-→ Red Team Policy Revision
+→ Red Team Policy Revision（已完成）
 → Package Goal-to-Guard Demo
 → Feishu Aily Integration
 → E2E Ecosystem Hardening

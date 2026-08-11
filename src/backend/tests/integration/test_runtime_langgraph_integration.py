@@ -154,7 +154,7 @@ async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway
             config,
         )
 
-        assert result["outcome"] == WorkflowOutcome.AWAITING_RED_TEAM_REVIEW
+        assert result["outcome"] == WorkflowOutcome.AWAITING_SCENARIO_VALIDATION
         async with database.session() as session:
             repository = ProjectRepository(session)
             runs = await repository.list_agent_runs(project_id)
@@ -166,6 +166,7 @@ async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway
             ResearchAgentType.SECURITY_POLICY,
             ResearchAgentType.POLICY_VERIFICATION,
             ResearchAgentType.COMMERCIAL_EVALUATION,
+            ResearchAgentType.RED_TEAM,
         }
         assert len(runs) == len(main_path_types)
         assert all(run.output_artifact_id is not None for run in runs)
@@ -183,5 +184,10 @@ async def test_langgraph_runs_ai_native_phase_through_persistent_runtime_gateway
         )
         assert len(manager_artifacts) == 1
         assert manager_artifacts[0].artifact.artifact_type == "research_manager"
+        red_team_artifacts = await ArtifactStore(database).list_versions(
+            project_id, f"task_{project_id}_red_team_policy_revision_v2"
+        )
+        assert len(red_team_artifacts) == 1
+        assert red_team_artifacts[0].artifact.artifact_type == "red_team"
     finally:
         await database.dispose()

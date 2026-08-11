@@ -24,6 +24,7 @@ class TestAgentRuntime:
         technical_verdict: str = "demo_feasible",
         policy_verification_status: str = "passed",
         commercial_recommendation: str = "recommend_for_validation",
+        red_team_verdict: str = "pass",
     ) -> None:
         self.evidence_ready_on_attempt = evidence_ready_on_attempt
         self.fail_once = set(fail_once or set())
@@ -32,6 +33,7 @@ class TestAgentRuntime:
         self.technical_verdict = technical_verdict
         self.policy_verification_status = policy_verification_status
         self.commercial_recommendation = commercial_recommendation
+        self.red_team_verdict = red_team_verdict
         self.calls: list[ResearchAgentType] = []
         self.call_counts: Counter[ResearchAgentType] = Counter()
         self.contexts: dict[ResearchAgentType, AgentContext] = {}
@@ -66,10 +68,7 @@ class TestAgentRuntime:
                 if task.agent_type is ResearchAgentType.USER_RESEARCH:
                     payload = _user_research_payload(evidence_id)
                 else:
-                    if (
-                        self.call_counts[task.agent_type]
-                        <= self.invalid_competitor_attempts
-                    ):
+                    if self.call_counts[task.agent_type] <= self.invalid_competitor_attempts:
                         payload = {
                             "schema_name": "competitor_a2a_foundation",
                             "specialist_outputs": [],
@@ -77,9 +76,7 @@ class TestAgentRuntime:
                     else:
                         if self.competitor_ready_with_gaps:
                             status = ResearchTaskStatus.PARTIAL
-                            unknowns = [
-                                "Recurring user-review evidence remains incomplete."
-                            ]
+                            unknowns = ["Recurring user-review evidence remains incomplete."]
                         payload = _competitor_synthesis_payload(
                             evidence_id,
                             with_gaps=self.competitor_ready_with_gaps,
@@ -120,9 +117,7 @@ class TestAgentRuntime:
             payload = {
                 "schema_name": "security_policy_dsl_portfolio",
                 "execution_mode": "dry_run",
-                "coverage": {
-                    "compiled_policy_count": len(context.selected_innovation_ids)
-                },
+                "coverage": {"compiled_policy_count": len(context.selected_innovation_ids)},
             }
         elif task.agent_type is ResearchAgentType.POLICY_VERIFICATION:
             evidence_ids = _upstream_evidence(context)
@@ -130,20 +125,38 @@ class TestAgentRuntime:
                 "schema_name": "security_policy_verification",
                 "verification_status": self.policy_verification_status,
                 "coverage": {
-                    "passed_count": (
-                        0 if self.policy_verification_status == "failed" else 6
-                    ),
-                    "failed_count": (
-                        1 if self.policy_verification_status == "failed" else 0
-                    ),
+                    "passed_count": (0 if self.policy_verification_status == "failed" else 6),
+                    "failed_count": (1 if self.policy_verification_status == "failed" else 0),
                     "inconclusive_count": 0,
                 },
             }
+        elif task.agent_type is ResearchAgentType.RED_TEAM:
+            evidence_ids = _upstream_evidence(context)
+            verdict = (
+                "revise"
+                if self.red_team_verdict == "revise_once"
+                and self.call_counts[task.agent_type] == 1
+                else (
+                    "pass"
+                    if self.red_team_verdict == "revise_once"
+                    else self.red_team_verdict
+                )
+            )
+            payload = _red_team_payload(context, verdict, evidence_ids)
+            if verdict in {
+                "revise",
+                "needs_more_evidence",
+                "human_review",
+            }:
+                status = ResearchTaskStatus.PARTIAL
 
         return ResearchArtifact(
             artifact_id=f"artifact_{task.task_id}_{self.call_counts[task.agent_type]}",
             task_id=task.task_id,
             artifact_type=task.agent_type,
+            schema_version=(
+                "2.0" if task.agent_type is ResearchAgentType.RED_TEAM else "1.0"
+            ),
             status=status,
             payload=payload,
             evidence_ids=evidence_ids,
@@ -190,6 +203,104 @@ def _upstream_evidence(context: AgentContext) -> list[str]:
             for evidence_id in artifact.evidence_ids
         }
     )
+
+
+def _red_team_payload(
+    context: AgentContext, verdict: str, evidence_ids: list[str]
+) -> dict[str, object]:
+    source_artifacts = {
+        key: value
+        for key, value in context.upstream_artifacts.items()
+        if key != "previous_red_team"
+    }
+    security = source_artifacts[ResearchAgentType.SECURITY_POLICY.value]
+    finding = {
+        "finding_id": "finding_test_policy",
+        "dimension": ("privacy_consent" if verdict == "human_review" else "safety_failure"),
+        "severity": "critical" if verdict == "reject" else "medium",
+        "title": "测试红队问题",
+        "description": "当前策略需要进一步验证失败和降级边界。",
+        "evidence_ids": evidence_ids[:1],
+        "affected_artifact_ids": [security.artifact_id],
+        "affected_agent_types": [ResearchAgentType.SECURITY_POLICY.value],
+        "affected_opportunity_ids": context.selected_innovation_ids,
+        "affected_policy_ids": [],
+        "affected_scenario_ids": [],
+        "required_actions": (["收紧干预并重新验证。"] if verdict == "revise" else []),
+        "requires_source_recovery": verdict == "needs_more_evidence",
+        "requires_human_decision": verdict == "human_review",
+        "irreducible": verdict == "reject",
+    }
+    findings = [] if verdict == "pass" else [finding]
+    gaps = (
+        [
+            {
+                "gap_id": "gap_test_red_team",
+                "question": "设备离线时是否仍能执行本地安全降级？",
+                "reason": "当前资料不能证明离线边界。",
+                "severity": "medium",
+                "dimension": "safety_failure",
+                "recommended_source_types": ["enterprise_document"],
+                "required_evidence_types": ["offline_capability"],
+                "affected_agent_types": [ResearchAgentType.SECURITY_POLICY.value],
+                "affected_opportunity_ids": context.selected_innovation_ids,
+            }
+        ]
+        if verdict == "needs_more_evidence"
+        else []
+    )
+    revisions = (
+        [
+            {
+                "revision_id": "revision_test_policy",
+                "finding_ids": ["finding_test_policy"],
+                "affected_agent_types": [ResearchAgentType.SECURITY_POLICY.value],
+                "affected_task_ids": [security.task_id],
+                "required_actions": ["收紧干预并重新验证。"],
+                "resume_from_agent": ResearchAgentType.SECURITY_POLICY.value,
+                "reason": "从安全策略节点开始定向返工。",
+            }
+        ]
+        if verdict == "revise"
+        else []
+    )
+    return {
+        "schema_name": "red_team_policy_revision",
+        "schema_version": "2.0",
+        "source_artifact_ids": {key: value.artifact_id for key, value in source_artifacts.items()},
+        "summary": "红队已覆盖证据、技术、安全、隐私、离线与商业边界。",
+        "summary_evidence_ids": evidence_ids[:1],
+        "findings": findings,
+        "challenge_responses": [],
+        "red_team_gaps": gaps,
+        "revision_requests": revisions,
+        "fallback_plan": (
+            {
+                "safe_scope": "只保留低风险本地提醒。",
+                "blocked_reason": "关键风险不可在当前范围内消除。",
+                "reentry_conditions": ["补齐设备能力和安全试验。"],
+                "validation_demo": "验证本地提醒，不执行远程高风险动作。",
+            }
+            if verdict == "reject"
+            else None
+        ),
+        "verdict": verdict,
+        "verdict_reason": f"后端测试结论={verdict}。",
+        "version_diff": {
+            "previous_artifact_id": None,
+            "added_finding_ids": ["finding_test_policy"] if findings else [],
+            "resolved_finding_ids": [],
+            "unchanged_finding_ids": [],
+        },
+        "coverage": {
+            "required_dimension_count": 9,
+            "attacked_dimension_count": 9,
+            "finding_count": len(findings),
+            "challenge_count": 0,
+            "unresolved_challenge_count": 0,
+            "evidence_context_hash": "0" * 64,
+        },
+    }
 
 
 def _user_research_payload(evidence_id: str) -> dict[str, object]:
@@ -447,16 +558,12 @@ def _technical_feasibility_payload(
         "coverage": {
             "selected_opportunity_count": len(selected_ids),
             "assessed_opportunity_count": len(selected_ids),
-            "demo_feasible_count": (
-                len(selected_ids) if verdict == "demo_feasible" else 0
-            ),
+            "demo_feasible_count": (len(selected_ids) if verdict == "demo_feasible" else 0),
             "conditionally_feasible_count": 0,
             "insufficient_evidence_count": (
                 len(selected_ids) if verdict == "insufficient_evidence" else 0
             ),
-            "not_feasible_count": (
-                len(selected_ids) if verdict == "not_feasible" else 0
-            ),
+            "not_feasible_count": (len(selected_ids) if verdict == "not_feasible" else 0),
             "evidence_context_hash": "a" * 64,
             "capability_graph_hash": "b" * 64,
         },

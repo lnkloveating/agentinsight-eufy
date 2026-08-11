@@ -1004,6 +1004,7 @@ class SourceRecoveryService:
         fields: list[SourceRecoveryRequestedField] = []
         affected_agents: set[str] = set()
         for gap in gaps:
+            affected_agents.update(gap.affected_agent_types)
             evidence_types = (
                 gap.required_evidence_types
                 or gap.recommended_source_types[:1]

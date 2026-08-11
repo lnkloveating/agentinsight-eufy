@@ -66,6 +66,7 @@ class AgentGapProjector:
             or raw.get("affected_opportunity_ids")
             or raw.get("affected_policy_ids")
         )
+        affected_agents = self._string_list(raw.get("affected_agent_types"))
         supplied_id = self._text(raw.get("gap_id"))
         gap_id = supplied_id or self._stable_gap_id(
             agent_type=agent_type,
@@ -75,6 +76,7 @@ class AgentGapProjector:
             recommended_source_types=recommended,
             required_evidence_types=required,
             affected_candidate_ids=affected,
+            affected_agent_types=affected_agents,
         )
         return AgentArtifactGap(
             gap_id=gap_id,
@@ -87,6 +89,7 @@ class AgentGapProjector:
             recommended_source_types=recommended,
             required_evidence_types=required,
             affected_candidate_ids=affected,
+            affected_agent_types=affected_agents,
             scope_label=scope_label,
             dimension=dimension,
             source_path=source_path,
@@ -121,6 +124,7 @@ class AgentGapProjector:
         recommended_source_types: list[str],
         required_evidence_types: list[str],
         affected_candidate_ids: list[str],
+        affected_agent_types: list[str],
     ) -> str:
         canonical = json.dumps(
             {
@@ -131,6 +135,7 @@ class AgentGapProjector:
                 "recommended_source_types": sorted(recommended_source_types),
                 "required_evidence_types": sorted(required_evidence_types),
                 "affected_candidate_ids": sorted(affected_candidate_ids),
+                "affected_agent_types": sorted(affected_agent_types),
             },
             ensure_ascii=False,
             sort_keys=True,

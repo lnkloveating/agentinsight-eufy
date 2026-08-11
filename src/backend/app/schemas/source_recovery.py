@@ -113,6 +113,7 @@ class AgentGapSeverity(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    CRITICAL = "critical"
     UNKNOWN = "unknown"
 
 
@@ -127,17 +128,29 @@ class AgentArtifactGap(BaseModel):
     recommended_source_types: list[str] = Field(default_factory=list, max_length=20)
     required_evidence_types: list[str] = Field(default_factory=list, max_length=20)
     affected_candidate_ids: list[str] = Field(default_factory=list, max_length=20)
+    affected_agent_types: list[str] = Field(default_factory=list, max_length=10)
     scope_label: str | None = Field(default=None, max_length=240)
     dimension: str | None = Field(default=None, max_length=120)
     source_path: str = Field(min_length=1, max_length=500)
 
     @field_validator(
-        "recommended_source_types", "required_evidence_types", "affected_candidate_ids"
+        "recommended_source_types",
+        "required_evidence_types",
+        "affected_candidate_ids",
+        "affected_agent_types",
     )
     @classmethod
     def unique_gap_lists(cls, value: list[str]) -> list[str]:
         if len(value) != len(set(value)):
             raise ValueError("agent gap list values must be unique")
+        return value
+
+    @field_validator("affected_agent_types")
+    @classmethod
+    def known_gap_agent_types(cls, value: list[str]) -> list[str]:
+        invalid = sorted(set(value) - _RECOVERABLE_AGENT_TYPES)
+        if invalid:
+            raise ValueError(f"agent gap contains unknown agent types: {invalid}")
         return value
 
 
