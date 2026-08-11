@@ -26,6 +26,7 @@ from app.agents.ecosystem_opportunity import (
     EcosystemOpportunityModelAgentAdapter,
     register_ecosystem_opportunity_prompt,
 )
+from app.agents.policy_verification import PolicyVerificationRuntimeAdapter
 from app.agents.security_policy import (
     SecurityPolicyContextBuilder,
     SecurityPolicyModelAgentAdapter,
@@ -312,6 +313,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
                 ),
             ),
+        )
+        agent_registry.bind(
+            ResearchAgentType.POLICY_VERIFICATION,
+            PolicyVerificationRuntimeAdapter(),
         )
         application.state.agent_registry = agent_registry
         if resolved_settings.auto_create_schema:

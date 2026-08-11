@@ -26,6 +26,9 @@ CONTEXT_POLICY: dict[ResearchAgentType, set[ResearchAgentType]] = {
         ResearchAgentType.TECHNICAL_FEASIBILITY,
         ResearchAgentType.SECURITY_POLICY,
     },
+    ResearchAgentType.POLICY_VERIFICATION: {
+        ResearchAgentType.SECURITY_POLICY,
+    },
     ResearchAgentType.COMMERCIAL_EVALUATION: {
         ResearchAgentType.USER_RESEARCH,
         ResearchAgentType.COMPETITOR_RESEARCH,

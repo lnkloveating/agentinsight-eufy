@@ -422,6 +422,51 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /projects/{project_id}/workflows/security-policy-verification:
+    post:
+      tags: [Research]
+      summary: Run deterministic dry-run Security Policy verification
+      description: |
+        Generates rule and five fallback scenarios from the compiled DSL, accepts bounded
+        user-defined scenarios, and evaluates assertions without controlling a real device.
+      operationId: runPolicyVerification
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyVerificationRunCreate"
+      responses:
+        "200":
+          description: Persisted policy verification Artifact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyVerificationArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /projects/{project_id}/workflows/security-policy-verification/artifacts:
+    get:
+      tags: [Research]
+      summary: List policy verification Artifact versions
+      operationId: listPolicyVerificationArtifacts
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Policy verification Artifacts in ascending version order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyVerificationArtifact"
+        default:
+          $ref: "#/components/responses/Error"
+
   /projects/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps:
     get:
       tags: [Research, Evidence]
@@ -1936,6 +1981,7 @@ components:
           - ecosystem_opportunity
           - technical_feasibility
           - security_policy
+          - policy_verification
           - commercial_evaluation
           - red_team
           - candidate_synthesis
@@ -2634,7 +2680,7 @@ components:
         task_id: { type: [string, "null"] }
         agent_type:
           type: string
-          enum: [research_manager, user_research, competitor_research, ecosystem_opportunity, technical_feasibility, security_policy, business, red_team]
+          enum: [research_manager, user_research, competitor_research, ecosystem_opportunity, technical_feasibility, security_policy, policy_verification, business, red_team]
         agent_name: { type: string }
         status:
           $ref: "#/components/schemas/AgentRunStatus"
@@ -7030,6 +7076,269 @@ components:
           type: array
           items: { type: string }
         web_url: { type: string, format: uri }
+
+    VerificationScenarioCategory:
+      type: string
+      enum: [baseline, risk_rule, boundary, device_offline, network_offline, signal_unavailable, uncertain_state, permission_denied, adversarial, user_defined]
+
+    VerificationStatus:
+      type: string
+      enum: [passed, conditionally_passed, failed, inconclusive]
+
+    ScenarioValueUpdate:
+      type: object
+      additionalProperties: false
+      required: [reference, value]
+      properties:
+        at_seconds: { type: integer, default: 0, minimum: 0, maximum: 604800 }
+        reference: { type: string, pattern: "^(state|signal):[a-z][a-z0-9_]{1,63}$" }
+        value:
+          anyOf:
+            - { type: boolean }
+            - { type: integer }
+            - { type: number }
+            - { type: string }
+            - { type: "null" }
+
+    PolicyVerificationScenarioCreate:
+      type: object
+      additionalProperties: false
+      required: [name, policy_id, rationale]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        policy_id: { type: string, minLength: 1, maxLength: 80 }
+        category:
+          $ref: "#/components/schemas/VerificationScenarioCategory"
+        updates:
+          type: array
+          maxItems: 60
+          items:
+            $ref: "#/components/schemas/ScenarioValueUpdate"
+        fallback_trigger:
+          anyOf:
+            - $ref: "#/components/schemas/PolicyFallbackTrigger"
+            - { type: "null" }
+        expected_risk_level:
+          anyOf:
+            - $ref: "#/components/schemas/PolicyRiskLevel"
+            - { type: "null" }
+        expected_action:
+          anyOf:
+            - $ref: "#/components/schemas/AllowedIntervention"
+            - { type: "null" }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          maxItems: 100
+          items: { type: string, minLength: 1, maxLength: 80 }
+
+    PolicyVerificationRunCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        policy_artifact_id:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+        scenarios:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/PolicyVerificationScenarioCreate"
+
+    PolicyVerificationScenario:
+      type: object
+      additionalProperties: false
+      required: [name, policy_id, rationale, scenario_id, origin]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        policy_id: { type: string, minLength: 1, maxLength: 80 }
+        category:
+          $ref: "#/components/schemas/VerificationScenarioCategory"
+        updates:
+          type: array
+          maxItems: 60
+          items:
+            $ref: "#/components/schemas/ScenarioValueUpdate"
+        fallback_trigger:
+          anyOf:
+            - $ref: "#/components/schemas/PolicyFallbackTrigger"
+            - { type: "null" }
+        expected_risk_level:
+          anyOf:
+            - $ref: "#/components/schemas/PolicyRiskLevel"
+            - { type: "null" }
+        expected_action:
+          anyOf:
+            - $ref: "#/components/schemas/AllowedIntervention"
+            - { type: "null" }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+        evidence_ids:
+          type: array
+          maxItems: 100
+          items: { type: string, minLength: 1, maxLength: 80 }
+        scenario_id: { type: string, minLength: 1, maxLength: 80 }
+        origin: { type: string, enum: [generated, user] }
+
+    ScenarioAssertion:
+      type: object
+      additionalProperties: false
+      required: [assertion, passed, expected, observed]
+      properties:
+        assertion: { type: string, minLength: 1, maxLength: 500 }
+        passed: { type: boolean }
+        expected: { type: string, minLength: 1, maxLength: 200 }
+        observed: { type: string, minLength: 1, maxLength: 200 }
+
+    ScenarioTraceStep:
+      type: object
+      additionalProperties: false
+      required: [sequence, event, risk_level, fired_rule_ids]
+      properties:
+        sequence: { type: integer, minimum: 0, maximum: 100 }
+        event: { type: string, minLength: 1, maxLength: 500 }
+        risk_level:
+          $ref: "#/components/schemas/PolicyRiskLevel"
+        action:
+          anyOf:
+            - $ref: "#/components/schemas/AllowedIntervention"
+            - { type: "null" }
+        fired_rule_ids:
+          type: array
+          maxItems: 100
+          items: { type: string }
+        fallback_id: { type: [string, "null"] }
+
+    PolicyVerificationScenarioResult:
+      type: object
+      additionalProperties: false
+      required: [scenario_id, policy_id, category, status, observed_risk_level, fired_rule_ids, assertions, trace, evidence_ids]
+      properties:
+        scenario_id: { type: string }
+        policy_id: { type: string }
+        category:
+          $ref: "#/components/schemas/VerificationScenarioCategory"
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
+        observed_risk_level:
+          $ref: "#/components/schemas/PolicyRiskLevel"
+        observed_action:
+          anyOf:
+            - $ref: "#/components/schemas/AllowedIntervention"
+            - { type: "null" }
+        fired_rule_ids:
+          type: array
+          items: { type: string }
+        fallback_id: { type: [string, "null"] }
+        assertions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ScenarioAssertion"
+        trace:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ScenarioTraceStep"
+        evidence_ids:
+          type: array
+          items: { type: string }
+
+    PolicyVerificationGap:
+      type: object
+      additionalProperties: false
+      required: [gap_id, question, reason, affected_policy_ids, affected_scenario_ids, recommended_source_types]
+      properties:
+        gap_id: { type: string }
+        question: { type: string }
+        reason: { type: string }
+        affected_policy_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        affected_scenario_ids:
+          type: array
+          items: { type: string }
+        recommended_source_types:
+          type: array
+          items: { type: string }
+
+    PolicyVerificationCoverage:
+      type: object
+      additionalProperties: false
+      required: [policy_count, scenario_count, passed_count, failed_count, inconclusive_count, generated_count, user_defined_count, fallback_types_covered]
+      properties:
+        policy_count: { type: integer, minimum: 1, maximum: 5 }
+        scenario_count: { type: integer, minimum: 1, maximum: 500 }
+        passed_count: { type: integer, minimum: 0 }
+        failed_count: { type: integer, minimum: 0 }
+        inconclusive_count: { type: integer, minimum: 0 }
+        generated_count: { type: integer, minimum: 1 }
+        user_defined_count: { type: integer, minimum: 0 }
+        fallback_types_covered: { type: integer, minimum: 0, maximum: 5 }
+
+    PolicyVerificationPayload:
+      type: object
+      additionalProperties: false
+      required: [schema_name, schema_version, source_policy_artifact_id, source_policy_versions, verification_status, recommendation, scenarios, results, validation_gaps, coverage]
+      properties:
+        schema_name: { type: string, const: security_policy_verification }
+        schema_version: { type: string, const: "1.0" }
+        source_policy_artifact_id: { type: string }
+        source_policy_versions:
+          type: object
+          minProperties: 1
+          maxProperties: 5
+          additionalProperties: { type: integer, minimum: 1 }
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        recommendation: { type: string }
+        scenarios:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PolicyVerificationScenario"
+        results:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PolicyVerificationScenarioResult"
+        validation_gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyVerificationGap"
+        coverage:
+          $ref: "#/components/schemas/PolicyVerificationCoverage"
+
+    PolicyVerificationArtifact:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, task_id, artifact_type, schema_version, status, payload, evidence_ids, contradictions, unknowns, quality_score, errors]
+      properties:
+        artifact_id: { type: string }
+        task_id: { type: string }
+        artifact_type: { type: string, const: policy_verification }
+        schema_version: { type: string, const: "1.0" }
+        status:
+          $ref: "#/components/schemas/ResearchTaskStatus"
+        payload:
+          $ref: "#/components/schemas/PolicyVerificationPayload"
+        evidence_ids:
+          type: array
+          minItems: 1
+          items: { type: string }
+        contradictions:
+          type: array
+          items: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+        quality_score: { type: number, minimum: 0, maximum: 100 }
+        errors:
+          type: array
+          items: { type: string }
 
     FeishuDecisionCreate:
       type: object

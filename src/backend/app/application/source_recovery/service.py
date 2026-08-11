@@ -112,6 +112,7 @@ _AGENT_BY_ROUTE: dict[SourceRouteTarget, tuple[ResearchAgentType, ...]] = {
         ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
         ResearchAgentType.TECHNICAL_FEASIBILITY,
         ResearchAgentType.SECURITY_POLICY,
+        ResearchAgentType.POLICY_VERIFICATION,
     ),
     SourceRouteTarget.MARKET_RESEARCH: (
         ResearchAgentType.ECOSYSTEM_OPPORTUNITY,
@@ -1092,6 +1093,7 @@ class SourceRecoveryService:
                 (
                     ResearchAgentType.TECHNICAL_FEASIBILITY,
                     ResearchAgentType.SECURITY_POLICY,
+                    ResearchAgentType.POLICY_VERIFICATION,
                 ),
                 "数据接口、信号可用性和授权事实",
             )
