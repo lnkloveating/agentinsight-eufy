@@ -142,16 +142,23 @@ async def test_main_graph_runs_selected_opportunity_through_technical_feasibilit
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_SECURITY_POLICY
-    assert result["terminal_reason"] == "security_policy_not_implemented"
+    assert result["outcome"] == WorkflowOutcome.AWAITING_POLICY_VERIFICATION
+    assert result["terminal_reason"] == "policy_verification_not_implemented"
     assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 1
     technical_context = runtime.contexts[ResearchAgentType.TECHNICAL_FEASIBILITY]
     assert technical_context.selected_innovation_ids == ["eco_continuous_guard"]
     assert set(technical_context.upstream_artifacts) == {"ecosystem_opportunity"}
+    policy_context = runtime.contexts[ResearchAgentType.SECURITY_POLICY]
+    assert policy_context.selected_innovation_ids == ["eco_continuous_guard"]
+    assert set(policy_context.upstream_artifacts) == {
+        "ecosystem_opportunity",
+        "technical_feasibility",
+    }
     assert set(runtime.call_counts) == {
         ResearchAgentType.RESEARCH_MANAGER,
         *PLANNED_AGENT_TYPES,
         ResearchAgentType.TECHNICAL_FEASIBILITY,
+        ResearchAgentType.SECURITY_POLICY,
     }
     assert len(result["decision_history"]) == 2
 
@@ -223,7 +230,7 @@ async def test_technical_evidence_gap_enters_universal_source_recovery() -> None
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_SECURITY_POLICY
+    assert result["outcome"] == WorkflowOutcome.AWAITING_POLICY_VERIFICATION
     assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 2
     assert runtime.call_counts[ResearchAgentType.ECOSYSTEM_OPPORTUNITY] == 1
 
