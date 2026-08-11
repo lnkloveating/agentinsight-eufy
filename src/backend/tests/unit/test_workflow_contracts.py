@@ -96,6 +96,7 @@ def test_context_builder_exposes_only_allowed_upstream_artifacts() -> None:
         "competitor_research",
         "ecosystem_opportunity",
         "technical_feasibility",
+        "policy_verification",
     }
     assert "red_team" not in commercial_context.upstream_artifacts
     assert set(ecosystem_context.upstream_artifacts) == {

@@ -24,6 +24,7 @@ class TestAgentRuntime:
         invalid_competitor_attempts: int = 0,
         technical_verdict: str = "demo_feasible",
         policy_verification_status: str = "passed",
+        commercial_recommendation: str = "recommend_for_validation",
     ) -> None:
         self.evidence_ready_on_attempt = evidence_ready_on_attempt
         self.fail_once = set(fail_once or set())
@@ -31,6 +32,7 @@ class TestAgentRuntime:
         self.invalid_competitor_attempts = invalid_competitor_attempts
         self.technical_verdict = technical_verdict
         self.policy_verification_status = policy_verification_status
+        self.commercial_recommendation = commercial_recommendation
         self.calls: list[ResearchAgentType] = []
         self.call_counts: Counter[ResearchAgentType] = Counter()
         self.contexts: dict[ResearchAgentType, AgentContext] = {}
@@ -85,7 +87,25 @@ class TestAgentRuntime:
                         )
         elif task.agent_type is ResearchAgentType.COMMERCIAL_EVALUATION:
             evidence_ids = _upstream_evidence(context)
-            payload = {"assessed_innovation_ids": ["inv_one", "inv_two", "inv_three"]}
+            gaps = (
+                [
+                    {
+                        "gap_id": "gap_commercial_willingness",
+                        "dimension": "willingness_to_pay",
+                        "question": "What willingness-to-pay range supports the pilot?",
+                        "reason": "Current Evidence cannot establish conversion.",
+                        "affected_opportunity_ids": context.selected_innovation_ids,
+                        "recommended_source_types": ["enterprise_data"],
+                    }
+                ]
+                if self.commercial_recommendation == "needs_more_evidence"
+                else []
+            )
+            payload = {
+                "schema_name": "commercial_evaluation_v2",
+                "recommendation": self.commercial_recommendation,
+                "commercial_gaps": gaps,
+            }
         elif task.agent_type is ResearchAgentType.RED_TEAM:
             evidence_ids = _upstream_evidence(context)
             payload = {

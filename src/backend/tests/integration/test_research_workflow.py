@@ -142,8 +142,8 @@ async def test_main_graph_runs_selected_opportunity_through_technical_feasibilit
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_COMMERCIAL_EVALUATION
-    assert result["terminal_reason"] == "commercial_evaluation_not_implemented"
+    assert result["outcome"] == WorkflowOutcome.AWAITING_RED_TEAM_REVIEW
+    assert result["terminal_reason"] == "red_team_policy_revision_not_implemented"
     assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 1
     technical_context = runtime.contexts[ResearchAgentType.TECHNICAL_FEASIBILITY]
     assert technical_context.selected_innovation_ids == ["eco_continuous_guard"]
@@ -156,12 +156,22 @@ async def test_main_graph_runs_selected_opportunity_through_technical_feasibilit
     }
     verification_context = runtime.contexts[ResearchAgentType.POLICY_VERIFICATION]
     assert set(verification_context.upstream_artifacts) == {"security_policy"}
+    commercial_context = runtime.contexts[ResearchAgentType.COMMERCIAL_EVALUATION]
+    assert commercial_context.selected_innovation_ids == ["eco_continuous_guard"]
+    assert set(commercial_context.upstream_artifacts) == {
+        "user_research",
+        "competitor_research",
+        "ecosystem_opportunity",
+        "technical_feasibility",
+        "policy_verification",
+    }
     assert set(runtime.call_counts) == {
         ResearchAgentType.RESEARCH_MANAGER,
         *PLANNED_AGENT_TYPES,
         ResearchAgentType.TECHNICAL_FEASIBILITY,
         ResearchAgentType.SECURITY_POLICY,
         ResearchAgentType.POLICY_VERIFICATION,
+        ResearchAgentType.COMMERCIAL_EVALUATION,
     }
     assert len(result["decision_history"]) == 2
 
@@ -261,9 +271,56 @@ async def test_technical_evidence_gap_enters_universal_source_recovery() -> None
         config,
     )
 
-    assert result["outcome"] == WorkflowOutcome.AWAITING_COMMERCIAL_EVALUATION
+    assert result["outcome"] == WorkflowOutcome.AWAITING_RED_TEAM_REVIEW
     assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 2
     assert runtime.call_counts[ResearchAgentType.ECOSYSTEM_OPPORTUNITY] == 1
+
+
+@pytest.mark.asyncio
+async def test_commercial_gap_enters_source_recovery_then_retries_only_commercial() -> None:
+    runtime = TestAgentRuntime(commercial_recommendation="needs_more_evidence")
+    graph = compile_research_graph(runtime, InMemorySaver())
+    config = {
+        "configurable": {"thread_id": "proj_commercial_recovery"},
+        "recursion_limit": 60,
+    }
+
+    result = await graph.ainvoke(
+        create_initial_state("proj_commercial_recovery", _brief()), config
+    )
+    result = await graph.ainvoke(
+        Command(resume=_decision(_gate_request(result), DecisionAction.APPROVE)),
+        config,
+    )
+    result = await graph.ainvoke(
+        Command(
+            resume=_decision(
+                _gate_request(result),
+                DecisionAction.APPROVE,
+                selected=["eco_continuous_guard"],
+            )
+        ),
+        config,
+    )
+
+    request = _source_request(result)
+    assert request.gap_ids == ["gap_commercial_willingness"]
+    assert request.affected_agent_types == ["commercial_evaluation"]
+    runtime.commercial_recommendation = "conditional"
+    result = await graph.ainvoke(
+        Command(
+            resume=_resolved_recovery(
+                "proj_commercial_recovery",
+                "task_proj_commercial_recovery_commercial_evaluation_v2",
+                "commercial_evaluation",
+            )
+        ),
+        config,
+    )
+
+    assert result["outcome"] == WorkflowOutcome.AWAITING_RED_TEAM_REVIEW
+    assert runtime.call_counts[ResearchAgentType.COMMERCIAL_EVALUATION] == 2
+    assert runtime.call_counts[ResearchAgentType.TECHNICAL_FEASIBILITY] == 1
 
 
 @pytest.mark.asyncio
