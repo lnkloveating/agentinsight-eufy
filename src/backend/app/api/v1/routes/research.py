@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 
 from fastapi import APIRouter, Request, status
 
@@ -36,10 +36,10 @@ async def retry_initial_research(project_id: str, request: Request) -> dict[str,
 @router.post(
     "/{project_id}/agents/competitor-ecosystem",
     response_model=CompetitorEcosystemArtifact,
-    summary="运行竞品生态分析 Agent",
+    summary="杩愯绔炲搧鐢熸€佸垎鏋?Agent",
     description=(
-        "复用候选发现和三个 A2A 事实专家，生成带 Evidence 审计的竞品生态能力矩阵。"
-        "资料未覆盖时保持 unknown，不改写为竞品没有。"
+        "澶嶇敤鍊欓€夊彂鐜板拰涓変釜 A2A 浜嬪疄涓撳锛岀敓鎴愬甫 Evidence 瀹¤鐨勭珵鍝佺敓鎬佽兘鍔涚煩闃点€?
+        "璧勬枡鏈鐩栨椂淇濇寔 unknown锛屼笉鏀瑰啓涓虹珵鍝佹病鏈夈€?
     ),
 )
 async def run_competitor_ecosystem(
@@ -52,7 +52,7 @@ async def run_competitor_ecosystem(
 @router.get(
     "/{project_id}/agents/competitor-ecosystem/artifacts",
     response_model=list[CompetitorEcosystemArtifact],
-    summary="查询竞品生态分析 Artifact 历史版本",
+    summary="鏌ヨ绔炲搧鐢熸€佸垎鏋?Artifact 鍘嗗彶鐗堟湰",
 )
 async def list_competitor_ecosystem_artifacts(
     project_id: str,
@@ -61,12 +61,13 @@ async def list_competitor_ecosystem_artifacts(
     return await service.list_artifacts(project_id)
 
 
+
 @router.post(
     "/{project_id}/agents/user-research",
     response_model=UserResearchArtifact,
-    summary="运行用户研究 Agent",
+    summary="杩愯鐢ㄦ埛鐮旂┒ Agent",
     description=(
-        "从 Evidence Lake 构建受控上下文，通过已注册 Runtime 调用真实模型并保存 Artifact。"
+        "浠?Evidence Lake 鏋勫缓鍙楁帶涓婁笅鏂囷紝閫氳繃宸叉敞鍐?Runtime 璋冪敤鐪熷疄妯″瀷骞朵繚瀛?Artifact銆?
     ),
 )
 async def run_user_research(
@@ -79,7 +80,7 @@ async def run_user_research(
 @router.get(
     "/{project_id}/agents/user-research/artifacts",
     response_model=list[UserResearchArtifact],
-    summary="查询用户研究 Artifact 历史版本",
+    summary="鏌ヨ鐢ㄦ埛鐮旂┒ Artifact 鍘嗗彶鐗堟湰",
 )
 async def list_user_research_artifacts(
     project_id: str,
@@ -91,10 +92,10 @@ async def list_user_research_artifacts(
 @router.post(
     "/{project_id}/agents/ecosystem-opportunity",
     response_model=EcosystemOpportunityArtifact,
-    summary="运行生态机会 Agent",
+    summary="杩愯鐢熸€佹満浼?Agent",
     description=(
-        "读取最新用户研究、竞品生态 Artifact、共享 Evidence 和设备能力图，动态生成有证据边界的"
-        "设备功能、设备产品或生态服务机会；未知设备能力保持为技术假设和补研缺口。"
+        "璇诲彇鏈€鏂扮敤鎴风爺绌躲€佺珵鍝佺敓鎬?Artifact銆佸叡浜?Evidence 鍜岃澶囪兘鍔涘浘锛屽姩鎬佺敓鎴愭湁璇佹嵁杈圭晫鐨?
+        "璁惧鍔熻兘銆佽澶囦骇鍝佹垨鐢熸€佹湇鍔℃満浼氾紱鏈煡璁惧鑳藉姏淇濇寔涓烘妧鏈亣璁惧拰琛ョ爺缂哄彛銆?
     ),
 )
 async def run_ecosystem_opportunity(
@@ -107,7 +108,7 @@ async def run_ecosystem_opportunity(
 @router.get(
     "/{project_id}/agents/ecosystem-opportunity/artifacts",
     response_model=list[EcosystemOpportunityArtifact],
-    summary="查询生态机会 Artifact 历史版本",
+    summary="鏌ヨ鐢熸€佹満浼?Artifact 鍘嗗彶鐗堟湰",
 )
 async def list_ecosystem_opportunity_artifacts(
     project_id: str,
@@ -119,10 +120,10 @@ async def list_ecosystem_opportunity_artifacts(
 @router.post(
     "/{project_id}/agents/product-technical",
     response_model=ProductTechnicalArtifact,
-    summary="运行产品技术机会 Agent",
+    summary="杩愯浜у搧鎶€鏈満浼?Agent",
     description=(
-        "读取最新用户研究与竞品综合 Artifact，动态生成有 Evidence 引用的未来产品候选，"
-        "并由后端执行 Event Understanding Gate。"
+        "璇诲彇鏈€鏂扮敤鎴风爺绌朵笌绔炲搧缁煎悎 Artifact锛屽姩鎬佺敓鎴愭湁 Evidence 寮曠敤鐨勬湭鏉ヤ骇鍝佸€欓€夛紝"
+        "骞剁敱鍚庣鎵ц Event Understanding Gate銆?
     ),
 )
 async def run_product_technical(
@@ -135,7 +136,7 @@ async def run_product_technical(
 @router.get(
     "/{project_id}/agents/product-technical/artifacts",
     response_model=list[ProductTechnicalArtifact],
-    summary="查询产品技术机会 Artifact 历史版本",
+    summary="鏌ヨ浜у搧鎶€鏈満浼?Artifact 鍘嗗彶鐗堟湰",
 )
 async def list_product_technical_artifacts(
     project_id: str,
@@ -148,7 +149,7 @@ async def list_product_technical_artifacts(
     "/{project_id}/agents/product-technical/artifacts/{artifact_id}/source-recovery",
     response_model=SourceRecovery,
     status_code=status.HTTP_201_CREATED,
-    summary="把产品技术缺口转换为用户补研任务",
+    summary="鎶婁骇鍝佹妧鏈己鍙ｈ浆鎹负鐢ㄦ埛琛ョ爺浠诲姟",
 )
 async def create_product_technical_source_recovery(
     project_id: str,
@@ -162,7 +163,7 @@ async def create_product_technical_source_recovery(
 @router.get(
     "/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/gaps",
     response_model=AgentArtifactGapPage,
-    summary="查询任意领域 Agent Artifact 的统一补研缺口",
+    summary="鏌ヨ浠绘剰棰嗗煙 Agent Artifact 鐨勭粺涓€琛ョ爺缂哄彛",
 )
 async def list_agent_artifact_gaps(
     project_id: str,
@@ -177,7 +178,7 @@ async def list_agent_artifact_gaps(
     "/{project_id}/agents/{agent_type}/artifacts/{artifact_id}/source-recovery",
     response_model=SourceRecovery,
     status_code=status.HTTP_201_CREATED,
-    summary="把任意领域 Agent 缺口转换为统一补研任务",
+    summary="鎶婁换鎰忛鍩?Agent 缂哄彛杞崲涓虹粺涓€琛ョ爺浠诲姟",
 )
 async def create_agent_artifact_source_recovery(
     project_id: str,
