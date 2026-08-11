@@ -125,6 +125,20 @@ class ResearchWorkflow:
         builder.add_node(
             "policy_verification_complete", self._policy_verification_complete
         )
+        builder.add_node(
+            "prepare_commercial_evaluation", self._prepare_commercial_evaluation
+        )
+        builder.add_node("commercial_evaluation", self._commercial_evaluation)
+        builder.add_node(
+            "prepare_commercial_source_recovery",
+            self._prepare_commercial_source_recovery,
+        )
+        builder.add_node(
+            "commercial_source_recovery_gate",
+            self._commercial_source_recovery_gate,
+        )
+        builder.add_node("commercial_complete", self._commercial_complete)
+        builder.add_node("awaiting_policy_revision", self._awaiting_policy_revision)
         builder.add_node("reject", self._reject)
         builder.add_node("terminate", self._terminate)
         builder.add_node("inconclusive", self._inconclusive)
@@ -195,8 +209,32 @@ class ResearchWorkflow:
         builder.add_edge("security_policy", "prepare_policy_verification")
         builder.add_edge("prepare_policy_verification", "policy_verification")
         builder.add_edge("policy_verification", "policy_verification_complete")
-        for terminal_node in (
+        builder.add_conditional_edges(
             "policy_verification_complete",
+            self._route_policy_verification_complete,
+            {
+                "advance": "prepare_commercial_evaluation",
+                "revision": "awaiting_policy_revision",
+                "inconclusive": "inconclusive",
+            },
+        )
+        builder.add_edge("prepare_commercial_evaluation", "commercial_evaluation")
+        builder.add_conditional_edges(
+            "commercial_evaluation",
+            self._route_commercial_evaluation,
+            {
+                "advance": "commercial_complete",
+                "research_more": "prepare_commercial_source_recovery",
+                "inconclusive": "inconclusive",
+            },
+        )
+        builder.add_edge(
+            "prepare_commercial_source_recovery", "commercial_source_recovery_gate"
+        )
+        builder.add_edge("commercial_source_recovery_gate", "commercial_evaluation")
+        for terminal_node in (
+            "commercial_complete",
+            "awaiting_policy_revision",
             "reject",
             "terminate",
             "inconclusive",
@@ -279,6 +317,165 @@ class ResearchWorkflow:
                         if result.passed
                         else ";".join(result.issues)
                     ),
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _prepare_commercial_evaluation(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        verification_task = self._task(
+            state, ResearchAgentType.POLICY_VERIFICATION
+        )
+        selected_ids = list(dict.fromkeys(state.get("selected_innovation_ids", [])))
+        task = ResearchTask(
+            task_id=f"task_{state['project_id']}_commercial_evaluation_v2",
+            project_id=state["project_id"],
+            agent_type=ResearchAgentType.COMMERCIAL_EVALUATION,
+            goal=(
+                "Evaluate user value, business hypotheses and delivery conditions "
+                "without scoring."
+            ),
+            scope={"opportunity_ids": selected_ids},
+            required_artifacts=[
+                ResearchAgentType.USER_RESEARCH.value,
+                ResearchAgentType.ECOSYSTEM_OPPORTUNITY.value,
+                ResearchAgentType.TECHNICAL_FEASIBILITY.value,
+                ResearchAgentType.POLICY_VERIFICATION.value,
+            ],
+            evidence_rules=verification_task.evidence_rules,
+            budget=ResearchBudget(
+                max_pages=verification_task.budget.max_pages,
+                max_iterations=state.get("max_iterations", 2),
+                deadline_seconds=180,
+            ),
+            depends_on=[verification_task.task_id],
+            acceptance_checks=[
+                "user_value_evidence_bound",
+                "business_claims_evidence_bound",
+                "delivery_uses_upstream_verdicts",
+                "no_weighted_score",
+            ],
+        )
+        plan = self._task_plan(state)
+        plan = [item for item in plan if item.agent_type is not task.agent_type]
+        plan.append(task)
+        return {
+            "task_plan": [item.model_dump(mode="json") for item in plan],
+            "outcome": WorkflowOutcome.RUNNING.value,
+            "current_stage": "commercial_evaluation_preparation",
+            "progress": 89,
+            "node_history": [
+                self._event("prepare_commercial_evaluation", task, "prepared")
+            ],
+        }
+
+    async def _commercial_evaluation(self, state: ResearchState) -> dict[str, Any]:
+        return await self._run_planned_agent(
+            state,
+            ResearchAgentType.COMMERCIAL_EVALUATION,
+            "commercial_evaluation_v2",
+            93,
+            accepted_statuses={ResearchTaskStatus.COMPLETED, ResearchTaskStatus.PARTIAL},
+        )
+
+    async def _prepare_commercial_source_recovery(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.COMMERCIAL_EVALUATION)
+        gaps = artifact.payload.get("commercial_gaps", [])
+        gap_ids = [
+            str(item["gap_id"])
+            for item in gaps
+            if isinstance(item, dict) and item.get("gap_id")
+        ]
+        questions = [
+            str(item["question"])
+            for item in gaps
+            if isinstance(item, dict) and item.get("question")
+        ]
+        if not gap_ids or not questions:
+            raise WorkflowContractError(
+                "needs_more_evidence commercial result requires explicit gaps"
+            )
+        request = WorkflowSourceRecoveryRequest(
+            project_id=state["project_id"],
+            source_artifact_id=artifact.artifact_id,
+            source_task_id=artifact.task_id,
+            gap_ids=list(dict.fromkeys(gap_ids))[:50],
+            questions=list(dict.fromkeys(questions))[:50],
+            affected_agent_types=[ResearchAgentType.COMMERCIAL_EVALUATION.value],
+        )
+        return {
+            "pending_source_recovery": request.model_dump(mode="json"),
+            "outcome": WorkflowOutcome.AWAITING_SOURCE_RECOVERY.value,
+            "current_stage": "commercial_source_recovery",
+            "progress": 93,
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_source_recovery_pending",
+                    node="prepare_commercial_source_recovery",
+                    task_id=artifact.task_id,
+                    status="waiting",
+                    message="等待补充销量、成本、支持、合规或付费意愿证据。",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _commercial_source_recovery_gate(
+        self, state: ResearchState
+    ) -> dict[str, Any]:
+        pending = state.get("pending_source_recovery")
+        if pending is None:
+            raise WorkflowContractError("commercial source recovery has no pending request")
+        request = WorkflowSourceRecoveryRequest.model_validate(pending)
+        recovery = SourceRecovery.model_validate(interrupt(request.model_dump(mode="json")))
+        update = prepare_source_recovery_resume(state, recovery)
+        task = self._task(state, ResearchAgentType.COMMERCIAL_EVALUATION)
+        if task.task_id not in update["affected_task_ids"]:
+            raise WorkflowContractError(
+                "source recovery does not target commercial evaluation task"
+            )
+        return {
+            **update,
+            "pending_source_recovery": None,
+            "outcome": WorkflowOutcome.RUNNING.value,
+        }
+
+    async def _commercial_complete(self, state: ResearchState) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.COMMERCIAL_EVALUATION)
+        recommendation = str(artifact.payload.get("recommendation", "unknown"))
+        return {
+            "outcome": WorkflowOutcome.AWAITING_RED_TEAM_REVIEW.value,
+            "current_stage": "commercial_evaluation_complete",
+            "progress": 95,
+            "pending_gate": None,
+            "terminal_reason": "red_team_policy_revision_not_implemented",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_phase_completed",
+                    node="commercial_complete",
+                    task_id=artifact.task_id,
+                    status=WorkflowOutcome.AWAITING_RED_TEAM_REVIEW,
+                    message=f"Commercial Evaluation v2 completed: {recommendation}.",
+                ).model_dump(mode="json")
+            ],
+        }
+
+    async def _awaiting_policy_revision(self, state: ResearchState) -> dict[str, Any]:
+        artifact = self._artifact(state, ResearchAgentType.POLICY_VERIFICATION)
+        return {
+            "outcome": WorkflowOutcome.AWAITING_POLICY_REVISION.value,
+            "current_stage": "policy_revision_pending",
+            "progress": 88,
+            "terminal_reason": "policy_verification_failed",
+            "node_history": [
+                WorkflowEvent(
+                    event_type="workflow_phase_completed",
+                    node="awaiting_policy_revision",
+                    task_id=artifact.task_id,
+                    status=WorkflowOutcome.AWAITING_POLICY_REVISION,
+                    message="Policy verification failed; wait for targeted revision.",
                 ).model_dump(mode="json")
             ],
         }
@@ -637,7 +834,7 @@ class ResearchWorkflow:
             reason = "policy_verification_inconclusive"
         else:
             outcome = WorkflowOutcome.AWAITING_COMMERCIAL_EVALUATION
-            reason = "commercial_evaluation_not_implemented"
+            reason = "commercial_evaluation_next"
         coverage = artifact.payload.get("coverage", {})
         return {
             "outcome": outcome.value,
@@ -888,6 +1085,48 @@ class ResearchWorkflow:
             if state.get("iteration", 0) < state.get("max_iterations", 2):
                 return "research_more"
         return "inconclusive"
+
+    @staticmethod
+    def _route_policy_verification_complete(state: ResearchState) -> str:
+        raw = state.get("artifacts", {}).get(
+            ResearchAgentType.POLICY_VERIFICATION.value
+        )
+        if raw is None:
+            raise WorkflowContractError("missing policy verification artifact")
+        artifact = ResearchArtifact.model_validate(raw)
+        status = str(artifact.payload.get("verification_status", ""))
+        if status == "failed":
+            return "revision"
+        if status == "inconclusive":
+            return "inconclusive"
+        if status not in {"passed", "conditionally_passed"}:
+            raise WorkflowContractError(
+                f"unsupported policy verification status: {status}"
+            )
+        return "advance"
+
+    @staticmethod
+    def _route_commercial_evaluation(state: ResearchState) -> str:
+        raw = state.get("artifacts", {}).get(
+            ResearchAgentType.COMMERCIAL_EVALUATION.value
+        )
+        if raw is None:
+            raise WorkflowContractError("missing commercial evaluation artifact")
+        artifact = ResearchArtifact.model_validate(raw)
+        recommendation = str(artifact.payload.get("recommendation", ""))
+        if recommendation == "needs_more_evidence":
+            if state.get("iteration", 0) >= state.get("max_iterations", 2):
+                return "inconclusive"
+            return "research_more"
+        if recommendation not in {
+            "recommend_for_validation",
+            "conditional",
+            "do_not_recommend",
+        }:
+            raise WorkflowContractError(
+                f"unsupported commercial recommendation: {recommendation}"
+            )
+        return "advance"
 
     @staticmethod
     def _event(

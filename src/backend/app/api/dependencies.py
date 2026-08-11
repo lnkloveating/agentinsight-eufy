@@ -7,6 +7,7 @@ from typing import Annotated, cast
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.commercial_evaluation_v2 import CommercialEvaluationContextBuilder
 from app.agents.competitor.ecosystem_context import (
     CompetitorEcosystemEvidenceContextBuilder,
 )
@@ -39,6 +40,7 @@ from app.application.model_gateway import (
 from app.application.model_gateway.selection import ProjectModelSelectionResolver
 from app.application.projects import ProjectService
 from app.application.research import (
+    CommercialEvaluationV2Service,
     CompetitorEcosystemAnalysisService,
     EcosystemOpportunityService,
     PolicyVerificationService,
@@ -572,6 +574,33 @@ def get_policy_verification_service(request: Request) -> PolicyVerificationServi
 
 PolicyVerificationServiceDependency = Annotated[
     PolicyVerificationService, Depends(get_policy_verification_service)
+]
+
+
+def get_commercial_evaluation_v2_service(
+    request: Request,
+) -> CommercialEvaluationV2Service:
+    settings: Settings = request.app.state.settings
+    database: Database = request.app.state.database
+    runtime = AgentRuntimeGateway(
+        database,
+        cast(AgentRegistry, request.app.state.agent_registry),
+        cast(ProjectEventBroker, request.app.state.event_broker),
+        str(getattr(request.state, "trace_id", "trace_unknown")),
+    )
+    context_builder = CommercialEvaluationContextBuilder(
+        EcosystemOpportunityContextBuilder(
+            database,
+            max_items=settings.commercial_evaluation_max_evidence_items,
+            max_excerpt_chars=settings.commercial_evaluation_max_excerpt_chars,
+            max_total_chars=settings.commercial_evaluation_max_total_evidence_chars,
+        )
+    )
+    return CommercialEvaluationV2Service(database, runtime, context_builder)
+
+
+CommercialEvaluationV2ServiceDependency = Annotated[
+    CommercialEvaluationV2Service, Depends(get_commercial_evaluation_v2_service)
 ]
 
 

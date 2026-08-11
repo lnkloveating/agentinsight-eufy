@@ -6,6 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agents.commercial_evaluation_v2 import (
+    CommercialEvaluationContextBuilder,
+    CommercialEvaluationModelAgentAdapter,
+    register_commercial_evaluation_prompt,
+)
 from app.agents.competitor import (
     CompetitorA2ASupervisorAdapter,
     CompetitorDiscoveryModelAgentAdapter,
@@ -97,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     prompt_registry = PromptRegistry()
     register_brief_clarifier_prompt(prompt_registry)
+    register_commercial_evaluation_prompt(prompt_registry)
     register_user_research_prompt(prompt_registry)
     register_ecosystem_opportunity_prompt(prompt_registry)
     register_technical_feasibility_prompt(prompt_registry)
@@ -317,6 +323,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         agent_registry.bind(
             ResearchAgentType.POLICY_VERIFICATION,
             PolicyVerificationRuntimeAdapter(),
+        )
+        agent_registry.bind(
+            ResearchAgentType.COMMERCIAL_EVALUATION,
+            CommercialEvaluationModelAgentAdapter(
+                application.state.model_gateway,
+                prompt_registry,
+                ProjectModelSelectionResolver(database),
+                model_timeout_seconds=(
+                    resolved_settings.commercial_evaluation_model_timeout_seconds
+                ),
+                context_builder=CommercialEvaluationContextBuilder(
+                    EcosystemOpportunityContextBuilder(
+                        database,
+                        max_items=(
+                            resolved_settings.commercial_evaluation_max_evidence_items
+                        ),
+                        max_excerpt_chars=(
+                            resolved_settings.commercial_evaluation_max_excerpt_chars
+                        ),
+                        max_total_chars=(
+                            resolved_settings.commercial_evaluation_max_total_evidence_chars
+                        ),
+                    )
+                ),
+            ),
         )
         application.state.agent_registry = agent_registry
         if resolved_settings.auto_create_schema:
